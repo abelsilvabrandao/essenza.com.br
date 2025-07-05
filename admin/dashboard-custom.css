@@ -1,0 +1,276 @@
+/* Estilo profissional para tabela Produtos & Margens */
+.dashboard-table-wrapper {
+  background: var(--card-background);
+  border-radius: 1.1rem;
+  box-shadow: var(--shadow);
+  padding: 1.5rem 1rem 1.5rem 1rem;
+  margin-bottom: 2rem;
+  overflow-x: auto;
+}
+.dashboard-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 1.04rem;
+  background: var(--card-background);
+  box-shadow: 0 1px 6px #0001;
+  border-radius: 0.8rem;
+  overflow: hidden;
+}
+.dashboard-table thead tr {
+  background: linear-gradient(90deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+  color: #fff;
+}
+.dashboard-table th, .dashboard-table td {
+  padding: 0.65rem 0.7rem;
+  text-align: center;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 0.96rem;
+}
+.dashboard-table th {
+  font-size: 0.93rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dashboard-table td {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dashboard-table td.produto,
+.dashboard-table td.categoria,
+.dashboard-table td.status {
+  white-space: normal;
+  word-break: break-word;
+}
+@media (max-width: 900px) {
+  .dashboard-table th, .dashboard-table td {
+    font-size: 0.87rem;
+    padding: 0.45rem 0.4rem;
+  }
+}
+@media (max-width: 700px) {
+  .dashboard-table th, .dashboard-table td {
+    font-size: 0.78rem;
+    padding: 0.32rem 0.2rem;
+  }
+}
+.dashboard-table th {
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.dashboard-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.dashboard-table tbody tr {
+  transition: background 0.18s;
+  cursor: pointer;
+}
+
+.dashboard-table tbody tr:hover {
+  background: #ffeaf7 !important; /* rosa bebê */
+  color: #020202 !important;
+  box-shadow: 0 2px 18px #ffeaf799;
+  transition: background 0.18s, color 0.18s;
+}
+.dashboard-table .badge {
+  padding: 0.37em 0.8em;
+  border-radius: 1em;
+  font-size: 0.97em;
+  font-weight: 500;
+  margin-left: 0.2em;
+}
+.badge-ativo { background: #e1ffd8; color: #2e7d32; }
+.badge-inativo { background: #ffe0e0; color: #b71c1c; }
+.badge-critico { background: #fff3cd; color: #856404; }
+.badge-negativo { background: #ffe0f0; color: #c2185b; }
+.estoque-baixo { background: #fff7f7 !important; }
+.lucro-negativo td {
+  color: #c2185b !important;
+}
+
+/* Lucro por Produto - gráfico centralizado */
+.lucro-produto-title {
+  font-size: 2.1rem;
+  font-weight: 700;
+  color: var(--primary-color);
+  margin: 1.5rem auto 1rem auto;
+  text-align: center;
+  display: block;
+}
+.lucro-produto-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: none;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
+  margin: 0 auto 1.2rem auto;
+  width: 100%;
+  max-width: none;
+}
+#lucroBarChart {
+  margin: 0 auto;
+  max-width: 800px;
+  width: 100%;
+  height: 340px !important;
+}
+.lucro-produto-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: var(--card-background);
+  border-radius: 1.1rem;
+  box-shadow: var(--shadow);
+  padding: 1.1rem 1rem 1.1rem 1rem;
+  margin: 0.2rem auto 1.2rem auto;
+  width: 100%;
+  max-width: 600px;
+}
+#lucroBarChart {
+  margin: 0 auto;
+  max-width: 520px;
+  width: 100%;
+  height: 320px !important;
+}
+
+/* Análise Geral do Estoque - cards organizados */
+.dashboard-section {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2rem;
+  margin-bottom: 1.5rem;
+  justify-content: center;
+}
+.dashboard-indicadores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.1rem;
+  justify-content: center;
+  margin-bottom: 0.7rem;
+}
+.dashboard-indicadores-sm .indicador-card {
+  min-width: 90px;
+  max-width: 110px;
+  padding: 0.55rem 0.3rem 0.55rem 0.3rem;
+  font-size: 0.87rem;
+}
+.dashboard-indicadores-sm .indicador-icone {
+  font-size: 1.25rem;
+  margin-bottom: 0.2rem;
+}
+.dashboard-indicadores-sm .indicador-titulo {
+  font-size: 0.85rem;
+}
+.dashboard-indicadores-sm .indicador-valor {
+  font-size: 1.05rem;
+}
+@media (max-width: 900px) {
+  .dashboard-indicadores-sm .indicador-card {
+    min-width: 90px;
+    max-width: 110px;
+    padding: 0.45rem 0.15rem;
+    font-size: 0.83rem;
+  }
+  .dashboard-indicadores-sm .indicador-icone {
+    font-size: 1rem;
+  }
+}
+@media (max-width: 700px) {
+  .dashboard-indicadores-sm .indicador-card {
+    min-width: 60px;
+    max-width: 80px;
+    padding: 0.3rem 0.05rem;
+    font-size: 0.78rem;
+  }
+  .dashboard-indicadores-sm .indicador-icone {
+    font-size: 0.9rem;
+  }
+}
+@media (max-width: 900px) {
+  .dashboard-indicadores-sm .indicador-card {
+    min-width: 90px;
+    max-width: 120px;
+    padding: 0.7rem 0.5rem;
+    font-size: 0.93rem;
+  }
+}
+@media (max-width: 700px) {
+  .dashboard-indicadores-sm .indicador-card {
+    min-width: 70px;
+    max-width: 100px;
+    padding: 0.6rem 0.3rem;
+    font-size: 0.91rem;
+  }
+}
+.indicador-card {
+  background: #fff6fa;
+  border-radius: 1.1rem;
+  box-shadow: var(--shadow);
+  padding: 1.2rem 2rem 1.2rem 2rem;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: box-shadow 0.18s;
+}
+.indicador-card:hover {
+  box-shadow: 0 4px 24px #ff69b420;
+}
+.indicador-icone {
+  font-size: 2.2rem;
+  margin-bottom: 0.5rem;
+  color: var(--primary-color);
+}
+.indicador-titulo {
+  font-size: 1.1rem;
+  font-weight: 500;
+  margin-bottom: 0.3rem;
+}
+.indicador-valor {
+  font-size: 1.45rem;
+  font-weight: 700;
+  color: var(--secondary-color);
+}
+.dashboard-title {
+  text-align: center;
+  font-size: 2.1rem;
+  margin-bottom: 1.5rem;
+  color: var(--primary-color);
+  font-weight: 700;
+}
+.dashboard-divider {
+  border: none;
+  border-top: 2px solid #ffe0f0;
+  margin: 2rem 0 1.5rem 0;
+}
+
+/* Distribuição por Categoria - gráfico pizza redondo e estilizado */
+#categoryDistribution {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: var(--card-background);
+  border-radius: 1.1rem;
+  box-shadow: var(--shadow);
+  padding: 2rem 1rem 1.5rem 1rem;
+  margin-bottom: 2rem;
+}
+#categoriaPieChart {
+  max-width: 340px;
+  width: 100%;
+  height: 340px !important;
+  margin: 0 auto;
+  border-radius: 50%;
+  background: #fff6fa;
+}
+.dashboard-chart-title {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--primary-color);
+  margin-bottom: 1.2rem;
+  text-align: center;
+  display: none;
+}

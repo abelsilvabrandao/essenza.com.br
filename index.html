@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Essenza Sua Loja OnLine</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11.0.19/dist/sweetalert2.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.0.19/dist/sweetalert2.all.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Poppins:wght@300;400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header class="header">
+        <div class="header-top">
+            <div class="container">
+                <p class="header-promo">Pronta Entrega • Entrega Rápida • Produtos de Qualidade • Produtos Profissionais</p>
+            </div>
+        </div>
+        <div class="header-main container">
+            <div class="logo-title">
+            <img class="logo" src="img/logo.png" alt="Logo">
+            <h1>ESSENZA</h1>
+            </div>
+            <div class="header-actions">
+                <div class="cart-icon" id="cartIcon">
+                    <span class="cart-count"></span>
+                    <img src="img/cart.svg" alt="Carrinho de compras">
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main>
+
+        <section class="products-section">
+            <div class="container">
+        <section class="categories">
+            <h2>Nossos Produtos</h2>
+            <div class="products-grid" id="productsGrid">
+                <!-- Products will be inserted here via JavaScript -->
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-info">
+                    <div class="logo-title">
+                        <img class="logo" src="img/logo.png" alt="Logo">
+                        <h3>ESSENZA</h3>
+                    </div>
+                    <p>Beleza, estilo e qualidade — em cada detalhe.</p>
+                    <div class="social-links">
+                        <a href="#" aria-label="Instagram">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                                <path d="M12 2c2.717 0 3.056.01 4.122.06 1.065.05 1.79.217 2.428.465.66.254 1.216.598 1.772 1.153.509.5.902 1.105 1.153 1.772.247.637.415 1.363.465 2.428.047 1.066.06 1.405.06 4.122 0 2.717-.01 3.056-.06 4.122-.05 1.065-.218 1.79-.465 2.428a4.883 4.883 0 01-1.153 1.772c-.5.509-1.105.902-1.772 1.153-.637.247-1.363.415-2.428.465-1.066.047-1.405.06-4.122.06-2.717 0-3.056-.01-4.122-.06-1.065-.05-1.79-.218-2.428-.465a4.89 4.89 0 01-1.772-1.153 4.904 4.904 0 01-1.153-1.772c-.248-.637-.415-1.363-.465-2.428C2.013 15.056 2 14.717 2 12c0-2.717.01-3.056.06-4.122.05-1.066.217-1.79.465-2.428a4.88 4.88 0 011.153-1.772A4.897 4.897 0 015.45 2.525c.638-.248 1.362-.415 2.428-.465C8.944 2.013 9.283 2 12 2zm0 5a5 5 0 100 10 5 5 0 000-10zm6.5-.25a1.25 1.25 0 10-2.5 0 1.25 1.25 0 002.5 0zM12 9a3 3 0 110 6 3 3 0 010-6z" fill="currentColor"/>
+                            </svg>
+                        </a>
+                        <a href="#" aria-label="WhatsApp">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" fill="currentColor"/>
+                            </svg>
+                        </a>
+                    </div>
+                </div>
+                <div class="footer-contact">
+                    <h4>Contato</h4>
+                    <p>WhatsApp: (71) 99142-7989</p>
+                    <p>Atendimento: Seg a Sex, 9h às 18h</p>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2025 Essenza. Todos os direitos reservados.</p>
+            </div>
+        </div>
+    </footer>
+
+    <div class="cart-overlay" id="cartOverlay"></div>
+    <div class="cart-modal" id="cartModal">
+        <div class="cart-content">
+            <button class="close-cart" id="closeCart">&times;</button>
+            <h3>Seu Carrinho</h3>
+            <div class="cart-items" id="cartItems">
+                <div class="empty-cart" id="emptyCart">
+                    <img src="img/empty-cart.png" alt="Carrinho Vazio" class="empty-cart-icon">
+                    <p>Seu carrinho está vazio</p>
+                    <p class="empty-cart-subtitle">Explore nossos produtos e encontre o que você procura</p>
+                    <button class="btn-continue-shopping" onclick="closeCartModal()">
+                        <span>Continuar Comprando</span>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M13 5l7 7-7 7M5 12h15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <div class="cart-total" id="cartTotalContainer" style="display: none;">
+                <div class="total-price">
+                    <div id="cartTotal"></div>
+                    <div class="installment-selector">
+                        <label for="installments">Parcelar em:</label>
+                        <select id="installments" class="installment-select">
+                            <option value="1">1x sem juros</option>
+                            <option value="2">2x sem juros</option>
+                            <option value="3" selected>3x sem juros</option>
+                        </select>
+                    </div>
+                    <div id="pixTotal" class="pix-total"></div>
+                </div>
+                <form id="checkoutForm" class="checkout-form">
+                <input type="text" id="customerName" placeholder="Nome completo" required>
+                <input type="tel" id="customerPhone" placeholder="Telefone" required>
+                <input type="email" id="customerEmail" placeholder="E-mail" required>
+                <button type="submit" class="btn-primary">Finalizar Pedido via WhatsApp</button>
+                </form>
+            </div>
+            <div id="orderConfirmation" class="order-confirmation">
+                <h4>Pedido Realizado com Sucesso!</h4>
+                <p id="displayOrderNumber"></p>
+                <div id="orderSummary" class="order-summary"></div>
+                <p>Clique no botão abaixo para continuar no WhatsApp:</p>
+                <a id="whatsappButton" href="#" target="_blank" class="btn-primary">
+                    <span>Continuar no WhatsApp</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path>
+                    </svg>
+                </a>
+                <button id="newOrderButton" class="btn-continue-shopping" onclick="resetOrderConfirmation()">
+                    <span>Fazer Novo Pedido</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Lista de Espera -->
+    <div id="waitlistModal" class="modal">
+        <div class="modal-content">
+            <h2>Lista de Espera</h2>
+            <p>Preencha seus dados para ser avisado quando este produto estiver disponível:</p>
+            <form id="waitlistForm">
+                <input type="hidden" id="waitlistProductId" name="productId">
+                <div class="form-group">
+                    <label for="waitlistName">Nome Completo*</label>
+                    <input type="text" id="waitlistName" name="name" required>
+                </div>
+                <div class="form-group">
+                    <label for="waitlistPhone">Telefone (WhatsApp)*</label>
+                    <input type="tel" id="waitlistPhone" name="phone" required>
+                </div>
+                <div class="form-group">
+                    <label for="waitlistEmail">E-mail*</label>
+                    <input type="email" id="waitlistEmail" name="email" required>
+                </div>
+                <div class="form-buttons">
+                    <button type="submit" class="btn-primary">Cadastrar</button>
+                    <button type="button" class="btn-secondary" onclick="closeWaitlistModal()">Cancelar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-app.js";
+  import { getFirestore } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCYI1q5r5KugKTS8Fns2IEvxj7zR7Do4xU",
+    authDomain: "siteabel-4bcca.firebaseapp.com",
+    projectId: "siteabel-4bcca",
+    storageBucket: "siteabel-4bcca.appspot.com",
+    messagingSenderId: "865433569180",
+    appId: "1:865433569180:web:2ad4d6391ad2432b25aa59",
+    measurementId: "G-PDFHYJ6YZK"
+     };
+
+    const app = initializeApp(firebaseConfig);
+    window.db = getFirestore(app);
+    </script>
+     <script type="module">
+         import { removeFromCart, updateCartState, updateCartCount, toggleCart, closeCartModal, requestOutOfStockProduct, openWaitlistModal, closeWaitlistModal, handleWaitlistSubmit, resetOrderConfirmation, doResetOrder, initializeProductsGrid, initializeDOMReferences } from './js/app.js';
+         import { loadProducts } from './js/products.js';
+         
+         // Funções globais do app.js
+         window.removeFromCart = removeFromCart;
+         window.updateCartState = updateCartState;
+         window.updateCartCount = updateCartCount;
+         window.toggleCart = toggleCart;
+         window.closeCartModal = closeCartModal;
+         window.requestOutOfStockProduct = requestOutOfStockProduct;
+         window.openWaitlistModal = openWaitlistModal;
+         window.closeWaitlistModal = closeWaitlistModal;
+         window.initializeProductsGrid = initializeProductsGrid;
+         window.initializeDOMReferences = initializeDOMReferences;
+
+         // Inicializar referências DOM
+         initializeDOMReferences();
+
+         // Carregar produtos do Firestore apenas uma vez
+         let productsLoaded = false;
+         
+         function loadAndInitialize() {
+             if (!productsLoaded) {
+                 loadProducts().then(() => {
+                     console.log('Produtos carregados com sucesso');
+                     productsLoaded = true;
+                     initializeProductsGrid();
+                 }).catch(error => {
+                     console.error('Erro ao carregar produtos:', error);
+                     Swal.fire({
+                         title: 'Erro',
+                         text: 'Ocorreu um erro ao carregar os produtos.',
+                         icon: 'error'
+                     });
+                 });
+             }
+         }
+
+         // Carregar produtos quando o DOM estiver pronto
+         document.addEventListener('DOMContentLoaded', () => {
+             // Garantir que os produtos só sejam carregados uma vez
+             if (!productsLoaded) {
+                 loadAndInitialize();
+             }
+         });
+     </script>
+     <script>
+         // Função addToCart como global
+         window.addToCart = async function(productId) {
+             const appModule = await import('./js/app.js');
+             return appModule.addToCart(productId);
+         };
+     </script>
+    <script type="module" src="js/products.js"></script>
+    <script type="module" src="js/app.js"></script>
+
+</body>
+</html>

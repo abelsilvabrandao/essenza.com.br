@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerenciamento de Estoque</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="admin.css">
+    <link rel="stylesheet" href="dashboard-custom.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11.0.19/dist/sweetalert2.min.css">
+</head>
+<body>
+    <div class="admin-container">
+        <header class="admin-header">
+            <h1>Gerenciamento de Estoque</h1>
+            <a href="../index.html" class="btn-back">Voltar para Loja</a>
+        </header>
+
+        <div class="container">            
+            <div class="actions">
+                <button id="saveChanges" class="btn-primary" onclick="StockModule.savePendingChanges()">
+                    <i class="fas fa-save"></i>
+                    Salvar Alterações
+                </button>
+                <button class="btn-primary" onclick="StockModule.showAddProductModal()">
+                    <i class="fas fa-plus"></i>
+                    Adicionar Novo Produto
+                </button>
+                <button id="refreshStock" class="btn-primary" onclick="StockModule.refreshStock()">
+                    <i class="fas fa-sync-alt"></i>
+                    Atualizar Lista
+                </button>
+            </div>
+
+            <!-- Abas de navegação -->
+            <div class="tab-buttons">
+            <button id="stockTabBtn" class="tab-button active" data-tab="stock">Estoque</button>
+            <button id="specialOffersTabBtn" class="tab-button" data-tab="specialOffers">Ofertas Especiais</button>
+            <button id="waitlistTabBtn" class="tab-button" data-tab="waitlist">
+            Lista de Espera
+            <span class="waitlist-badge" id="waitlistBadge">0</span>
+            </button>
+            <button id="ordersTabBtn" class="tab-button" data-tab="orders">Pedidos</button>
+            </div>
+
+
+            <!-- Aba de Estoque -->
+            <div id="stockTab" class="tab-content active">
+  <div class="accordion-section">
+    <div class="accordion-header">Produtos Cadastrados <span class="arrow">&#9654;</span></div>
+    <div class="accordion-content">
+      <div id="stockList" class="stock-list"></div>
+    </div>
+  </div>
+  <!-- Nova Seção: Produtos & Margens -->
+  <div class="accordion-section">
+    <div class="accordion-header">Produtos & Margens <span class="arrow">&#9654;</span></div>
+    <div class="accordion-content">
+      <div class="dashboard-controls" style="display:flex;gap:1rem;align-items:center;margin-bottom:1.2rem;">
+        <input type="text" id="dashboardFilterInput" placeholder="Filtrar por nome ou categoria..." class="dashboard-filter-input" style="flex:1;max-width:260px;">
+        <button id="exportDashboardCsv" class="btn btn-secondary"><i class="fas fa-file-excel"></i> Exportar</button>
+      </div>
+      <div class="dashboard-table-wrapper" style="overflow-x:auto;">
+        <table class="dashboard-table" style="min-width:720px;width:100%;">
+          <thead>
+            <tr>
+              <th>Produto</th>
+              <th>Categoria</th>
+              <th>Qtd</th>
+              <th>Compra</th>
+              <th>Preço</th>
+              <th>PIX</th>
+              <th>Lucro</th>
+              <th>Lucro PIX</th>
+              <th>Margem</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="dashboardTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="accordion-section">
+    <div class="accordion-header">Análise Geral do Estoque <span class="arrow">&#9654;</span></div>
+    <div class="accordion-content">
+      <div id="stockDashboard"></div>
+    </div>
+  </div>
+  <div class="accordion-section">
+    <div class="accordion-header">Distribuição por Categoria <span class="arrow">&#9654;</span></div>
+    <div class="accordion-content">
+      <div id="categoryDistribution"></div>
+    </div>
+  </div>
+</div>
+
+            <!-- Aba de Ofertas Especiais -->
+            <div id="specialOffersTab" class="tab-content" style="display: none;">
+                <h2>Gerenciar Ofertas Especiais</h2>
+                <p class="help-text">Selecione os produtos que aparecerão na seção de Ofertas Especiais da página inicial.</p>
+                <div id="specialOffersList" class="offers-list"></div>
+            </div>
+
+            <!-- Aba de Lista de Espera -->
+
+<!-- Aba de Pedidos -->
+<div id="ordersTab" class="tab-content" style="display: none;">
+    <h2>Gerenciar Pedidos</h2>
+    <p class="help-text">Aqui você pode visualizar e gerenciar todos os pedidos realizados.</p>
+    <div class="orders-summary" id="ordersSummary" style="display:none;"></div>
+    <div id="ordersList" class="orders-list"></div>
+</div>
+
+            <div class="tab-content" id="waitlistTab" style="display: none;">
+                <div class="waitlist-header">
+                    <h2>Lista de Espera</h2>
+                    <p class="help-text">Aqui aparecerão os produtos que estão na lista de espera.</p>
+                </div>
+                <div class="waitlist-filters-row" style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:12px;">
+    <input type="text" id="waitlistNameFilter" class="waitlist-filter" placeholder="Buscar por nome do cliente..." style="max-width:220px;height:38px;padding:6px 12px;border-radius:6px;border:1px solid #ccc;font-size:1em;">
+    <select id="waitlistProductFilter" class="waitlist-filter" style="height:38px;padding:6px 12px;border-radius:6px;border:1px solid #ccc;font-size:1em;">
+        <option value="">Todos os Produtos</option>
+    </select>
+    <select id="waitlistStatusFilter" class="waitlist-filter" style="height:38px;padding:6px 12px;border-radius:6px;border:1px solid #ccc;font-size:1em;">
+        <option value="">Todos os Status</option>
+        <option value="pending">Pendentes</option>
+        <option value="notified">Notificados</option>
+    </select>
+    <button id="waitlistClearFilters" class="btn btn-secondary" style="min-width:130px;font-weight:bold;">Limpar Filtros</button>
+    <button id="notifyAllBtn" class="btn-primary waitlist-notify-btn disabled-state"
+        title="Para notificar todos os clientes pendentes com a seleção de produtos">
+        <i class="fab fa-whatsapp"></i>
+        Notificar Todos
+    </button>
+</div>
+                <script>
+                // Função para atualizar o estado do botão "Notificar Todos"
+                async function updateNotifyAllBtn() {
+                    const btn = document.getElementById('notifyAllBtn');
+                    const productFilter = document.getElementById('waitlistProductFilter')?.value;
+                    const statusFilter = document.getElementById('waitlistStatusFilter')?.value;
+                    let waitlistData = window.latestWaitlistData;
+                    let count = 0;
+                    if (!waitlistData) {
+                        btn.classList.add('disabled-state');
+                        btn.dataset.hasClients = 'false';
+                        return;
+                    }
+                    if (productFilter) {
+                        const entries = waitlistData[productFilter] || [];
+                        count = entries.filter(e => !e.notified && (!statusFilter || statusFilter==='' || statusFilter==='pending')).length;
+                    } else {
+                        Object.values(waitlistData).forEach(arr => {
+                            count += arr.filter(e => !e.notified && (!statusFilter || statusFilter==='' || statusFilter==='pending')).length;
+                        });
+                    }
+                    if (count === 0) {
+                        btn.classList.add('disabled-state');
+                        btn.dataset.hasClients = 'false';
+                    } else {
+                        btn.classList.remove('disabled-state');
+                        btn.dataset.hasClients = 'true';
+                    }
+                }
+                document.addEventListener('DOMContentLoaded',()=>{
+                    const btn = document.getElementById('notifyAllBtn');
+                    btn.addEventListener('click', async (e) => {
+                        const productFilter = document.getElementById('waitlistProductFilter')?.value;
+                        const statusFilter = document.getElementById('waitlistStatusFilter')?.value;
+                        let waitlistData = window.latestWaitlistData;
+                        let count = 0;
+                        if (!waitlistData) {
+                            Swal.fire({
+                                title: 'Nenhum cliente pendente',
+                                text: 'Não há clientes pendentes de notificação.',
+                                icon: 'info',
+                                confirmButtonColor: '#ff1493',
+                            });
+                            return;
+                        }
+                        if (productFilter) {
+                            const entries = waitlistData[productFilter] || [];
+                            count = entries.filter(e => !e.notified && (!statusFilter || statusFilter==='' || statusFilter==='pending')).length;
+                            if (count > 0) {
+                                window.StockModule.notifyAllCustomers(productFilter);
+                            } else {
+                                Swal.fire({
+                                    title: 'Nenhum cliente pendente',
+                                    text: 'Não há clientes pendentes de notificação para o produto selecionado.',
+                                    icon: 'info',
+                                    confirmButtonColor: '#ff1493',
+                                });
+                            }
+                        } else {
+                            // Todos os produtos
+                            Object.values(waitlistData).forEach(arr => {
+                                count += arr.filter(e => !e.notified && (!statusFilter || statusFilter==='' || statusFilter==='pending')).length;
+                            });
+                            if (count > 0) {
+                                Swal.fire({
+                                    title: 'Atenção',
+                                    text: 'Selecione um produto específico para notificar todos os clientes daquele produto. Não é permitido notificar todos de todos os produtos ao mesmo tempo.',
+                                    icon: 'warning',
+                                    confirmButtonColor: '#ff1493',
+                                });
+                            } else {
+                                Swal.fire({
+                                    title: 'Nenhum cliente pendente',
+                                    text: 'Não há clientes pendentes de notificação.',
+                                    icon: 'info',
+                                    confirmButtonColor: '#ff1493',
+                                });
+                            }
+                        }
+                    });
+                    document.getElementById('waitlistProductFilter').addEventListener('change', updateNotifyAllBtn);
+                    document.getElementById('waitlistStatusFilter').addEventListener('change', updateNotifyAllBtn);
+                });
+                // Atualizar botão sempre que a lista de espera for renderizada
+                window.updateNotifyAllBtn = updateNotifyAllBtn;
+                </script>
+                <div id="waitlistTotals"></div>
+                <div id="waitlistTable" class="waitlist-table">
+                    <table>
+                        <tbody id="waitlistItems">
+                            <!-- Lista de espera será renderizada aqui -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Modal de Adicionar/Editar Produto -->
+            <div id="productModal" class="modal">
+                <div class="modal-content">
+                    <h2 id="modalTitle">Adicionar Produto</h2>
+                    <form id="productForm">
+                        <!-- Grupo: Informações Básicas -->
+                        <div class="form-section">
+                            <h3 class="section-title"><i class="fas fa-info-circle"></i> Informações Básicas</h3>
+                            <div class="form-group">
+                                <label for="productName"><i class="fas fa-tag"></i> Nome do Produto</label>
+                                <input type="text" id="productName" required placeholder="Ex: Kit Expert NUTRITION">
+                            </div>
+                            <div class="form-group">
+                                <label for="productDescription"><i class="fas fa-align-left"></i> Descrição</label>
+                                <textarea id="productDescription" required placeholder="Descreva as características do produto..."></textarea>
+                            </div>
+                        </div>
+
+                        <!-- Grupo: Imagem do Produto -->
+                        <div class="form-section">
+                            <h3 class="section-title"><i class="fas fa-image"></i> Imagem do Produto</h3>
+                            <div class="form-group" id="imageInputGroup">
+                                <label for="productImage"><i class="fas fa-upload"></i> Carregar Imagem</label>
+                                <input type="file" id="productImage" accept="image/*">
+                                <div id="imagePreview" class="image-preview">
+                                    <div class="preview-placeholder">
+                                        <i class="fas fa-image"></i>
+                                        <p>Arraste uma imagem ou clique para selecionar</p>
+                                    </div>
+                                </div>
+                                <small class="form-help">Formatos suportados: JPG, PNG, GIF. Máximo 5MB</small>
+                            </div>
+                        </div>
+
+                        <!-- Grupo: Preços -->
+                        <div class="form-section">
+                            <h3 class="section-title"><i class="fas fa-money-bill-wave"></i> Preços</h3>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="productOldPrice"><i class="fas fa-tag"></i> Preço Original (opcional)</label>
+                                    <div class="input-group">
+                                        <span class="input-prefix">R$</span>
+                                        <input type="number" id="productOldPrice" step="0.01" placeholder="0,00">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="productPrice"><i class="fas fa-tag"></i> Preço Atual</label>
+                                    <div class="input-group">
+                                        <span class="input-prefix">R$</span>
+                                        <input type="number" id="productPrice" step="0.01" required placeholder="0,00">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="productPixPrice"><i class="fas fa-money-bill-wave"></i> Preço PIX (opcional)</label>
+                                    <div class="input-group">
+                                        <span class="input-prefix">R$</span>
+                                        <input type="number" id="productPixPrice" step="0.01" placeholder="0,00">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Grupo: Estoque e Status -->
+                        <div class="form-section">
+                            <h3 class="section-title"><i class="fas fa-box"></i> Estoque e Status</h3>
+                            <div class="form-group">
+                                <label for="productQuantity"><i class="fas fa-box"></i> Quantidade em Estoque</label>
+                                <div class="input-group">
+                                    <span class="input-prefix">Qtd:</span>
+                                    <input type="number" id="productQuantity" step="1" min="0" required placeholder="0">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="productActive" checked>
+                                    <i class="fas fa-toggle-on"></i> Produto Ativo
+                                </label>
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button type="button" onclick="closeProductModal()" class="btn-secondary">Cancelar</button>
+                            <button type="submit" class="btn-primary">Salvar</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <!-- Scripts do Firebase -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-app.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-analytics.js";
+        import { initializeFirestore, persistentLocalCache, persistentSingleTabManager, CACHE_SIZE_UNLIMITED } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCYI1q5r5KugKTS8Fns2IEvxj7zR7Do4xU",
+            authDomain: "siteabel-4bcca.firebaseapp.com",
+            projectId: "siteabel-4bcca",
+            storageBucket: "siteabel-4bcca.appspot.com",
+            messagingSenderId: "865433569180",
+            appId: "1:865433569180:web:2ad4d6391ad2432b25aa59",
+            measurementId: "G-PDFHYJ6YZK"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
+
+        // Inicializar Firestore com persistência
+        window.db = initializeFirestore(app, {
+            localCache: persistentLocalCache({
+                tabManager: persistentSingleTabManager(),
+                cacheSizeBytes: CACHE_SIZE_UNLIMITED
+            })
+        });
+
+        // Verificar conexão com o Firestore
+        console.log('Verificando conexão com o Firestore...');
+    </script>
+
+    <!-- Funções globais -->
+    <script>
+        // Inicializar objetos globais
+        window.StockModule = {};
+
+        // Funções de UI que serão definidas pelo módulo
+        window.showAddProductModal = () => window.StockModule.showAddProductModal();
+        window.closeProductModal = () => window.StockModule.closeProductModal();
+        window.editProduct = (id) => window.StockModule.editProduct(id);
+        window.deleteProduct = (id) => window.StockModule.deleteProduct(id);
+        window.handleProductSubmit = (event) => window.StockModule.handleProductSubmit(event);
+        window.updateQuantity = (productId, quantity) => window.StockModule.updateQuantity(productId, quantity);
+    </script>
+
+    <!-- Scripts da aplicação -->
+    <script type="module">
+    import * as ProductsModule from '../js/products.js';
+import * as StockModule from './stock.js';
+import { renderStockDashboard } from './dashboard.js';
+
+        // Função para garantir que o Firestore está pronto
+        function waitForFirestore() {
+            return new Promise((resolve) => {
+                const checkFirestore = () => {
+                    if (window.db) {
+                        resolve();
+                    } else {
+                        setTimeout(checkFirestore, 100);
+                    }
+                };
+                checkFirestore();
+            });
+        }
+
+        // Inicializar quando o DOM e Firestore estiverem prontos
+        window.addEventListener('load', async () => {
+            try {
+                console.log('Iniciando aplicação...');
+                
+                // Verificar se o Firestore está disponível
+                if (!window.db) {
+                    throw new Error('Firestore não está inicializado');
+                }
+                
+                // Aguardar Firestore estar pronto
+                await waitForFirestore();
+                console.log('Firestore pronto para uso');
+
+                // Inicializar produtos primeiro
+                await ProductsModule.loadProducts();
+                await StockModule.initializeStock();
+                // Renderiza o painel do dashboard após carregar produtos e estoque
+                if (window.products && window.products.length > 0) {
+                    renderStockDashboard(window.products, { estoqueCritico: 5 });
+                }
+                console.log('Produtos carregados:', window.products?.length || 0);
+                
+                // Configurar event listeners da UI
+                await StockModule.setupEventListeners();
+                console.log('Event listeners configurados');
+                
+                // Renderizar outras listas
+                await StockModule.renderSpecialOffers();
+                await StockModule.renderWaitlistList();
+                console.log('Listas renderizadas');
+                
+                console.log('Aplicação inicializada com sucesso!');
+            } catch (error) {
+                console.error('Erro ao inicializar aplicação:', error);
+                Swal.fire({
+                    title: 'Erro',
+                    text: 'Erro ao inicializar aplicação: ' + error.message,
+                    icon: 'error',
+                    confirmButtonColor: '#ff1493'
+                });
+            }
+        });      
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/browser-image-compression@1.0.16/dist/browser-image-compression.js"></script>
+    <!-- Chart.js (antes do dashboard.js) -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<!-- Dashboard -->
+<script src="dashboard.js" type="module"></script>
+<script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+<script src="accordion.js"></script>
+</body>
+</html>
