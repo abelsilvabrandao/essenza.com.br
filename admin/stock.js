@@ -37,7 +37,7 @@ export async function renderOrdersList() {
 
     // 1. Gerar HTML dos cards e calcular _purchaseCost
     html = orders.map(order => {
-      const statusClass = order.status === 'Consumado' ? 'completed' : order.status === 'Cancelado' ? 'cancelled' : '';
+      const statusClass = order.status === 'Concluído' ? 'completed' : order.status === 'Cancelado' ? 'cancelled' : '';
       const statusLabel = order.status || 'Pendente';
 
       // Corrigir data do pedido para evitar Invalid Date
@@ -78,8 +78,8 @@ export async function renderOrdersList() {
           <div class="order-total"><b>Total:</b> R$ ${(order.total ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
           <div class="order-meta"><b>Custo de compra:</b> R$ ${purchaseCost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}<br><b>Lucro estimado:</b> R$ ${((order.total ?? 0)-purchaseCost).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
           <div class="order-actions">
-            <button class="order-action-btn complete" data-action="complete" data-order-id="${order._id}" ${order.status === 'Consumado' ? 'disabled' : ''}><i class='fas fa-check'></i> Consumado</button>
-            <button class="order-action-btn cancel" data-action="cancel" data-order-id="${order._id}" ${order.status === 'Cancelado' ? 'disabled' : ''}><i class='fas fa-times'></i> Cancelar</button>
+            <button class="order-action-btn complete" data-action="complete" data-order-id="${order._id}" ${order.status === 'Concluído' || order.status === 'Cancelado' ? 'disabled' : ''}><i class='fas fa-check'></i> Concluído</button>
+            <button class="order-action-btn cancel" data-action="cancel" data-order-id="${order._id}" ${order.status === 'Cancelado' || order.status === 'Concluído' ? 'disabled' : ''}><i class='fas fa-times'></i> Cancelar</button>
           </div>
         </div>
       `;
@@ -90,14 +90,17 @@ export async function renderOrdersList() {
     totalCompra = 0;
     totalLucro = 0;
     orders.forEach(order => {
-      totalVendido += order.total ?? 0;
-      totalCompra += order._purchaseCost || 0;
-      totalLucro += (order.total ?? 0) - (order._purchaseCost || 0);
+      // Só adiciona ao total se o pedido não estiver cancelado
+      if (order.status !== 'Cancelado') {
+        totalVendido += order.total ?? 0;
+        totalCompra += order._purchaseCost || 0;
+        totalLucro += (order.total ?? 0) - (order._purchaseCost || 0);
+      }
     });
 
     // Renderizar cards
     html = orders.map(order => {
-  const statusClass = order.status === 'Consumado' ? 'completed' : order.status === 'Cancelado' ? 'cancelled' : '';
+  const statusClass = order.status === 'Concluído' ? 'completed' : order.status === 'Cancelado' ? 'cancelled' : '';
   const statusLabel = order.status || 'Pendente';
 
   // Corrigir data do pedido para evitar Invalid Date
@@ -138,7 +141,7 @@ export async function renderOrdersList() {
       <div class="order-total"><b>Total:</b> R$ ${(order.total ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
       <div class="order-meta"><b>Custo de compra:</b> R$ ${purchaseCost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}<br><b>Lucro estimado:</b> R$ ${((order.total ?? 0)-purchaseCost).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
       <div class="order-actions">
-        <button class="order-action-btn complete" data-action="complete" data-order-id="${order._id}" ${order.status === 'Consumado' ? 'disabled' : ''}><i class='fas fa-check'></i> Consumado</button>
+        <button class="order-action-btn complete" data-action="complete" data-order-id="${order._id}" ${order.status === 'Concluído' ? 'disabled' : ''}><i class='fas fa-check'></i> Concluído</button>
         <button class="order-action-btn cancel" data-action="cancel" data-order-id="${order._id}" ${order.status === 'Cancelado' ? 'disabled' : ''}><i class='fas fa-times'></i> Cancelar</button>
       </div>
     </div>
@@ -157,38 +160,8 @@ export async function renderOrdersList() {
       if (action === 'complete') {
         window.StockModule.completeOrder(orderId);
       } else if (action === 'cancel') {
-        // Zere antes de somar
-        totalVendido = 0;
-        totalCompra = 0;
-        totalLucro = 0;
-        orders.forEach(order => {
-          totalVendido += order.total ?? 0;
-          totalCompra += order._purchaseCost || 0;
-          totalLucro += (order.total ?? 0) - (order._purchaseCost || 0);
-        });
-
-        // Atualiza totalizadores
-        if (ordersSummary) {
-          ordersSummary.innerHTML = `
-            <div class="summary-item">
-              <span class="summary-label">Total de Pedidos</span>
-              <span class="summary-value">${totalPedidos}</span>
-            </div>
-            <div class="summary-item">
-              <span class="summary-label">Valor Vendido</span>
-              <span class="summary-value">R$ ${totalVendido.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-            </div>
-            <div class="summary-item">
-              <span class="summary-label">Valor de Compra</span>
-              <span class="summary-value">R$ ${totalCompra.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-            </div>
-            <div class="summary-item">
-              <span class="summary-label">Lucro Estimado</span>
-              <span class="summary-value">R$ ${totalLucro.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-            </div>
-          `;
-          ordersSummary.style.display = 'flex';
-        }
+        // Chama a função para cancelar o pedido
+        window.StockModule.cancelOrder(orderId);
       }
     };
     ordersList.addEventListener('click', window.__ordersActionHandler__, false);
@@ -229,16 +202,16 @@ window.StockModule = window.StockModule || {};
 
 window.StockModule.completeOrder = async function(orderId) {
 
-  console.debug('[Pedidos] Clique em Consumado para orderId:', orderId);
+  console.debug('[Pedidos] Clique em Concluído para orderId:', orderId);
 
   try {
     const orderRef = doc(window.db, 'orders', orderId);
     const orderSnap = await getDoc(orderRef);
     if (!orderSnap.exists()) return Swal.fire('Erro', 'Pedido não encontrado!', 'error');
     const order = orderSnap.data();
-    if (order.status === 'Consumado') return;
-    await setDoc(orderRef, { status: 'Consumado' }, { merge: true });
-    Swal.fire('Pedido consumado!', 'O status do pedido foi atualizado para Consumado.', 'success');
+    if (order.status === 'Concluído') return;
+    await setDoc(orderRef, { status: 'Concluído' }, { merge: true });
+    Swal.fire('Pedido concluído!', 'O status do pedido foi atualizado para Concluído.', 'success');
     renderOrdersList();
   } catch (e) {
     Swal.fire('Erro', 'Não foi possível atualizar o pedido.', 'error');
@@ -2460,15 +2433,22 @@ export async function updateProductImage(productId) {
 
 // Definições explícitas para evitar ReferenceError
 async function completeOrder(orderId) {
-  console.debug('[Pedidos] Clique em Consumado para orderId:', orderId);
+  console.debug('[Pedidos] Clique em Concluído para orderId:', orderId);
   try {
     const orderRef = doc(window.db, 'orders', orderId);
     const orderSnap = await getDoc(orderRef);
     if (!orderSnap.exists()) return Swal.fire('Erro', 'Pedido não encontrado!', 'error');
     const order = orderSnap.data();
-    if (order.status === 'Consumado') return;
-    await setDoc(orderRef, { status: 'Consumado' }, { merge: true });
-    Swal.fire('Pedido consumado!', 'O status do pedido foi atualizado para Consumado.', 'success');
+    
+    // Verifica se o pedido já está concluído ou cancelado
+    if (order.status === 'Concluído') {
+      return Swal.fire('Aviso', 'Este pedido já foi marcado como Concluído.', 'info');
+    }
+    if (order.status === 'Cancelado') {
+      return Swal.fire('Erro', 'Não é possível marcar um pedido cancelado como Concluído.', 'error');
+    }
+    await setDoc(orderRef, { status: 'Concluído' }, { merge: true });
+    Swal.fire('Pedido concluído!', 'O status do pedido foi atualizado para Concluído.', 'success');
     renderOrdersList();
   } catch (e) {
     Swal.fire('Erro', 'Não foi possível atualizar o pedido.', 'error');
@@ -2482,8 +2462,17 @@ async function cancelOrder(orderId) {
     const orderRef = doc(window.db, 'orders', orderId);
     const orderSnap = await getDoc(orderRef);
     if (!orderSnap.exists()) return Swal.fire('Erro', 'Pedido não encontrado!', 'error');
+    
     const order = orderSnap.data();
-    if (order.status === 'Cancelado') return;
+    
+    // Verifica se o pedido já está concluído ou cancelado
+    if (order.status === 'Concluído') {
+      return Swal.fire('Aviso', 'Não é possível cancelar um pedido já concluído.', 'error');
+    }
+    if (order.status === 'Cancelado') {
+      return Swal.fire('Aviso', 'Este pedido já foi cancelado.', 'info');
+    }
+    
     // Retornar saldo dos produtos ao estoque
     if (Array.isArray(order.items)) {
       const batch = writeBatch(window.db);
@@ -2498,6 +2487,7 @@ async function cancelOrder(orderId) {
       }
       await batch.commit();
     }
+    
     await setDoc(orderRef, { status: 'Cancelado' }, { merge: true });
     Swal.fire('Pedido cancelado!', 'O pedido foi cancelado e o estoque atualizado.', 'success');
     renderOrdersList();

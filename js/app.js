@@ -993,7 +993,7 @@ if (checkoutForm) {
             installmentValue,
             pixTotal,
             createdAt: new Date(),
-            status: 'pending'
+            status: 'Pendente'
         });
         // 2. Abater estoque dos produtos
         for (const item of cart) {
