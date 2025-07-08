@@ -142,18 +142,9 @@
                     <div class="installment-selector" id="installmentsContainer">
                         <label for="installments">Parcelar em:</label>
                         <select id="installments" class="installment-select" onchange="updateCartTotals()">
-                            <option value="1">1x sem juros</option>
+                            <option value="1" selected>1x sem juros</option>
                             <option value="2">2x sem juros</option>
-                            <option value="3" selected>3x sem juros</option>
-                            <option value="4">4x sem juros</option>
-                            <option value="5">5x sem juros</option>
-                            <option value="6">6x sem juros</option>
-                            <option value="7">7x com juros</option>
-                            <option value="8">8x com juros</option>
-                            <option value="9">9x com juros</option>
-                            <option value="10">10x com juros</option>
-                            <option value="11">11x com juros</option>
-                            <option value="12">12x com juros</option>
+                            <option value="3">3x sem juros</option>
                         </select>
                     </div>
                 </div>
@@ -161,7 +152,7 @@
                 <input type="text" id="customerName" placeholder="Nome completo" required>
                 <input type="tel" id="customerPhone" placeholder="Telefone" required>
                 <input type="email" id="customerEmail" placeholder="E-mail" required>
-                <button type="submit" class="btn-primary">Finalizar Pedido via WhatsApp</button>
+                <button type="submit" class="btn-primary">Finalizar Pedido</button>
                 </form>
             </div>
             <div id="orderConfirmation" class="order-confirmation">
