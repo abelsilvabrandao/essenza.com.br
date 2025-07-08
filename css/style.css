@@ -474,6 +474,19 @@ body {
 }
 }
 
+/* Esconder em telas grandes */
+@media (min-width: 1024px) {
+    .back-to-top {
+        display: none !important;
+    }
+}
+
+/* Mostrar apenas em mobile */
+@media (max-width: 768px) {
+    .back-to-top {
+        display: flex !important; /* Sobrescreve o !important se necessário */
+    }
+}
 
 /* Waitlist Orphan Styles */
 .waitlist-orphan-row {
@@ -2244,5 +2257,3 @@ body {
         text-align: center;
     }
 }
-
-
