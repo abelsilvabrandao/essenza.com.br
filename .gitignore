@@ -1,5 +1,5 @@
 # Arquivos de configuração sensíveis
-/js/config.js
+#js/config.js
 
 # Dependências
 /node_modules

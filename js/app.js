@@ -1802,6 +1802,18 @@ function initializeEventListeners() {
     });
 }
 
+// Inicializa o letreiro promocional
+function initializePromoMarquee() {
+    const promoText = document.querySelector('.header-promo');
+    if (promoText) {
+        const text = promoText.textContent.trim();
+        // Repete o texto 3 vezes para criar um efeito contínuo
+        const repeatedText = `${text} • ${text} • ${text}`;
+        promoText.innerHTML = `<span class="marquee">${repeatedText}</span>`;
+    }
+}
+
+// Inicializar a aplicação
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         // Inicializar referências DOM e event listeners
@@ -1810,6 +1822,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
+        // Inicializar letreiro promocional
+        initializePromoMarquee();
+        
         // Inicializar grid de produtos
         initializeProductsGrid();
         initializeEventListeners();
