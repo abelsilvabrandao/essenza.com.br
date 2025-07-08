@@ -5,7 +5,22 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
+    <meta name="theme-color" content="#FF69B4">
+    <!-- Compatibilidade com iOS -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <!-- Padrão web moderno -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="application-name" content="Essenza">
+    <!-- Meta tags para melhor compartilhamento -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Essenza - Sua Loja OnLine">
+    <meta property="og:description" content="Encontre os melhores produtos na Essenza">
+    <meta name="description" content="Encontre os melhores produtos na Essenza">
+    <meta name="keywords" content="loja online, moda, acessórios, Essenza">
+    <!-- Melhorando a indexação -->
+    <meta name="robots" content="index, follow">
     <title>Essenza Sua Loja OnLine</title>
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -101,17 +116,46 @@
                 </div>
             </div>
             <div class="cart-total" id="cartTotalContainer" style="display: none;">
+                <div class="payment-method-selector">
+                    <div class="payment-method-options">
+                        <label class="payment-option">
+                            <input type="radio" name="paymentMethod" id="paymentMethodPix" value="pix" checked onchange="togglePaymentMethod()">
+                            <span class="payment-option-content">
+                                <i class="fas fa-bolt"></i>
+                                <span>PIX</span>
+                                <span class="discount-badge">Desconto</span>
+                            </span>
+                        </label>
+                        <label class="payment-option">
+                            <input type="radio" name="paymentMethod" id="paymentMethodCredit" value="credit" onchange="togglePaymentMethod()">
+                            <span class="payment-option-content">
+                                <i class="far fa-credit-card"></i>
+                                <span>Cartão</span>
+                            </span>
+                        </label>
+                    </div>
+                    <input type="hidden" id="paymentMethod" value="pix">
+                </div>
+                
                 <div class="total-price">
                     <div id="cartTotal"></div>
-                    <div class="installment-selector">
+                    <div class="installment-selector" id="installmentsContainer">
                         <label for="installments">Parcelar em:</label>
-                        <select id="installments" class="installment-select">
+                        <select id="installments" class="installment-select" onchange="updateCartTotals()">
                             <option value="1">1x sem juros</option>
                             <option value="2">2x sem juros</option>
                             <option value="3" selected>3x sem juros</option>
+                            <option value="4">4x sem juros</option>
+                            <option value="5">5x sem juros</option>
+                            <option value="6">6x sem juros</option>
+                            <option value="7">7x com juros</option>
+                            <option value="8">8x com juros</option>
+                            <option value="9">9x com juros</option>
+                            <option value="10">10x com juros</option>
+                            <option value="11">11x com juros</option>
+                            <option value="12">12x com juros</option>
                         </select>
                     </div>
-                    <div id="pixTotal" class="pix-total"></div>
                 </div>
                 <form id="checkoutForm" class="checkout-form">
                 <input type="text" id="customerName" placeholder="Nome completo" required>
@@ -238,8 +282,31 @@
              return appModule.addToCart(productId);
          };
      </script>
+    <button id="backToTop" class="back-to-top" aria-label="Voltar ao topo">
+        <i class="fas fa-arrow-up"></i>
+    </button>
+
     <script type="module" src="js/products.js"></script>
     <script type="module" src="js/app.js"></script>
 
+    <script>
+        // Botão de voltar ao topo
+        const backToTopButton = document.getElementById('backToTop');
+        
+        window.addEventListener('scroll', () => {
+            if (window.pageYOffset > 300) {
+                backToTopButton.classList.add('show');
+            } else {
+                backToTopButton.classList.remove('show');
+            }
+        });
+        
+        backToTopButton.addEventListener('click', () => {
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        });
+    </script>
 </body>
 </html>

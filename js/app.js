@@ -31,7 +31,7 @@ export async function refreshProducts() {
     window.products = await loadProducts();
     if (typeof renderProductList === 'function') renderProductList();
 }
-import { collection, onSnapshot, addDoc, getDocs, query, where, getDoc, doc, updateDoc, increment } from 'https://www.gstatic.com/firebasejs/10.1.0/firebase-firestore.js';
+import { collection, onSnapshot, addDoc, getDocs, query, where, getDoc, doc, updateDoc, increment, writeBatch } from 'https://www.gstatic.com/firebasejs/10.1.0/firebase-firestore.js';
 
 // Estado global
 let cart = [];  // Carrinho de compras
@@ -43,6 +43,7 @@ export {
     removeFromCart,
     updateCartState,
     updateCartCount,
+    updateCartTotals,
     toggleCart,
     closeCartModal,
     requestOutOfStockProduct,
@@ -55,8 +56,9 @@ export {
     initializeDOMReferences
 };
 
-// Tornar resetOrderConfirmation global para uso inline
+// Tornar funções globais para uso inline
 window.resetOrderConfirmation = resetOrderConfirmation;
+window.updateCartTotals = updateCartTotals;
 
 // Garantir que temos as referências DOM antes de qualquer operação
 function ensureDOMReferences() {
@@ -106,33 +108,54 @@ async function addToCart(productId) {
         const product = (window.products || []).find(p => String(p.id) === String(productId));
         if (!product) {
             console.error('Produto não encontrado:', productId);
+            Swal.fire({
+                title: 'Erro',
+                text: 'Produto não encontrado. Por favor, tente novamente.',
+                icon: 'error',
+                timer: 1500,
+                showConfirmButton: false
+            });
             return;
         }
 
+        // Verificar se o produto está ativo e tem estoque
         if (!product.active || product.quantity <= 0) {
-            const confirmRequest = confirm(
-                'Este produto está sem estoque no momento. Deseja receber uma notificação quando estiver disponível?'
-            );
-            if (confirmRequest) {
+            const { isConfirmed } = await Swal.fire({
+                title: 'Produto Indisponível',
+                text: 'Este produto está sem estoque no momento. Deseja ser avisado quando estiver disponível?',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Sim, me avise!',
+                cancelButtonText: 'Não, obrigado',
+                confirmButtonColor: '#ff1493',
+                cancelButtonColor: '#6c757d'
+            });
+            
+            if (isConfirmed) {
                 await requestOutOfStockProduct(productId);
             }
             return;
         }
 
-        const currentCartItem = cart.find(item => item.id === productId);
+        // Encontrar o item no carrinho
+        const currentCartItem = cart.find(item => String(item.id) === String(productId));
         const currentCartQuantity = currentCartItem ? currentCartItem.quantity : 0;
         const remaining = product.quantity - currentCartQuantity;
 
+        // Verificar se ainda há estoque disponível
         if (remaining <= 0) {
             Swal.fire({
                 icon: 'warning',
-                title: 'Estoque máximo atingido',
-                text: 'Você já adicionou todo o estoque disponível deste produto ao carrinho.',
-                confirmButtonColor: '#ff1493'
+                title: 'Estoque esgotado',
+                text: 'Este produto não possui mais unidades disponíveis no momento.',
+                confirmButtonColor: '#ff1493',
+                timer: 2000,
+                showConfirmButton: false
             });
             return;
         }
 
+        // Adicionar ao carrinho ou incrementar quantidade
         if (currentCartItem) {
             currentCartItem.quantity++;
         } else {
@@ -146,16 +169,29 @@ async function addToCart(productId) {
             });
         }
 
-        updateCartState();
-        // SweetAlert de feedback visual sempre
+        // Atualizar a interface
+        await updateCartState();
+        
+        // Mostrar feedback visual
         const newRemaining = remaining - 1;
+        const toastOptions = {
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 2000,
+            timerProgressBar: true,
+            didOpen: (toast) => {
+                toast.addEventListener('mouseenter', Swal.stopTimer);
+                toast.addEventListener('mouseleave', Swal.resumeTimer);
+            }
+        };
+
         if (newRemaining > 2) {
-            Swal.fire({
-                title: 'Adicionado!',
-                text: 'Produto adicionado ao carrinho.',
+            await Swal.fire({
+                ...toastOptions,
                 icon: 'success',
-                timer: 1200,
-                showConfirmButton: false
+                title: 'Adicionado ao carrinho!',
+                text: `${product.name} foi adicionado ao carrinho.`
             });
         } else {
             let alertText = '';
@@ -164,16 +200,20 @@ async function addToCart(productId) {
             } else if (newRemaining === 1) {
                 alertText = 'Última unidade disponível!';
             } else if (newRemaining === 0) {
-                alertText = 'Você adicionou a última unidade disponível ao carrinho!';
+                alertText = 'Você adicionou a última unidade disponível!';
             }
-            Swal.fire({
-                title: 'Atenção',
+            
+            await Swal.fire({
+                ...toastOptions,
+                icon: 'info',
+                title: 'Atenção! Aproveite!',
                 text: alertText,
-                icon: 'warning',
-                timer: 1800,
-                showConfirmButton: false
+                timer: 2500
             });
         }
+        
+        // Atualizar contagem do carrinho na barra de navegação
+        updateCartCount();
 
     } catch (error) {
         console.error('Erro ao adicionar ao carrinho:', error);
@@ -256,26 +296,68 @@ function handleSwipe() {
     
 
 }
-
-
-// Inicializar grid de produtos
 let productsGridInitialized = false;
+
+function calculateItemsPerView() {
+    const width = window.innerWidth;
+    if (width < 576) return 1;  // Extra small devices
+    if (width < 768) return 2;  // Small devices
+    if (width < 992) return 3;  // Medium devices
+    return 4;  // Large devices and up
+}
 
 function initializeProductsGrid() {
     if (productsGridInitialized) return;
     
     productsGrid = document.getElementById('productsGrid');
-    
-    if (productsGrid) {
-        console.log('Grid de produtos inicializado com sucesso');
-        productsGridInitialized = true;
-        
-        // Inicia atualização em tempo real dos produtos
-        if (typeof listenProductsRealtime === 'function') listenProductsRealtime();
-    } else {
+    if (!productsGrid) {
         console.warn('Elemento productsGrid não encontrado, tentando novamente em 100ms');
         setTimeout(initializeProductsGrid, 100);
+        return;
     }
+    
+    console.log('Grid de produtos inicializado com sucesso');
+    
+    // Verificar se estamos em um carrossel ou grid
+    carousel = productsGrid.querySelector('.products-carousel');
+    
+    if (carousel) {
+        setupCarousel();
+    } else {
+        // Configuração para grid responsivo
+        const updateGridLayout = () => {
+            const itemsPerRow = calculateItemsPerView();
+            const items = productsGrid.querySelectorAll('.product-grid-item');
+            
+            items.forEach((item) => {
+                // Remove classes de posicionamento do carrossel
+                item.style.transform = '';
+                item.style.opacity = '1';
+                item.style.position = 'relative';
+                item.style.left = '0';
+                item.style.zIndex = '1';
+                
+                // Adiciona classe para itens ativos
+                item.classList.add('active');
+                
+                // Remove classe 'middle' para evitar conflitos
+                item.classList.remove('middle');
+            });
+            
+            // Atualiza o grid para o número correto de colunas
+            productsGrid.style.gridTemplateColumns = `repeat(auto-fill, minmax(${Math.max(250, 100/itemsPerRow - 2)}px, 1fr))`;
+            productsGrid.style.gap = '1.5rem';
+        };
+        
+        // Atualiza o layout quando a janela for redimensionada
+        window.addEventListener('resize', updateGridLayout);
+        updateGridLayout();
+    }
+    
+    // Inicia atualização em tempo real dos produtos
+    if (typeof listenProductsRealtime === 'function') listenProductsRealtime();
+    
+    productsGridInitialized = true;
 }
 
 // Initialize products
@@ -299,18 +381,30 @@ async function getStockStatus(productId) {
     }
 }
 
-let productsRendered = false;
+// Cache para armazenar o HTML dos produtos e evitar renderizações desnecessárias
+let productsCache = new Map();
+let lastCartState = JSON.stringify([]);
 
 async function renderProductList() {
     if (!productsGrid) return;
 
     try {
-        if (productsRendered) return;
-        productsRendered = true;
-
         // Exibir todos os produtos, inclusive desativados
         const allProducts = window.products.slice();
-        console.log('Produtos encontrados:', allProducts.length);
+        
+        // Verificar se houve mudanças no carrinho
+        const currentCartState = JSON.stringify(cart.map(item => ({
+            id: item.id,
+            quantity: item.quantity
+        })));
+        
+        // Se não houve mudanças no carrinho e já temos os produtos em cache, não precisa renderizar novamente
+        if (currentCartState === lastCartState && productsCache.size > 0) {
+            return;
+        }
+        
+        lastCartState = currentCartState;
+        console.log('Atualizando lista de produtos. Total:', allProducts.length);
 
         // Ordenar produtos pelo ID numérico
         allProducts.sort((a, b) => {
@@ -339,7 +433,26 @@ async function renderProductList() {
                     });
                 }
             }
-            const stockStatus = await getStockStatus(product.id);
+            // Obter o item do carrinho se existir
+            const cartItem = cart.find(item => String(item.id) === String(product.id));
+            
+            // Calcular estoque disponível considerando itens no carrinho
+            const available = Math.max(0, product.quantity - (cartItem ? cartItem.quantity : 0));
+            
+            // Determinar o status do estoque com base na disponibilidade
+            let stockStatus;
+            
+            if (product.quantity <= 0) {
+                stockStatus = { class: 'out-of-stock', text: 'Produto Indisponível' };
+            } else if (available <= 2) {
+                stockStatus = { 
+                    class: 'low-stock', 
+                    text: available === 1 ? 'Última unidade!' : 'Apenas 2 unidades!'
+                };
+            } else {
+                stockStatus = { class: '', text: '' };
+            }
+            
             const stockClass = stockStatus.class;
             const stockText = stockStatus.text;
 
@@ -347,9 +460,16 @@ async function renderProductList() {
             const normalDiscount = product.oldPrice ? Math.round((1 - product.price/product.oldPrice) * 100) : 0;
             const pixDiscount = product.price && product.pixPrice ? Math.round((1 - product.pixPrice/product.price) * 100) : 0;
 
-            const productCard = document.createElement('div');
-            productCard.className = 'product-grid-item';
-            productCard.innerHTML = `
+            // Gerar uma chave única para o cache deste produto
+            const cacheKey = `${product.id}_${available}_${product.active}`;
+            let productHTML;
+            
+            // Verificar se já temos este produto em cache
+            if (productsCache.has(cacheKey)) {
+                productHTML = productsCache.get(cacheKey);
+            } else {
+                // Se não estiver em cache, criar o HTML
+                productHTML = `
                 <img src="${product.imageUrl || '/img/placeholder.png'}" alt="${product.name}" onerror="this.onerror=null; this.src='/img/placeholder.png'">
             <h3>${product.name}</h3>
             <div class="product-category-label" style="font-size:0.93em;color:#888;margin-top:-0.15em;margin-bottom:0.6em;">
@@ -358,19 +478,23 @@ async function renderProductList() {
             <p class="product-description">${product.description || ''}</p>
             <div class="price-info">
                 ${product.oldPrice ? `
-                    <p class="old-price">De: R$ ${product.oldPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                    <p class="old-price">
+                        De: R$ ${product.oldPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
                 ` : ''}
-                <p class="current-price">Por: R$ ${product.price.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-                <span class="discount-badge">-${normalDiscount}% OFF!</span>
+                <p class="current-price">
+                    Por: R$ ${product.price.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    ${product.oldPrice ? `<span class="discount-badge">-${normalDiscount}% OFF</span>` : ''}
+                </p>
                 ${product.pixPrice ? `
-                    <p class="pix-price">No PIX: R$ ${product.pixPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-                    <span class="discount-badge pix-discount">-${pixDiscount}% OFF!</span>
+                    <p class="pix-price">
+                        PIX: R$ ${product.pixPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        <span class="discount-badge pix-discount">-${pixDiscount}% OFF</span>
+                    </p>
                 ` : ''}
             </div>
             ${(() => {
-                const cartItem = cart.find(item => String(item.id) === String(product.id));
-                const available = product.quantity - (cartItem ? cartItem.quantity : 0);
-                if (product.quantity === 0 || product.active === false) {
+                if (available <= 0 || product.active === false) {
                     return `
                         <p class="stock-alert stock-unavailable">
                             <i class="fas fa-ban"></i>
@@ -378,18 +502,18 @@ async function renderProductList() {
                         </p>
                         <button onclick="requestOutOfStockProduct('${product.id}')" class="btn-out-of-stock">
                             <i class="fas fa-envelope"></i>
-                            Avise-me!
+                            Avise-me quando estiver disponível!
                         </button>
                     `;
                 } else if (available <= 2) {
                     return `
                         <p class="stock-alert">
                             <i class="fas fa-exclamation-triangle"></i>
-                            ${available === 1 ? 'Última unidade!' : available === 2 ? 'Apenas 2 unidades!' : 'Produto quase esgotado!'}
+                            ${available === 1 ? 'Última unidade!' : 'Apenas 2 unidades!'}
                         </p>
-                        <button onclick="addToCart('${product.id}')" class="btn-add-cart">
+                        <button onclick="addToCart('${product.id}')" class="btn-add-cart" ${available === 0 ? 'disabled style="opacity: 0.7; cursor: not-allowed;"' : ''}>
                             <i class="fas fa-shopping-cart"></i>
-                            Adicionar ao Carrinho
+                            ${available === 0 ? 'Sem estoque' : 'Adicionar ao Carrinho'}
                         </button>
                     `;
                 } else {
@@ -403,7 +527,29 @@ async function renderProductList() {
             })()}
         
         `;
-            productsGrid.appendChild(productCard);
+                // Armazenar no cache
+                productsCache.set(cacheKey, productHTML);
+            }
+            
+            // Criar elemento do produto
+            const productElement = document.createElement('div');
+            const itemClasses = ['product-grid-item'];
+            
+            // Verificar se o produto está inativo
+            const productIsInactive = product.active === false;
+            
+            if (productIsInactive) {
+                // Se o produto estiver inativo, adicionar apenas a classe inactive
+                itemClasses.push('inactive');
+            } else if (stockClass) {
+                // Se não estiver inativo, adicionar a classe de status de estoque (se houver)
+                itemClasses.push(stockClass);
+            }
+            
+            productElement.className = itemClasses.join(' ');
+            productElement.dataset.id = product.id;
+            productElement.innerHTML = productHTML;
+            productsGrid.appendChild(productElement);
         }
 
     } catch (error) {
@@ -529,13 +675,14 @@ async function handleWaitlistSubmit(event) {
             timer: 3000,
             timerProgressBar: true
         });
+        console.log('Pedido enviado com sucesso para o WhatsApp');
     } catch (error) {
-        console.error('Erro ao salvar lista de espera:', error);
+        console.error('Erro ao processar pedido:', error);
         Swal.fire({
             title: 'Erro',
-            text: 'Erro ao salvar seu pedido de lista de espera. Por favor, tente novamente.',
+            text: 'Ocorreu um erro ao processar seu pedido. Por favor, tente novamente.',
             icon: 'error',
-            confirmButtonColor: '#ff1493'
+            confirmButtonColor: '#4CAF50'
         });
     }
 }
@@ -548,44 +695,94 @@ function requestOutOfStockProduct(productId) {
 async function removeFromCart(productId) {
     if (!ensureDOMReferences()) return;
 
-    const index = cart.findIndex(item => String(item.id) === String(productId));
-    if (index !== -1) {
+    try {
+        const index = cart.findIndex(item => String(item.id) === String(productId));
+        if (index === -1) {
+            console.warn('Item não encontrado no carrinho:', productId);
+            return;
+        }
+
         const item = cart[index];
+        const product = (window.products || []).find(p => String(p.id) === String(productId));
+        
+        // Configuração do modal de confirmação
         const result = await Swal.fire({
             title: '<span style="font-family: var(--font-heading); color: var(--color-primary-dark); font-size: 1.4em;">Remover produto?</span>',
             html: `
                 <div style="display: flex; align-items: center; flex-direction: column; gap: 12px;">
-                    <img src="${item.imageUrl || '/img/placeholder.png'}" alt="${item.name}" style="width: 90px; height: 90px; object-fit: cover; border-radius: 10px; box-shadow: 0 2px 8px #0001; border: 2px solid var(--color-border); background: var(--color-light-gray);">
-                    <div style="font-family: var(--font-body); color: var(--color-dark); font-size: 1.1em; margin-bottom: 2px; font-weight: 600;">${item.name}</div>
-                    <div style="color: var(--color-gray); font-size: 1em;">Quantidade: <b style='color:var(--color-primary);'>${item.quantity}</b></div>
+                    <img src="${item.imageUrl || '/img/placeholder.png'}" 
+                         alt="${item.name}" 
+                         style="width: 90px; height: 90px; object-fit: cover; border-radius: 10px; 
+                                box-shadow: 0 2px 8px #0001; border: 2px solid var(--color-border); 
+                                background: var(--color-light-gray);">
+                    <div style="font-family: var(--font-body); color: var(--color-dark); 
+                                font-size: 1.1em; margin-bottom: 2px; font-weight: 600;">
+                        ${item.name}
+                    </div>
+                    <div style="color: var(--color-gray); font-size: 1em;">
+                        Quantidade: <b style='color:var(--color-primary);'>${item.quantity}</b>
+                    </div>
                 </div>
             `,
-            icon: 'warning',
+            icon: 'question',
             showCancelButton: true,
-            confirmButtonText: '<i class="fas fa-trash"></i> Sim, remover',
-            cancelButtonText: 'Cancelar',
-            confirmButtonColor: getComputedStyle(document.documentElement).getPropertyValue('--color-primary').trim() || '#FF69B4',
-            cancelButtonColor: getComputedStyle(document.documentElement).getPropertyValue('--color-gray').trim() || '#666',
+            confirmButtonText: '<i class="fas fa-trash"></i> Remover',
+            cancelButtonText: '<i class="fas fa-times"></i> Manter no carrinho',
+            confirmButtonColor: getComputedStyle(document.documentElement).getPropertyValue('--color-danger').trim() || '#dc3545',
+            cancelButtonColor: getComputedStyle(document.documentElement).getPropertyValue('--color-gray').trim() || '#6c757d',
             background: getComputedStyle(document.documentElement).getPropertyValue('--color-background').trim() || '#fff',
             customClass: {
                 popup: 'custom-swal-popup',
                 title: 'custom-swal-title',
-                confirmButton: 'btn btn-theme',
-                cancelButton: 'btn btn-cancel-theme'
+                confirmButton: 'btn btn-danger',
+                cancelButton: 'btn btn-secondary'
             },
-            reverseButtons: true
+            reverseButtons: true,
+            focusCancel: true
         });
+
         if (result.isConfirmed) {
+            // Remover o item do carrinho
             cart.splice(index, 1);
-            updateCartState();
-            Swal.fire({
-                title: 'Removido',
-                text: `Produto removido do carrinho!`,
+            
+            // Atualizar a interface
+            await updateCartState();
+            
+            // Mostrar mensagem de sucesso
+            await Swal.fire({
+                title: 'Removido!',
+                html: `
+                    <div style="text-align: center;">
+                        <i class="fas fa-check-circle" style="color: #28a745; font-size: 3em; margin-bottom: 15px;"></i>
+                        <p>Produto removido do carrinho</p>
+                        ${product && product.quantity > 0 ? 
+                          `<p style="color: #28a745; margin-top: 10px;">
+                              <i class="fas fa-undo"></i> ${item.quantity} foi removido do carrinho.
+                          </p>` : ''}
+                    </div>
+                `,
                 icon: 'success',
-                timer: 1200,
-                showConfirmButton: false
+                timer: 1500,
+                showConfirmButton: false,
+                timerProgressBar: true
             });
+            
+            // Atualizar contagem do carrinho na barra de navegação
+            updateCartCount();
+            
+            // Forçar atualização da lista de produtos para refletir mudanças no estoque
+            if (productsGrid) {
+                await renderProductList();
+            }
         }
+    } catch (error) {
+        console.error('Erro ao remover item do carrinho:', error);
+        await Swal.fire({
+            title: 'Erro',
+            text: 'Ocorreu um erro ao remover o produto do carrinho. Por favor, tente novamente.',
+            icon: 'error',
+            confirmButtonColor: '#ff1493'
+        });
     }
 }
 
@@ -604,40 +801,160 @@ function updateCartCount() {
     }
 }
 
-function decreaseQuantity(productId) {
+async function decreaseQuantity(productId) {
     if (!ensureDOMReferences()) return;
-    console.log('[decreaseQuantity] chamado para productId:', productId, 'tipo:', typeof productId);
-    const cartItem = cart.find(item => String(item.id) === String(productId));
-    if (cartItem && cartItem.quantity > 1) {
-        cartItem.quantity--;
-        console.log('[decreaseQuantity] Novo quantity:', cartItem.quantity, 'para item:', cartItem);
-        updateCartState();
-    } else if (!cartItem) {
-        console.warn('[decreaseQuantity] Nenhum item encontrado para productId:', productId, 'Carrinho:', cart);
+    
+    try {
+        const item = cart.find(item => String(item.id) === String(productId));
+        if (!item) {
+            console.warn('Item não encontrado no carrinho:', productId);
+            return;
+        }
+
+        // Verificar se a quantidade é maior que 1 antes de decrementar
+        if (item.quantity > 1) {
+            item.quantity--;
+            await updateCartState();
+            
+            // Atualizar a lista de produtos para refletir a mudança no estoque
+            if (productsGrid) {
+                await renderProductList();
+            }
+            
+            // Feedback visual sutil
+            const Toast = Swal.mixin({
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 1000,
+                timerProgressBar: true,
+                didOpen: (toast) => {
+                    toast.addEventListener('mouseenter', Swal.stopTimer);
+                    toast.addEventListener('mouseleave', Swal.resumeTimer);
+                }
+            });
+            
+            await Toast.fire({
+                icon: 'info',
+                title: 'Quantidade atualizada',
+                text: `Agora você tem ${item.quantity} unidade(s) de ${item.name} no carrinho`
+            });
+            
+        } else {
+            // Se a quantidade for 1, remover o item do carrinho
+            await removeFromCart(productId);
+        }
+    } catch (error) {
+        console.error('Erro ao diminuir quantidade:', error);
+        await Swal.fire({
+            title: 'Erro',
+            text: 'Ocorreu um erro ao atualizar a quantidade. Por favor, tente novamente.',
+            icon: 'error',
+            confirmButtonColor: '#ff1493'
+        });
     }
 }
 
-function increaseQuantity(productId) {
+async function increaseQuantity(productId) {
     if (!ensureDOMReferences()) return;
-    console.log('[increaseQuantity] chamado para productId:', productId, 'tipo:', typeof productId);
-    const cartItem = cart.find(item => String(item.id) === String(productId));
-    const product = (window.products || []).find(p => String(p.id) === String(productId));
-    if (cartItem && product) {
-        if (cartItem.quantity < product.quantity) {
-            cartItem.quantity++;
-            console.log('[increaseQuantity] Novo quantity:', cartItem.quantity, 'para item:', cartItem);
-            updateCartState();
-        } else {
-            Swal.fire({
-                title: 'Estoque máximo atingido',
-                text: `Só há ${product.quantity} unidade${product.quantity > 1 ? 's' : ''} em estoque.`,
-                icon: 'warning',
-                timer: 1600,
-                showConfirmButton: false
-            });
+    
+    try {
+        const item = cart.find(item => String(item.id) === String(productId));
+        if (!item) {
+            console.warn('Item não encontrado no carrinho:', productId);
+            return;
         }
-    } else {
-        console.warn('[increaseQuantity] Nenhum item encontrado para productId:', productId, 'Carrinho:', cart);
+
+        const product = (window.products || []).find(p => String(p.id) === String(productId));
+        if (!product) {
+            console.error('Produto não encontrado:', productId);
+            return;
+        }
+
+        // Calcular a quantidade total no carrinho (incluindo o item atual)
+        const currentCartQuantity = cart.reduce((total, cartItem) => {
+            return String(cartItem.id) === String(productId) ? total + cartItem.quantity : total;
+        }, 0);
+        
+        // Verificar se ainda há estoque disponível
+        if (currentCartQuantity < product.quantity) {
+            item.quantity++;
+            await updateCartState();
+            
+            // Atualizar a lista de produtos para refletir a mudança no estoque
+            if (productsGrid) {
+                await renderProductList();
+            }
+            
+            // Feedback visual sutil
+            const Toast = Swal.mixin({
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 1000,
+                timerProgressBar: true,
+                didOpen: (toast) => {
+                    toast.addEventListener('mouseenter', Swal.stopTimer);
+                    toast.addEventListener('mouseleave', Swal.resumeTimer);
+                }
+            });
+            
+            await Toast.fire({
+                icon: 'success',
+                title: 'Quantidade atualizada',
+                text: `Agora você tem ${item.quantity} unidade(s) de ${item.name} no carrinho`
+            });
+            
+        } else {
+            // Verificar se o produto está realmente sem estoque ou se é apenas limite do carrinho
+            if (product.quantity <= 0) {
+                await Swal.fire({
+                    icon: 'error',
+                    title: 'Produto esgotado',
+                    text: 'Este produto não possui mais unidades disponíveis no momento.',
+                    confirmButtonColor: '#ff1493',
+                    footer: '<a href="#" class="notify-link" style="color: #ff1493; text-decoration: underline;">Me avise quando estiver disponível</a>'
+                });
+            } else {
+                // Mostrar mensagem de limite de estoque
+                await Swal.fire({
+                    icon: 'info',
+                    title: 'Limite de estoque',
+                    html: `
+                        <div style="text-align: center;">
+                            <p>Você já adicionou todas as <b>${product.quantity} unidade(s)</b> disponíveis de <b>${product.name}</b> ao carrinho.</p>
+                            <p style="color: #666; font-size: 0.9em; margin-top: 10px;">
+                                Para adquirir mais unidades, entre em contato conosco.
+                            </p>
+                        </div>
+                    `,
+                    confirmButtonColor: '#ff1493',
+                    confirmButtonText: 'Entendi',
+                    showCancelButton: true,
+                    cancelButtonText: 'Remover item',
+                    cancelButtonColor: '#6c757d',
+                    showDenyButton: true,
+                    denyButtonText: 'Me avise quando tiver mais',
+                    denyButtonColor: '#17a2b8'
+                }).then(async (result) => {
+                    if (result.isDenied) {
+                        // Usuário clicou em "Me avise quando tiver mais"
+                        await requestOutOfStockProduct(productId);
+                    } else if (result.dismiss === Swal.DismissReason.cancel) {
+                        // Usuário clicou em "Remover item"
+                        await removeFromCart(productId);
+                    }
+                });
+            }
+        }
+    } catch (error) {
+        console.error('Erro ao aumentar quantidade:', error);
+        await Swal.fire({
+            title: 'Erro',
+            text: 'Ocorreu um erro ao atualizar a quantidade. Por favor, tente novamente.',
+            icon: 'error',
+            confirmButtonColor: '#ff1493'
+        });
     }
 }
 
@@ -678,23 +995,38 @@ function updateInstallments() {
 }
 
 // Função principal de atualização do carrinho
-function updateCartState() {
-    const elements = {
-        cartItems: document.getElementById('cartItems'),
-        cartTotalContainer: document.getElementById('cartTotalContainer'),
-        emptyCart: document.getElementById('emptyCart'),
-        checkoutForm: document.getElementById('checkoutForm')
-    };
+async function updateCartState() {
+    try {
+        const elements = {
+            cartItems: document.getElementById('cartItems'),
+            cartTotalContainer: document.getElementById('cartTotalContainer'),
+            emptyCart: document.getElementById('emptyCart'),
+            checkoutForm: document.getElementById('checkoutForm'),
+            productsGrid: document.getElementById('productsGrid')
+        };
 
-    if (!Object.values(elements).every(el => el !== null)) {
-        console.warn('Elementos necessários não encontrados');
-        return;
+        if (!elements.cartItems || !elements.cartTotalContainer || !elements.emptyCart || !elements.checkoutForm) {
+            console.warn('Elementos do carrinho não encontrados');
+            return;
+        }
+
+        // Atualizar itens do carrinho e totais
+        updateCartItems();
+        updateCartTotals();
+        updateCartVisibility();
+        updateCartCount();
+        
+        // Se houver uma lista de produtos, renderizar novamente para atualizar as mensagens de estoque
+        if (elements.productsGrid) {
+            try {
+                await renderProductList();
+            } catch (error) {
+                console.error('Erro ao atualizar lista de produtos:', error);
+            }
+        }
+    } catch (error) {
+        console.error('Erro ao atualizar estado do carrinho:', error);
     }
-
-    updateCartItems();
-    updateCartTotals();
-    updateCartVisibility();
-    updateCartCount();
 }
 
 // Atualiza a visibilidade dos elementos do carrinho
@@ -738,21 +1070,30 @@ function updateCartItems() {
             const itemElement = document.createElement('div');
             itemElement.className = 'cart-item';
             itemElement.innerHTML = `
-                <img src="${item.imageUrl || '/img/placeholder.png'}" alt="${item.name}" onerror="this.onerror=null; this.src='/img/placeholder.png'">
-                <div class="cart-item-info">
-                    <h4>${item.name}</h4>
-                    <div class="quantity-controls">
-                        <button onclick="decreaseQuantity(${item.id})">-</button>
-                        <span>${item.quantity}</span>
-                        <button onclick="increaseQuantity(${item.id})">+</button>
-                    </div>
-                </div>
-                <div class="cart-item-prices" style="margin-bottom:4px;">
-  <div style="color:#009688;font-weight:500;font-size:1em;">R$ ${(item.pixPrice).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span style="font-size:0.95em;">no Pix</span></div>
-  <div style="color:#333;font-size:0.98em;">ou R$ ${(item.price).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} no Cartão</div>
-</div>
-                <button class="remove-item" onclick="removeFromCart(${item.id})">Remover</button>
-            `;
+  <div class="cart-item">
+    <div class="cart-item-image">
+      <img src="${item.imageUrl || '/img/placeholder.png'}" alt="${item.name}" onerror="this.onerror=null; this.src='/img/placeholder.png'">
+    </div>
+    
+    <div class="cart-item-details">
+      <h4 class="cart-item-name">${item.name}</h4>
+
+      <div class="quantity-controls">
+        <button onclick="decreaseQuantity(${item.id})">-</button>
+        <span>${item.quantity}</span>
+        <button onclick="increaseQuantity(${item.id})">+</button>
+      </div>
+
+      <div class="cart-item-prices">
+        <div class="pix-price">R$ ${(item.pixPrice).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} <span class="pix-label">no Pix</span></div>
+        <div class="card-price">ou R$ ${(item.price).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} no Cartão</div>
+      </div>
+
+      <button class="remove-item" onclick="removeFromCart(${item.id})">Remover</button>
+    </div>
+  </div>
+`;
+
             itemsList.appendChild(itemElement);
         });
 
@@ -769,34 +1110,82 @@ function updateCartItems() {
 function updateCartTotals() {
     const elements = {
         cartTotal: document.getElementById('cartTotal'),
-        pixTotal: document.getElementById('pixTotal'),
-        installments: document.getElementById('installments')
+        paymentMethod: document.getElementById('paymentMethod'),
+        installments: document.getElementById('installments'),
+        installmentsContainer: document.getElementById('installmentsContainer')
     };
 
-    if (!elements.cartTotal || !elements.pixTotal || !elements.installments) {
+    if (!elements.cartTotal || !elements.paymentMethod) {
         console.warn('Elementos necessários não encontrados em updateCartTotals');
         return;
     }
 
     const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     const pixTotalValue = cart.reduce((sum, item) => sum + (item.pixPrice * item.quantity), 0);
-    const installmentValue = calculateInstallment(total, parseInt(elements.installments.value));
+    const discountPercentage = Math.round(((total - pixTotalValue) / total) * 100);
+    const paymentMethod = elements.paymentMethod.value;
+    
+    // Atualizar visibilidade do seletor de parcelas
+    if (elements.installmentsContainer) {
+        elements.installmentsContainer.style.display = paymentMethod === 'credit' ? 'flex' : 'none';
+    }
 
-    elements.cartTotal.innerHTML = `
-        <div class="total-info">
-            <span>Total:</span>
-            <span class="total-with-items">R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-            <span>${elements.installments.value}x de R$ ${installmentValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-        </div>
-    `;
-
-    elements.pixTotal.innerHTML = `
-        <div class="pix-discount">
-            <span>Total no PIX:</span>
-            <span>R$ ${pixTotalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (-${Math.round(((total - pixTotalValue) / total) * 100)}%)</span>
-        </div>
-    `;
+    // Se for PIX, mostrar o total com desconto
+    if (paymentMethod === 'pix') {
+        elements.cartTotal.innerHTML = `
+            <div class="total-info">
+                <div class="total-row">
+                    <span>Total:</span>
+                    <span class="old-price">R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+                <div class="total-row highlight">
+                    <span>Total com desconto PIX:</span>
+                    <span class="total-amount">R$ ${pixTotalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+                <div class="discount-badge">Economize ${discountPercentage}%</div>
+            </div>
+        `;
+    } else {
+        // Se for cartão, mostrar parcelamento
+        const installments = elements.installments ? parseInt(elements.installments.value) : 1;
+        const installmentValue = calculateInstallment(total, installments);
+        
+        elements.cartTotal.innerHTML = `
+            <div class="total-info">
+                <div class="total-row">
+                    <span>Total:</span>
+                    <span class="total-amount">R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+                <div class="installment-info">
+                    ${installments}x de R$ ${installmentValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    ${installments > 6 ? `(com juros - Total: R$ ${(installmentValue * installments).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})` : 'sem juros'}
+                </div>
+            </div>
+        `;
+    }
 }
+
+// Função para alternar entre PIX e Cartão
+function togglePaymentMethod() {
+    const paymentMethod = document.querySelector('input[name="paymentMethod"]:checked')?.value;
+    if (!paymentMethod) return;
+    
+    const installmentsContainer = document.querySelector('.installment-selector');
+    const paymentMethodField = document.getElementById('paymentMethod');
+    
+    if (paymentMethodField) {
+        paymentMethodField.value = paymentMethod;
+    }
+    
+    if (installmentsContainer) {
+        installmentsContainer.style.display = paymentMethod === 'credit' ? 'block' : 'none';
+    }
+    
+    updateCartTotals();
+}
+
+// Torna a função disponível globalmente
+window.togglePaymentMethod = togglePaymentMethod;
 
 // Toggle cart modal
 function toggleCart() {
@@ -880,154 +1269,325 @@ function generateOrderNumber() {
 }
 
 // Handle checkout
+const checkoutForm = document.getElementById('checkoutForm');
 if (checkoutForm) {
-    checkoutForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    
-    // Verificar se há itens no carrinho
-    if (cart.length === 0) {
-        return;
-    }
-
-    const name = document.getElementById('customerName').value;
-    const phone = document.getElementById('customerPhone').value;
-    const email = document.getElementById('customerEmail').value;
-    const orderNumber = generateOrderNumber();
-    
-    // Create order message
-    const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const pixTotal = cart.reduce((sum, item) => sum + (item.pixPrice * item.quantity), 0);
-    const installments = document.getElementById('installments').value;
-    const installmentValue = calculateInstallment(total, parseInt(installments));
-    
-    const message = `*Novo Pedido: ${orderNumber}*\n\n` +
-        `*Cliente:* ${name}\n` +
-        `*Telefone:* ${phone}\n` +
-        `*Email:* ${email}\n\n` +
-        `*Produtos:*\n${cart.map(item => 
-            `- ${item.name} (${item.quantity}x) - R$ ${(item.price * item.quantity).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-        ).join('\n')}\n\n` +
-        `*Total:* R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n` +
-        `*Parcelamento:* ${installments}x de R$ ${installmentValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n` +
-        `*Total no PIX:* R$ ${pixTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${Math.round(((total - pixTotal) / total) * 100)}% de desconto)`;
-    
-    // Show order confirmation
-    const orderConfirmation = document.getElementById('orderConfirmation');
-    const checkoutFormElement = document.getElementById('checkoutForm');
-    const cartTotalContainer = document.getElementById('cartTotalContainer');
-    const displayOrderNumber = document.getElementById('displayOrderNumber');
-    const orderSummary = document.getElementById('orderSummary');
-    const whatsappButton = document.getElementById('whatsappButton');
-    const emptyCartMessage = document.getElementById('emptyCart');
-    
-    // Verificar se todos os elementos existem
-    if (!orderConfirmation || !checkoutFormElement || !cartTotalContainer || 
-        !displayOrderNumber || !orderSummary || !whatsappButton || !emptyCartMessage) {
-        console.error('Elementos necessários não encontrados:', {
-            orderConfirmation: !!orderConfirmation,
-            checkoutFormElement: !!checkoutFormElement,
-            cartTotalContainer: !!cartTotalContainer,
-            displayOrderNumber: !!displayOrderNumber,
-            orderSummary: !!orderSummary,
-            whatsappButton: !!whatsappButton,
-            emptyCartMessage: !!emptyCartMessage
-        });
-        return;
-    }
-    
-    // Create order summary HTML
-    const summaryHtml = `
-        ${cart.map(item => `
-            <div class="order-summary-item">
-                <span>${item.name} (${item.quantity}x)</span>
-                <span>R$ ${(item.price * item.quantity).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-            </div>
-        `).join('')}
-        <div class="order-summary-item order-summary-total">
-            <span>Total:</span>
-            <span>R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-        </div>
-        <div class="order-summary-item">
-            <span>Parcelamento:</span>
-            <span>${installments}x de R$ ${installmentValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-        </div>
-        <div class="order-summary-item order-summary-pix">
-            <span>Total no PIX:</span>
-            <span>R$ ${pixTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (-${Math.round(((total - pixTotal) / total) * 100)}%)</span>
-        </div>
-    `;
-    
-    // Armazenar dados do pedido para manter visível
-    currentOrderData = {
-        orderNumber,
-        customerName: document.getElementById('customerName').value,
-        items: cart.map(item => ({
-            name: item.name,
-            quantity: item.quantity,
-            price: item.price
-        })),
-        total,
-        installments,
-        installmentValue,
-        pixTotal,
-        message
-    };
-    
-    try {
-        // Salvar pedido no Firestore e abater estoque
-        const db = window.db;
-        // 1. Criar pedido na coleção 'orders'
-        const orderDoc = await addDoc(collection(db, 'orders'), {
-            orderNumber,
-            customerName: name,
-            phone,
-            email,
-            items: cart.map(item => ({
-                productId: item.id,
-                name: item.name,
-                quantity: item.quantity,
-                price: item.price
-            })),
-            total,
-            installments,
-            installmentValue,
-            pixTotal,
-            createdAt: new Date(),
-            status: 'Pendente'
-        });
-        // 2. Abater estoque dos produtos
-        for (const item of cart) {
-            const productRef = doc(db, 'products', String(item.id));
-            await updateDoc(productRef, {
-                quantity: increment(-item.quantity)
+    checkoutForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        // Show loading state
+        const submitButton = this.querySelector('button[type="submit"]');
+        const originalButtonText = submitButton.innerHTML;
+        submitButton.disabled = true;
+        submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processando...';
+        
+        try {
+            // Verificar se há itens no carrinho
+            if (cart.length === 0) {
+                await Swal.fire({
+                    title: 'Carrinho vazio',
+                    text: 'Adicione itens ao carrinho antes de finalizar o pedido.',
+                    icon: 'warning',
+                    confirmButtonColor: '#4CAF50'
+                });
+                submitButton.disabled = false;
+                submitButton.innerHTML = originalButtonText;
+                return;
+            }
+            
+            // Obter método de pagamento selecionado
+            const paymentMethod = document.querySelector('input[name="paymentMethod"]:checked')?.value;
+            if (!paymentMethod) {
+                await Swal.fire({
+                    title: 'Método de pagamento',
+                    text: 'Por favor, selecione um método de pagamento.',
+                    icon: 'warning',
+                    confirmButtonColor: '#4CAF50'
+                });
+                submitButton.disabled = false;
+                submitButton.innerHTML = originalButtonText;
+                return;
+            }
+            
+            const isPix = paymentMethod === 'pix';
+            
+            // Calcular totais
+            let total = 0;
+            let pixTotal = 0;
+            
+            cart.forEach(item => {
+                total += item.price * item.quantity;
+                pixTotal += (item.pixPrice || item.price) * item.quantity;
             });
+            
+            // Obter dados do cliente
+            const customerName = document.getElementById('customerName')?.value.trim() || '';
+            const customerPhone = document.getElementById('customerPhone')?.value.trim() || '';
+            const customerEmail = document.getElementById('customerEmail')?.value.trim() || '';
+            
+            // Validação dos dados do cliente
+            if (!customerName || !customerPhone || !customerEmail) {
+                Swal.fire({
+                    title: 'Dados incompletos',
+                    text: 'Por favor, preencha todos os campos do formulário.',
+                    icon: 'warning',
+                    confirmButtonColor: '#4CAF50'
+                });
+                submitButton.disabled = false;
+                submitButton.innerHTML = originalButtonText;
+                return;
+            }
+            
+            // Validar e-mail
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(customerEmail)) {
+                Swal.fire({
+                    title: 'E-mail inválido',
+                    text: 'Por favor, insira um endereço de e-mail válido.',
+                    icon: 'warning',
+                    confirmButtonColor: '#4CAF50'
+                });
+                submitButton.disabled = false;
+                submitButton.innerHTML = originalButtonText;
+                return;
+            }
+            
+            // Validar telefone (formato brasileiro básico)
+            const phoneRegex = /^\d{10,11}$/;
+            const cleanPhone = customerPhone.replace(/\D/g, '');
+            if (!phoneRegex.test(cleanPhone)) {
+                Swal.fire({
+                    title: 'Telefone inválido',
+                    text: 'Por favor, insira um número de telefone válido (DDD + número).',
+                    icon: 'warning',
+                    confirmButtonColor: '#4CAF50'
+                });
+                submitButton.disabled = false;
+                submitButton.innerHTML = originalButtonText;
+                return;
+            }
+            
+            // Gerar número do pedido
+            const orderNumber = generateOrderNumber();
+            
+            // Definir o valor final com base no método de pagamento
+            const finalAmount = isPix ? pixTotal : total;
+            const paymentInfo = isPix 
+                ? `💠 PIX (${Math.round(((total - pixTotal) / total) * 100)}% de desconto)` 
+                : '💳 Cartão de Crédito';
+                
+            // Adicionar informações de parcelamento se for cartão
+            let paymentDetails = paymentInfo;
+            let installments = 1;
+            let installmentValue = finalAmount;
+            
+            if (!isPix) {
+                installments = parseInt(document.getElementById('installments')?.value || '1');
+                installmentValue = calculateInstallment(total, installments);
+                paymentDetails += ` em ${installments}x de R$ ${installmentValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                
+                if (installments > 6) {
+                    const totalWithInterest = installmentValue * installments;
+                    paymentDetails += ` (com juros - Total: R$ ${totalWithInterest.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`;
+                } else {
+                    paymentDetails += ' sem juros';
+                }
+            }
+            
+            // Formatar mensagem para o WhatsApp
+            let whatsappMessage = `*NOVO PEDIDO #${orderNumber}*\n\n`;
+            whatsappMessage += `*Cliente:* ${customerName}\n`;
+            whatsappMessage += `*Telefone:* ${customerPhone}\n`;
+            whatsappMessage += `*E-mail:* ${customerEmail}\n\n`;
+            whatsappMessage += `*Itens do Pedido:*\n`;
+            
+            cart.forEach(item => {
+                const itemTotal = isPix ? (item.pixPrice * item.quantity) : (item.price * item.quantity);
+                whatsappMessage += `- ${item.quantity}x ${item.name} - R$ ${itemTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
+            });
+            
+            whatsappMessage += `\n*Forma de Pagamento:* ${paymentDetails}\n`;
+            whatsappMessage += `*Valor Total:* R$ ${finalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n\n`;
+            whatsappMessage += `*Endereço de Entrega:*\n`;
+            whatsappMessage += `(O cliente irá informar o endereço no WhatsApp)`;
+            
+            // Criar objeto do pedido
+            const orderData = {
+                orderNumber,
+                customerName,
+                customerPhone,
+                customerEmail,
+                items: cart.map(item => ({
+                    productId: item.id,
+                    name: item.name,
+                    price: item.price,
+                    pixPrice: item.pixPrice || item.price,
+                    quantity: item.quantity,
+                    imageUrl: item.imageUrl || ''
+                })),
+                total: finalAmount,
+                paymentMethod,
+                installments: isPix ? 1 : installments,
+                status: 'Pendente',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            };
+            
+            // Salvar pedido no Firestore
+            let orderRef;
+            orderRef = await addDoc(collection(db, 'orders'), orderData);
+            console.log('Pedido salvo com ID:', orderRef.id);
+            
+            // Atualizar estoque
+            console.log('Iniciando atualização de estoque para itens:', cart);
+            const batch = writeBatch(db);
+            
+            // Atualizar estoque para cada item do carrinho
+            for (const item of cart) {
+                try {
+                    const productRef = doc(db, 'products', String(item.id)); // Garante que o ID seja string
+                    console.log(`Atualizando estoque - Produto ID: ${item.id}, Quantidade: ${item.quantity}`);
+                    
+                    // Usa increment para evitar condições de corrida
+                    // Tenta atualizar tanto 'stock' quanto 'quantity' para garantir compatibilidade
+                    batch.update(productRef, {
+                        quantity: increment(-item.quantity),
+                        stock: increment(-item.quantity), // Para compatibilidade
+                        updatedAt: new Date().toISOString()
+                    });
+                } catch (error) {
+                    console.error(`Erro ao processar item ${item.id}:`, error);
+                    throw new Error(`Falha ao processar o item ${item.name}: ${error.message}`);
+                }
+            }
+            
+            // Executa todas as atualizações em uma única transação
+            await batch.commit();
+            console.log('Estoque atualizado com sucesso para todos os itens');
+            
+            // Atualizar a interface do usuário
+            updateOrderConfirmationUI(orderData, whatsappMessage);
+            
+            // Limpar o carrinho
+            cart = [];
+            localStorage.setItem('cart', JSON.stringify(cart));
+            updateCartCount();
+            updateCartState();
+            
+            // Mostrar mensagem de sucesso
+            await Swal.fire({
+                title: 'Pedido realizado com sucesso!',
+                html: `Seu pedido #${orderNumber} foi recebido. Clique no botão abaixo para enviar pelo WhatsApp.`,
+                icon: 'success',
+                confirmButtonColor: '#4CAF50',
+                confirmButtonText: 'Abrir WhatsApp',
+                showCancelButton: true,
+                cancelButtonText: 'Fechar',
+                allowOutsideClick: false
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    window.open(`https://wa.me/5571991427989?text=${encodeURIComponent(whatsappMessage)}`, '_blank');
+                }
+            });
+            
+            // Resetar o formulário
+            checkoutForm.reset();
+        } catch (error) {
+            console.error('Erro ao processar pedido:', error);
+            
+            // Mostrar mensagem de erro para o usuário
+            await Swal.fire({
+                title: 'Erro',
+                text: error.message || 'Ocorreu um erro ao processar seu pedido. Por favor, tente novamente.',
+                icon: 'error',
+                confirmButtonColor: '#4CAF50',
+                confirmButtonText: 'Entendi'
+            });
+        } finally {
+            // Restaurar o estado do botão de submit
+            if (submitButton) {
+                submitButton.disabled = false;
+                submitButton.innerHTML = originalButtonText;
+            }
         }
-        // Update UI - Primeiro esconder elementos
-        checkoutFormElement.style.display = 'none';
-        cartTotalContainer.style.display = 'none';
-        emptyCartMessage.style.display = 'none';
-        
-        // Depois atualizar o conteúdo
-        displayOrderNumber.textContent = `Pedido #${orderNumber}`;
-        orderSummary.innerHTML = summaryHtml;
-        whatsappButton.href = `https://wa.me/5571991427989?text=${encodeURIComponent(message)}`;
-        
-        // Por último mostrar a confirmação
-        orderConfirmation.classList.add('show');
-        
-        // Limpar carrinho sem afetar a confirmação
-        cart = [];
-        updateCartCount();
-        checkoutForm.reset();
-        
-        console.log('Confirmação do pedido exibida com sucesso e estoque atualizado');
-    } catch (error) {
-        console.error('Erro ao exibir confirmação:', error);
-    }
     });
 }
 
 
+
+// Função para atualizar a interface de confirmação do pedido
+function updateOrderConfirmationUI(orderData, whatsappMessage) {
+    const orderConfirmation = document.getElementById('orderConfirmation');
+    const orderSummary = document.getElementById('orderSummary');
+    const checkoutForm = document.getElementById('checkoutForm');
+    const cartTotalContainer = document.getElementById('cartTotalContainer');
+    const whatsappButton = document.getElementById('whatsappButton');
+    
+    if (!orderConfirmation || !orderSummary || !whatsappButton) return;
+    
+    // Atualizar número do pedido
+    const displayOrderNumber = document.getElementById('displayOrderNumber');
+    if (displayOrderNumber) {
+        displayOrderNumber.textContent = `Pedido #${orderData.orderNumber}`;
+    }
+    
+    // Atualizar resumo do pedido
+    let summaryHTML = '<div class="order-items">';
+    orderData.items.forEach(item => {
+        const itemTotal = orderData.paymentMethod === 'pix' ? 
+            (item.pixPrice * item.quantity) : 
+            (item.price * item.quantity);
+            
+        summaryHTML += `
+            <div class="order-item">
+                <div class="order-item-image">
+                    <img src="${item.imageUrl || 'img/placeholder-product.jpg'}" alt="${item.name}">
+                </div>
+                <div class="order-item-details">
+                    <h4>${item.name}</h4>
+                    <p>${item.quantity}x R$ ${(orderData.paymentMethod === 'pix' ? item.pixPrice : item.price).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                </div>
+                <div class="order-item-total">
+                    R$ ${itemTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+            </div>`;
+    });
+    
+    summaryHTML += `
+        <div class="order-totals">
+            <div class="order-total-row">
+                <span>Subtotal:</span>
+                <span>R$ ${orderData.total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </div>
+            <div class="order-total-row">
+                <span>Forma de pagamento:</span>
+                <span>${orderData.paymentMethod === 'pix' ? 'PIX' : `Cartão (${orderData.installments}x)`}</span>
+            </div>
+            <div class="order-total-row total">
+                <strong>Total:</strong>
+                <strong>R$ ${orderData.total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+            </div>
+        </div>
+    </div>`;
+    
+    orderSummary.innerHTML = summaryHTML;
+    
+    // Atualizar link do WhatsApp
+    whatsappButton.href = `https://wa.me/5571991427989?text=${encodeURIComponent(whatsappMessage)}`;
+    
+    // Atualizar o botão de novo pedido com o nome do cliente
+    const newOrderButton = document.getElementById('newOrderButton');
+    if (newOrderButton) {
+        newOrderButton.setAttribute('onclick', `resetOrderConfirmation('${orderData.customerName}')`);
+    }
+    
+    // Mostrar confirmação e esconder formulário
+    if (checkoutForm) checkoutForm.style.display = 'none';
+    if (cartTotalContainer) cartTotalContainer.style.display = 'none';
+    orderConfirmation.style.display = 'block';
+    
+    // Rolar para a confirmação
+    orderConfirmation.scrollIntoView({ behavior: 'smooth' });
+}
 
 // Reset checkout form when closing cart
 function closeCartModal() {
@@ -1051,16 +1611,28 @@ async function resetOrderConfirmation(customerName) {
     if (!ensureDOMReferences()) return;
 
     try {
+        // Obter o número do pedido atual do DOM se não estiver disponível no currentOrderData
+        let orderNumber = currentOrderData?.orderNumber || '';
+        if (!orderNumber) {
+            const displayOrderNumber = document.getElementById('displayOrderNumber');
+            if (displayOrderNumber) {
+                const match = displayOrderNumber.textContent.match(/#(\d+)/);
+                if (match && match[1]) {
+                    orderNumber = match[1];
+                }
+            }
+        }
+
         // Se já enviou para o WhatsApp, mostrar mensagem diferente
         const swalOptions = {
             title: `<span style="font-family: 'Playfair Display', serif; color: #333;">Confirmação</span>`,
             html: `
                 <div style="text-align: left; font-family: 'Poppins', sans-serif;">
                     <p style="font-size: 1.1em; color: #333; margin-bottom: 15px;">
-                        Olá, <strong>${customerName}</strong>!
+                        Olá, <strong>${customerName || 'Cliente'}</strong>!
                     </p>
                     <p style="color: #666; margin-bottom: 20px;">
-                        Você já enviou o pedido #${currentOrderData?.orderNumber} para o WhatsApp?
+                        ${orderNumber ? `Você já enviou o pedido #${orderNumber} para o WhatsApp?` : 'Deseja fazer um novo pedido?'}
                     </p>
                 </div>
             `,
@@ -1276,3 +1848,58 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.error('Erro ao inicializar app:', error);
     }
 });
+
+// Função para inicializar a aplicação
+async function initializeApp() {
+    try {
+        // Inicializar referências DOM e event listeners
+        if (!ensureDOMReferences()) {
+            console.warn('Algumas referências DOM não foram encontradas');
+            return;
+        }
+
+        // Inicializar grid de produtos
+        initializeProductsGrid();
+        initializeEventListeners();
+
+        // Carregar produtos do Firestore
+        const productsFromFirestore = await loadProducts();
+        if (productsFromFirestore) {
+            products = productsFromFirestore;
+            
+            // Configurar listener em tempo real para produtos
+            const productsCollection = collection(window.db, 'products');
+            onSnapshot(productsCollection, (snapshot) => {
+                const updatedProducts = [];
+                snapshot.forEach(doc => {
+                    const product = { id: doc.id, ...doc.data() };
+                    updatedProducts.push(product);
+                });
+                
+                // Atualizar produtos globalmente
+                products = updatedProducts;
+                
+                // Re-renderizar listas
+                renderProductList();
+                
+                // Atualizar carrinho se necessário
+                updateCartState();
+            });
+        } else {
+            console.error('Erro ao carregar produtos do Firestore');
+        }
+
+        // Inicializar interface
+        renderProductList();
+        updateCartCount();
+    } catch (error) {
+        console.error('Erro ao inicializar app:', error);
+    }
+}
+
+// Inicializar a aplicação quando o DOM estiver pronto
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeApp);
+} else {
+    initializeApp();
+}
