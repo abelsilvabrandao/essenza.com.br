@@ -511,6 +511,7 @@ async function renderStockList() {
             <div class="stock-item-content">
                 <div class="stock-item-info">
   <h3>${product.name}</h3>
+  ${product.description ? `<div class="product-description" style="color:#666; font-size:0.9em; margin: 0.2em 0 0.5em 0;">${product.description}</div>` : ''}
   <div class="product-category-label">
     ${typeof product.category === 'string' && product.category.trim() ? product.category : '<span style=\"color:#bbb;\">Sem categoria</span>'}
   </div>
