@@ -502,7 +502,7 @@ async function renderProductList() {
                         </p>
                         <button onclick="requestOutOfStockProduct('${product.id}')" class="btn-out-of-stock">
                             <i class="fas fa-envelope"></i>
-                            Avise-me quando estiver disponível!
+                            Avise-me quando disponível!
                         </button>
                     `;
                 } else if (available <= 2) {
