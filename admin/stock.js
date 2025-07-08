@@ -2125,6 +2125,7 @@ function renderSpecialOffers() {
 </div>
                 <div class="offer-item-info">
                     <h3>${product.name}</h3>
+                    ${product.description ? `<div class="product-description" style="color:#666; font-size:0.9em; margin: 0.2em 0 0.5em 0;">${product.description}</div>` : ''}
                     <div class="offer-prices">
                         ${
                           product.oldPrice
