@@ -28,7 +28,7 @@
                     <i class="fas fa-plus"></i>
                     Adicionar Novo Produto
                 </button>
-                <button id="refreshStock" class="btn-primary" onclick="StockModule.refreshStock()">
+                <button type="button" id="refreshStock" class="btn-primary" onclick="(window.StockModule?.refreshStock || window.refreshStock || (() => window.location.reload()))()">
                     <i class="fas fa-sync-alt"></i>
                     Atualizar Lista
                 </button>
@@ -108,10 +108,56 @@
 
 <!-- Aba de Pedidos -->
 <div id="ordersTab" class="tab-content" style="display: none;">
-    <h2>Gerenciar Pedidos</h2>
-    <p class="help-text">Aqui você pode visualizar e gerenciar todos os pedidos realizados.</p>
-    <div class="orders-summary" id="ordersSummary" style="display:none;"></div>
-    <div id="ordersList" class="orders-list"></div>
+    <div class="summary-collapsible">
+        <div class="summary-header" id="summaryHeader">
+            <h3>Resumo de Pedidos</h3>
+            <span class="toggle-icon">+</span>
+            </div>
+        <div class="orders-summary" id="ordersSummary">
+            <!-- Conteúdo será preenchido dinamicamente -->
+        </div>
+    </div>
+        
+        <div class="filters" style="margin: 20px 0; background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 15px;">
+            <div class="filter-group">
+              <label for="searchTerm">Buscar:</label>
+              <input type="text" id="searchTerm" class="filter-input" placeholder="Nº pedido, cliente..." style="width: 100%;">
+            </div>
+            
+            <div class="filter-group">
+              <label for="filterDate">Data:</label>
+              <input type="date" id="filterDate" class="filter-input">
+            </div>
+            
+            <div class="filter-group">
+              <label for="filterStatus">Status:</label>
+              <select id="filterStatus" class="filter-select">
+                <option value="">Todos os status</option>
+                <option value="Pendente">Pendente</option>
+                <option value="Concluído">Concluído</option>
+                <option value="Cancelado">Cancelado</option>
+              </select>
+            </div>
+          </div>
+          <div style="display: flex; gap: 10px;">
+            <button id="applyFilters" class="btn" style="background-color: #4caf50; color: white; border: none;">
+              <i class="fas fa-search"></i> Buscar
+            </button>
+            <button id="clearFilters" class="btn" style="background-color: #f0f0f0; border: 1px solid #ddd;">
+              <i class="fas fa-times"></i> Limpar
+            </button>
+          </div>
+        </div>
+        
+        <div id="ordersList" class="orders-list"></div>
+        <div id="noResultsMessage" style="display: none; text-align: center; padding: 20px; color: #666; grid-column: 1 / -1;">
+          <p>Nenhum pedido encontrado com os filtros atuais.</p>
+          <button onclick="clearFilters()" class="btn" style="margin-top: 10px; background-color: #f0f0f0; border: 1px solid #ddd;">
+            <i class="fas fa-times"></i> Limpar filtros
+          </button>
+        </div>
+    </div>
 </div>
 
             <div class="tab-content" id="waitlistTab" style="display: none;">
@@ -361,13 +407,47 @@
         window.deleteProduct = (id) => window.StockModule.deleteProduct(id);
         window.handleProductSubmit = (event) => window.StockModule.handleProductSubmit(event);
         window.updateQuantity = (productId, quantity) => window.StockModule.updateQuantity(productId, quantity);
+        
+        // Função para formatar o método de pagamento
+        window.getPaymentMethodLabel = (method) => {
+            const methods = {
+                'credit': 'Cartão de Crédito',
+                'debit': 'Cartão de Débito',
+                'pix': 'PIX',
+                'boleto': 'Boleto Bancário',
+                'cash': 'Dinheiro',
+                'bank_transfer': 'Transferência Bancária'
+            };
+            return methods[method] || method || 'Não informado';
+        };
+
+        // Função para alternar a visibilidade dos detalhes financeiros
+        window.toggleFinancialDetails = (button) => {
+            const content = button.nextElementSibling;
+            const icon = button.querySelector('i');
+            
+            if (content.style.display === 'none' || !content.style.display) {
+                content.style.display = 'block';
+                icon.classList.remove('fa-chevron-down');
+                icon.classList.add('fa-chevron-up');
+                button.querySelector('span').textContent = 'Ocultar detalhes financeiros';
+            } else {
+                content.style.display = 'none';
+                icon.classList.remove('fa-chevron-up');
+                icon.classList.add('fa-chevron-down');
+                button.querySelector('span').textContent = 'Ver detalhes financeiros';
+            }
+        };
     </script>
 
     <!-- Scripts da aplicação -->
     <script type="module">
     import * as ProductsModule from '../js/products.js';
-import * as StockModule from './stock.js';
-import { renderStockDashboard } from './dashboard.js';
+    import * as StockModule from './stock.js';
+    import { renderStockDashboard } from './dashboard.js';
+    
+    // Adicionando StockModule ao escopo global para acesso direto
+    window.StockModule = StockModule;
 
         // Função para garantir que o Firestore está pronto
         function waitForFirestore() {
@@ -397,18 +477,46 @@ import { renderStockDashboard } from './dashboard.js';
                 await waitForFirestore();
                 console.log('Firestore pronto para uso');
 
-                // Inicializar produtos primeiro
+                // 1. Carregar produtos primeiro
                 await ProductsModule.loadProducts();
+                console.log('Produtos carregados:', window.products ? window.products.length : 0);
+                
+                // 2. Inicializar estoque
                 await StockModule.initializeStock();
-                // Renderiza o painel do dashboard após carregar produtos e estoque
+                console.log('Estoque inicializado');
+                
+                // 3. Renderizar pedidos (que dependem dos produtos para cálculos)
+                if (typeof StockModule.renderOrdersList === 'function') {
+                    console.log('Chamando renderOrdersList...');
+                    await StockModule.renderOrdersList();
+                }
+                
+                // 4. Renderizar o painel do dashboard
                 if (window.products && window.products.length > 0) {
                     renderStockDashboard(window.products, { estoqueCritico: 5 });
+                } else {
+                    console.error('Nenhum produto carregado para renderizar o dashboard');
                 }
-                console.log('Produtos carregados:', window.products?.length || 0);
+                
+                // 5. Carregar lista de espera (se a função existir no StockModule)
+                if (typeof StockModule.loadWaitlistFromFirestore === 'function') {
+                    console.log('Carregando lista de espera...');
+                    await StockModule.loadWaitlistFromFirestore();
+                } else {
+                    console.log('Função loadWaitlistFromFirestore não encontrada, pulando...');
+                }
                 
                 // Configurar event listeners da UI
-                await StockModule.setupEventListeners();
-                console.log('Event listeners configurados');
+                if (typeof StockModule.setupEventListeners === 'function') {
+                    await StockModule.setupEventListeners();
+                }
+                
+                // Mostrar a aba de estoque por padrão
+                if (typeof showTab === 'function') {
+                    showTab('stock');
+                }
+                
+                console.log('Aplicação inicializada com sucesso!');
                 
                 // Renderizar outras listas
                 await StockModule.renderSpecialOffers();

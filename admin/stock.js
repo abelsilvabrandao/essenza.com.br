@@ -3,23 +3,468 @@ import {
   collection,
   getDocs,
   doc,
-  setDoc,
-  writeBatch,
-  onSnapshot,
-  deleteDoc,
   getDoc,
+  updateDoc,
+  deleteDoc,
+  writeBatch,
+  setDoc,
+  onSnapshot,
 } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-firestore.js";
+import './print.js';
+
+// Função para formatar número de telefone
+function formatPhoneNumber(phoneNumber) {
+  if (!phoneNumber) return '';
+  
+  // Remove todos os caracteres que não são dígitos
+  const cleaned = ('' + phoneNumber).replace(/\D/g, '');
+  
+  // Verifica se é um número válido (10 ou 11 dígitos)
+  const match = cleaned.match(/^(\d{2})(\d{4,5})(\d{4})$/);
+  
+  if (match) {
+    return `(${match[1]}) ${match[2]}-${match[3]}`;
+  }
+  
+  // Retorna o número original se não for possível formatar
+  return phoneNumber;
+}
+
+// Função para escapar caracteres HTML
+function escapeHtml(unsafe) {
+  if (!unsafe) return '';
+  return unsafe
+    .toString()
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+// Função auxiliar para formatar o método de pagamento
+function getPaymentMethodLabel(method) {
+  const methods = {
+    'credit': 'Cartão de Crédito',
+    'debit': 'Cartão de Débito',
+    'pix': 'PIX',
+    'boleto': 'Boleto Bancário',
+    'cash': 'Dinheiro',
+    'bank_transfer': 'Transferência Bancária'
+  };
+  return methods[method] || method || 'Não informado';
+}
+
+// Tornar a função disponível globalmente
+window.getPaymentMethodLabel = getPaymentMethodLabel;
+
+// Função para alternar a visibilidade dos detalhes financeiros
+function toggleFinancialDetails(button) {
+  const content = button.nextElementSibling;
+  const icon = button.querySelector('i');
+  const labelSpan = button.querySelector('span');
+
+  if (!content) return;
+  if (!icon) return;
+  if (!labelSpan) return;
+
+  if (content.style.display === 'none' || !content.style.display) {
+    content.style.display = 'block';
+    icon.classList.remove('fa-chevron-down');
+    icon.classList.add('fa-chevron-up');
+    labelSpan.textContent = 'Ocultar detalhes financeiros';
+  } else {
+    content.style.display = 'none';
+    icon.classList.remove('fa-chevron-up');
+    icon.classList.add('fa-chevron-down');
+    labelSpan.textContent = 'Ver detalhes financeiros';
+  }
+}
+
+// Tornar a função disponível globalmente
+window.toggleFinancialDetails = toggleFinancialDetails;
+
+// Função para normalizar textos para busca (remove acentos e caracteres especiais)
+function normalizeSearchText(text) {
+  if (!text) return '';
+  return text
+    .toString()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // Remove acentos
+    .replace(/[^a-z0-9\s]/g, '') // Remove caracteres especiais
+    .trim();
+}
+
+// Função para normalizar os status (remove acentos e caracteres especiais)
+function normalizeStatus(status) {
+  if (!status) return '';
+  return status
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Remove acentos
+    .trim();
+}
+
+// Função para normalizar texto para comparação (remover acentos, converter para minúsculas e remover espaços)
+const normalizeForComparison = (str) => {
+  return String(str || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+};
+
+// Função para mapear status para valores consistentes
+function getNormalizedStatus(status) {
+  if (!status || status.trim() === '') return 'Pendente';
+  
+  const normalizedInput = normalizeForComparison(status);
+  
+  // Mapa de status normalizados
+  const statusMap = {
+    'concluido': 'Concluído',
+    'concluir': 'Concluído',
+    'finalizado': 'Concluído',
+    'completo': 'Concluído',
+    'entregue': 'Concluído',
+    'cancelado': 'Cancelado',
+    'cancelar': 'Cancelado',
+    'pago': 'Pago',
+    'pendente': 'Pendente',
+    'processando': 'Pendente',
+    'em andamento': 'Pendente',
+    'aguardando': 'Pendente',
+    'pendente de pagamento': 'Pendente',
+    'pendente pagamento': 'Pendente',
+    'pendente de pag': 'Pendente',
+    'pendente pag': 'Pendente',
+    'novo': 'Pendente',
+    'recebido': 'Pendente'
+  };
+  
+  // Verifica se o status normalizado está no mapa
+  for (const [key, value] of Object.entries(statusMap)) {
+    if (normalizeForComparison(key) === normalizedInput) {
+      return value;
+    }
+  }
+  
+  // Se não encontrou no mapa, tenta encontrar por similaridade
+  for (const [key, value] of Object.entries(statusMap)) {
+    const normalizedKey = normalizeForComparison(key);
+    if (normalizedInput.includes(normalizedKey) || normalizedKey.includes(normalizedInput)) {
+      return value;
+    }
+  }
+  
+  // Retorna o status original com a primeira letra maiúscula
+  return status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+}
+
+// Função para formatar data no formato YYYY-MM-DD
+function formatDateForInput(date) {
+  if (!date) return '';
+  const d = date instanceof Date ? date : new Date(date);
+  return d.toISOString().split('T')[0];
+}
+
+
+// Função para aplicar os filtros
+export function applyFilters() {
+  console.log('=== APLICANDO FILTROS ===');
+  
+  const searchTerm = document.getElementById('searchTerm')?.value?.trim().toLowerCase() || '';
+  const filterDate = document.getElementById('filterDate')?.value || '';
+  const filterStatus = document.getElementById('filterStatus')?.value || '';
+  
+  console.log('Termo de busca:', searchTerm);
+  console.log('Data:', filterDate);
+  console.log('Status:', filterStatus);
+  
+  // Atualizar a URL com os parâmetros de filtro
+  const urlParams = new URLSearchParams();
+  if (filterStatus) urlParams.set('status', filterStatus);
+  if (searchTerm) urlParams.set('search', encodeURIComponent(searchTerm));
+  if (filterDate) urlParams.set('date', filterDate);
+  
+  const newUrl = `${window.location.pathname}?${urlParams.toString()}`;
+  window.history.pushState({}, '', newUrl);
+  
+  console.log('Termo de busca:', searchTerm);
+  console.log('Data:', filterDate);
+  console.log('Status:', filterStatus);
+
+  const orderCards = document.querySelectorAll('.order-card');
+  console.log('Total de cards encontrados:', orderCards.length);
+
+  // Verificar se existem cards
+  if (orderCards.length === 0) {
+    console.warn('Nenhum card de pedido encontrado na página!');
+    const ordersList = document.getElementById('ordersList');
+    if (ordersList) {
+      console.log('Conteúdo de ordersList:', ordersList.innerHTML.substring(0, 200) + '...');
+    } else {
+      console.error('Elemento ordersList não encontrado!');
+    }
+  }
+
+  let visibleCount = 0;
+  let anyFilterActive = searchTerm || filterDate || filterStatus;
+  
+  // Log dos dados do primeiro pedido para debug
+  if (orderCards.length > 0) {
+    const firstCard = orderCards[0];
+    console.log('=== DADOS DO PRIMEIRO PEDIDO ===');
+    console.log('HTML do card:', firstCard.outerHTML);
+    console.log('Dataset:', firstCard.dataset);
+    console.log('Status no dataset:', firstCard.dataset.status);
+  }
+
+  orderCards.forEach(card => {
+    const cardNumber = card.querySelector('.order-number')?.textContent?.trim() || '';
+    // Busca pelo nome do cliente considerando múltiplas possibilidades
+    let customerName = card.querySelector('.customer-name')?.textContent?.trim() || '';
+    if (!customerName) {
+      // Tenta buscar por outros campos se necessário (fallback)
+      customerName = card.dataset.customerName || card.dataset.customer || '';
+    }
+    const orderDate = card.querySelector('.order-date')?.getAttribute('data-date')?.trim() || '';
+    const cardStatus = (card.dataset.status || '').trim();
+
+    console.log('---');
+    console.log('Card ID:', card.dataset.orderId);
+    console.log('Número:', cardNumber);
+    console.log('Cliente:', customerName);
+    console.log('Data:', orderDate);
+    console.log('Status no card:', cardStatus);
+
+    // 1. Normalizar status para comparação consistente
+    const normalizedCardStatus = getNormalizedStatus(cardStatus || 'Pendente');
+    const normalizedFilterStatus = filterStatus ? getNormalizedStatus(filterStatus) : null;
+    
+    // 2. Verificar se o pedido corresponde ao filtro de status
+    let statusMatches = !filterStatus; // Se não houver filtro de status, mostra todos
+    
+    if (filterStatus) {
+      // Normalizar os status para comparação
+      const cardStatusNormalized = normalizeForComparison(normalizedCardStatus);
+      const filterStatusNormalized = normalizeForComparison(normalizedFilterStatus);
+      
+      // Verificar se o status do card corresponde ao filtro
+      statusMatches = cardStatusNormalized === filterStatusNormalized || 
+                     cardStatusNormalized.includes(filterStatusNormalized) || 
+                     filterStatusNormalized.includes(cardStatusNormalized);
+      
+      // Caso especial: se o filtro for 'Pendente', mostrar também pedidos sem status definido
+      if (!statusMatches && filterStatusNormalized === 'pendente' && (!cardStatus || cardStatus.trim() === '')) {
+        console.log('Mostrando pedido sem status definido (considerado Pendente)');
+        statusMatches = true;
+      }
+      
+      // Log para debug
+      console.log('Comparação de status:', {
+        cardId: card.dataset.orderId,
+        cardStatus,
+        normalizedCardStatus,
+        filterStatus,
+        normalizedFilterStatus,
+        cardStatusNormalized,
+        filterStatusNormalized,
+        statusMatches
+      });
+    }
+    
+    // 3. Verificar se o pedido corresponde ao filtro de data
+    let dateMatches = !filterDate;
+    if (filterDate && orderDate) {
+      try {
+        const cardDate = new Date(orderDate);
+        const filterDateObj = new Date(filterDate);
+        dateMatches = cardDate.toDateString() === filterDateObj.toDateString();
+      } catch (e) {
+        console.error('Erro ao processar datas:', e);
+        dateMatches = true; // Em caso de erro, considera como se a data correspondesse
+      }
+    }
+    
+    // 4. Verificar se o pedido corresponde ao termo de busca
+    let searchMatches = !searchTerm;
+    if (searchTerm) {
+      try {
+        const normalizedSearch = normalizeSearchText(searchTerm);
+        // Busca no número do pedido e nome do cliente
+        // Busca tanto pelo número do pedido quanto por possíveis campos de nome do cliente
+        searchMatches = 
+          normalizeSearchText(cardNumber).includes(normalizedSearch) ||
+          normalizeSearchText(customerName).includes(normalizedSearch);
+        
+        // Se não encontrou no número ou nome, tenta encontrar nos itens do pedido
+        if (!searchMatches) {
+          const items = card.querySelectorAll('.order-item');
+          searchMatches = Array.from(items).some(item => {
+            const itemName = item.querySelector('.product-name')?.textContent?.trim() || '';
+            return normalizeSearchText(itemName).includes(normalizedSearch);
+          });
+        }
+      } catch (e) {
+        console.error('Erro na busca:', e);
+        searchMatches = true; // Em caso de erro, considera como se a busca correspondesse
+      }
+    }
+    
+    // Log detalhado para debug
+    console.log('Filtros aplicados:', {
+      cardId: card.dataset.orderId,
+      cardNumber,
+      customerName,
+      cardStatus,
+      filterStatus,
+      normalizedCardStatus,
+      normalizedFilterStatus: normalizedFilterStatus || 'Nenhum filtro',
+      statusMatches,
+      dateMatches,
+      searchTerm: searchTerm || 'Nenhum termo',
+      searchMatches,
+      orderDate: orderDate ? formatDateForInput(orderDate) : 'N/A',
+      filterDate: filterDate || 'Nenhuma data'
+    });
+
+    // Lógica de decisão:
+    // 1. Primeiro verifica se os filtros básicos estão atendidos (status e data)
+    const basicFiltersMatch = statusMatches && dateMatches;
+    
+    // 2. Se houver termo de busca, deve corresponder à busca E aos filtros básicos
+    // 3. Se não houver termo de busca, basta que os filtros básicos sejam atendidos
+    const shouldShow = searchTerm 
+      ? searchMatches && basicFiltersMatch  // Busca + Filtros
+      : basicFiltersMatch;                  // Apenas Filtros
+      
+    console.log('Resultado final - Mostrar?', shouldShow, {
+      statusMatches, 
+      dateMatches, 
+      searchMatches,
+      hasSearchTerm: !!searchTerm,
+    });
+
+    // 4. Aplicar a decisão final de exibição
+    if (shouldShow) {
+      card.style.display = ''; // Remove qualquer display: none
+      card.style.removeProperty('display'); // Garante que não há estilos inline sobrescrevendo
+      visibleCount++;
+      console.log(`Mostrando card ${card.dataset.orderId} - Status: ${cardStatus}`);
+    } else {
+      card.style.display = 'none';
+      console.log(`Ocultando card ${card.dataset.orderId} - Status: ${cardStatus}`);
+    }
+  });
+
+  console.log('Total de pedidos visíveis após filtro:', visibleCount);
+  
+  // Mostrar mensagem quando não houver resultados
+  const noResultsMessage = document.getElementById('noResultsMessage');
+  if (noResultsMessage) {
+    noResultsMessage.style.display = visibleCount > 0 ? 'none' : 'block';
+  }
+  
+  console.log('Total de pedidos visíveis após filtro:', visibleCount);
+  
+  // Mostrar mensagem se não houver resultados
+  const ordersList = document.getElementById('ordersList');
+  const noResults = document.getElementById('noResultsMessage');
+  
+  if (visibleCount === 0) {
+    if (!noResults) {
+      const message = document.createElement('div');
+      message.id = 'noResultsMessage';
+      message.style.textAlign = 'center';
+      message.style.padding = '40px 20px';
+      message.style.color = '#666';
+      message.style.fontSize = '1.1em';
+      
+      let messageText = 'Nenhum pedido encontrado';
+      const activeFilters = [];
+      
+      if (filterStatus) activeFilters.push(`status "${filterStatus}"`);
+      if (filterDate) activeFilters.push(`data "${formatISODateToBR(filterDate)}"`);
+      if (searchTerm) activeFilters.push(`termo de busca "${searchTerm}"`);
+      
+      if (activeFilters.length > 0) {
+        messageText += ` com ${activeFilters.join(', ')}`;
+      }
+      
+      message.innerHTML = `
+        <i class="fas fa-inbox" style="font-size: 3em; opacity: 0.3; margin-bottom: 15px;"></i>
+        <p>${messageText}</p>
+        <button onclick="clearFilters()" class="btn" style="margin-top: 15px;">
+          <i class="fas fa-undo"></i> Limpar filtros
+        </button>
+      `;
+      ordersList.appendChild(message);
+    }
+  } else if (noResults) {
+    noResults.remove();
+  }
+}
+
+// Função para limpar todos os filtros
+export function clearFilters() {
+  document.getElementById('searchTerm').value = '';
+  document.getElementById('filterDate').value = '';
+  document.getElementById('filterStatus').value = '';
+  applyFilters();
+}
+
+// Mantendo a função antiga para compatibilidade, mas redirecionando para a nova função
+function filterOrdersByStatus(status) {
+  document.getElementById('filterStatus').value = status || '';
+  applyFilters();
+}
+
+// Torna as funções disponíveis globalmente
+window.filterOrdersByStatus = filterOrdersByStatus;
+window.applyFilters = applyFilters;
+window.clearFilters = clearFilters;
 
 // Função para renderizar pedidos
 export async function renderOrdersList() {
+  console.log('Iniciando renderOrdersList...');
   const ordersList = document.getElementById('ordersList');
   const ordersSummary = document.getElementById('ordersSummary');
-  if (!ordersList) return;
-  ordersList.innerHTML = '<p>Carregando pedidos...</p>';
-  if (ordersSummary) ordersSummary.style.display = 'none';
+  
+  if (!ordersList) {
+    console.error('Elemento ordersList não encontrado!');
+    return;
+  }
+  
+  // Mostrar indicador de carregamento
+  ordersList.innerHTML = `
+    <div class="loading-container" style="text-align: center; padding: 2rem;">
+      <div class="spinner" style="border: 4px solid #f3f3f3; border-top: 4px solid #ff1493; border-radius: 50%; width: 40px; height: 40px; margin: 0 auto 1rem; animation: spin 1s linear infinite;"></div>
+      <p>Carregando pedidos...</p>
+      <style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
+    </div>`;
+  
+  if (ordersSummary) {
+    ordersSummary.style.display = 'none';
+  }
+  
+  console.log('Buscando pedidos no Firestore...');
 
   try {
-    const ordersSnapshot = await getDocs(collection(window.db, 'orders'));
+    // Buscar pedidos
+    const ordersRef = collection(window.db, 'orders');
+    console.log('Referência da coleção orders:', ordersRef);
+    
+    const ordersSnapshot = await getDocs(ordersRef);
+    console.log('Total de pedidos encontrados:', ordersSnapshot.size);
+    
+    if (ordersSnapshot.empty) {
+      console.log('Nenhum pedido encontrado no Firestore');
+      ordersList.innerHTML = `
+        <div class="no-orders" style="text-align: center; padding: 2rem; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+          <i class="fas fa-box-open" style="font-size: 3rem; color: #ccc; margin-bottom: 1rem;"></i>
+          <h3 style="color: #666; margin-bottom: 0.5rem;">Nenhum pedido encontrado</h3>
+          <p style="color: #999;">Quando novos pedidos forem feitos, eles aparecerão aqui.</p>
+        </div>`;
+      return;
+    }
+    
     let html = '';
     let totalPedidos = 0;
     let totalVendido = 0;
@@ -27,62 +472,379 @@ export async function renderOrdersList() {
     let totalLucro = 0;
     const orders = [];
 
+    // Processar cada pedido
     ordersSnapshot.forEach(doc => {
-      const order = doc.data();
-      order._id = doc.id;
-      orders.push(order);
-      totalPedidos++;
-      // Não calcular totalVendido aqui!
+      try {
+        console.log('Processando pedido:', doc.id);
+        const order = { ...doc.data(), _id: doc.id };
+        
+        // Garantir que os itens sejam um array
+        if (!Array.isArray(order.items)) {
+          order.items = [];
+        }
+        
+        // Garantir que os pagamentos sejam um array
+        if (!Array.isArray(order.payments)) {
+          order.payments = [];
+        }
+        
+        orders.push(order);
+        totalPedidos++;
+      } catch (error) {
+        console.error(`Erro ao processar pedido ${doc.id}:`, error);
+      }
     });
 
-    // 1. Gerar HTML dos cards e calcular _purchaseCost
-    html = orders.map(order => {
-      const statusClass = order.status === 'Concluído' ? 'completed' : order.status === 'Cancelado' ? 'cancelled' : '';
-      const statusLabel = order.status || 'Pendente';
+    // Ordenar pedidos por data (mais recentes primeiro)
+    orders.sort((a, b) => {
+      const dateA = a.createdAt ? (a.createdAt.toDate ? a.createdAt.toDate() : new Date(a.createdAt)) : new Date(0);
+      const dateB = b.createdAt ? (b.createdAt.toDate ? b.createdAt.toDate() : new Date(b.createdAt)) : new Date(0);
+      return dateB - dateA; // Ordem decrescente (mais recente primeiro)
+    });
 
-      // Corrigir data do pedido para evitar Invalid Date
-      let dataPedido = '';
-      if (order.createdAt) {
-        if (typeof order.createdAt.toDate === 'function') {
-          dataPedido = order.createdAt.toDate().toLocaleString('pt-BR');
-        } else if (typeof order.createdAt === 'number') {
-          dataPedido = new Date(order.createdAt).toLocaleString('pt-BR');
-        } else if (typeof order.createdAt === 'string') {
-          dataPedido = new Date(order.createdAt).toLocaleString('pt-BR');
+    // Gerar HTML dos cards
+    html = orders.map(order => {
+      // Normalizar o status para garantir consistência
+      const normalizedStatus = getNormalizedStatus(order.status || 'Pendente');
+      
+      const statusClass = normalizedStatus === 'Concluído' ? 'completed' : 
+                        normalizedStatus === 'Cancelado' ? 'cancelled' : '';
+      const statusLabel = normalizedStatus;
+
+      // Formatar data do pedido
+      let dataPedido = 'Data não disponível';
+      try {
+        if (order.createdAt) {
+          const dateObj = order.createdAt.toDate ? 
+                         order.createdAt.toDate() : 
+                         new Date(order.createdAt);
+          dataPedido = dateObj.toLocaleString('pt-BR');
         }
+      } catch (e) {
+        console.error('Erro ao formatar data do pedido:', e);
       }
 
-      // Calcular custo de compra real do pedido (robusto)
+      // Calcular custo de compra
       let purchaseCost = 0;
       (order.items || []).forEach(item => {
-        const produto = window.products?.find(p => String(p.id) === String(item.productId));
+        const produto = Array.isArray(window.products) ? 
+                       window.products.find(p => String(p.id) === String(item.productId)) : 
+                       null;
         if (produto && produto.purchasePrice) {
-          purchaseCost += Number(produto.purchasePrice) * Number(item.quantity || 1);
+          purchaseCost += Number(produto.purchasePrice || 0) * Number(item.quantity || 1);
         }
       });
-      order._purchaseCost = purchaseCost; // Salva para uso no resumo
+      
+      order._purchaseCost = purchaseCost;
+      
+      // Calcular totais de pagamentos
+      const payments = Array.isArray(order.payments) ? order.payments : [];
+      const totalPago = payments.reduce((sum, payment) => {
+        return sum + (Number(payment.amount) || 0);
+      }, 0);
+      
+      const valorTotal = Number(order.total) || 0;
+      const valorPendente = Math.max(0, valorTotal - totalPago);
+      
+      // Determinar status do pagamento
+      let paymentStatus = order.paymentStatus || 'Pendente';
+      if (totalPago >= valorTotal) {
+        paymentStatus = 'Pago';
+      } else if (totalPago > 0) {
+        paymentStatus = 'Parcial';
+      }
 
-      return `
-        <div class="order-card" data-order-id="${order._id}">
-          <div class="order-header">
-            <div><b>Pedido:</b> ${order.orderNumber || order._id}</div>
-            <span class="order-status ${statusClass}">${statusLabel}</span>
+      try {
+        const orderNumber = order.orderNumber || order._id.substring(0, 8).toUpperCase();
+        const customerName = order.customerName || order.customer?.name || 'Cliente não identificado';
+        const paymentMethod = getPaymentMethodLabel(order.paymentMethod || 'credit');
+        const totalPedido = Number(order.total) || 0;
+        const lucroEstimado = Math.max(0, totalPedido - purchaseCost);
+
+        // Gerar HTML dos itens do pedido
+        const itemsHtml = (order.items || []).map(item => {
+          const precoUnitario = Number(item.price) || 0;
+          const quantidade = Number(item.quantity) || 1;
+          const subtotal = precoUnitario * quantidade;
+          
+          return `
+            <tr style="border-bottom: 1px solid #eee;">
+              <td style="padding: 12px 8px;">
+                <div class="product-name">${item.name || 'Produto sem nome'}</div>
+                ${item.variant ? `<div class="product-variant" style="font-size: 0.85em; color: #666; margin-top: 4px;">
+                  ${item.variant}
+                </div>` : ''}
+              </td>
+              <td style="text-align: center; padding: 12px 8px; vertical-align: top;">${quantidade}</td>
+              <td style="text-align: right; padding: 12px 8px; vertical-align: top; white-space: nowrap;">
+                R$ ${precoUnitario.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </td>
+              <td style="text-align: right; padding: 12px 8px; vertical-align: top; white-space: nowrap; font-weight: 500;">
+                R$ ${subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </td>
+            </tr>
+          `;
+        }).join('');
+
+        // Gerar HTML dos pagamentos realizados
+        const paymentsHtml = payments.length > 0 ? `
+          <div class="payment-history" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee;">
+            <h4 style="font-size: 0.95em; color: #555; margin: 0 0 10px 0; display: flex; align-items: center;">
+              <i class="fas fa-history" style="margin-right: 8px;"></i>
+              Histórico de Pagamentos
+            </h4>
+            <div class="table-responsive" style="max-height: 200px; overflow-y: auto;">
+              <table class="payment-table" style="width: 100%; border-collapse: collapse; font-size: 0.9em;">
+                <thead>
+                  <tr style="background-color: #f8f9fa;">
+                    <th style="text-align: left; padding: 8px; font-weight: 500; border-bottom: 1px solid #dee2e6;">Data</th>
+                    <th style="text-align: right; padding: 8px; font-weight: 500; border-bottom: 1px solid #dee2e6;">Valor</th>
+                    <th style="text-align: left; padding: 8px; font-weight: 500; border-bottom: 1px solid #dee2e6;">Forma</th>
+                    <th style="text-align: left; padding: 8px; font-weight: 500; border-bottom: 1px solid #dee2e6;">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${payments.map(payment => {
+                    const paymentDate = payment.date ? (payment.date.toDate ? payment.date.toDate() : new Date(payment.date)) : new Date();
+                    const paymentStatus = payment.status || 'Aprovado';
+                    const statusClass = paymentStatus.toLowerCase() === 'aprovado' ? 'status-approved' : 
+                                      paymentStatus.toLowerCase() === 'pendente' ? 'status-pending' : 'status-rejected';
+                    
+                    return `
+                      <tr style="border-bottom: 1px solid #f1f1f1;">
+                        <td style="padding: 8px; border-bottom: 1px solid #f1f1f1;">${paymentDate.toLocaleDateString('pt-BR')}</td>
+                        <td style="text-align: right; padding: 8px; border-bottom: 1px solid #f1f1f1; font-weight: 500; white-space: nowrap;">
+                          R$ ${Number(payment.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td style="padding: 8px; border-bottom: 1px solid #f1f1f1;">${getPaymentMethodLabel(payment.method)}</td>
+                        <td style="padding: 8px; border-bottom: 1px solid #f1f1f1;">
+                          <span class="status-badge ${statusClass}" style="display: inline-block; padding: 3px 8px; border-radius: 12px; font-size: 0.8em; font-weight: 500;">
+                            ${paymentStatus}
+                          </span>
+                        </td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
           </div>
-          <div class="order-meta"><b>Cliente:</b> ${order.customerName || '-'}<br><span class="order-date">${dataPedido}</span></div>
-          <div class="order-products">
-            <b>Produtos:</b>
-            <ul>
-              ${(order.items || []).map(item => `<li>${item.name} (${item.quantity}x)</li>`).join('')}
-            </ul>
+        ` : `
+          <div class="no-payments" style="margin-top: 15px; padding: 15px; background-color: #f8f9fa; border-radius: 6px; text-align: center; color: #6c757d;">
+            <i class="fas fa-info-circle" style="margin-right: 5px;"></i>
+            Nenhum pagamento registrado para este pedido.
           </div>
-          <div class="order-total"><b>Total:</b> R$ ${(order.total ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-          <div class="order-meta"><b>Custo de compra:</b> R$ ${purchaseCost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}<br><b>Lucro estimado:</b> R$ ${((order.total ?? 0)-purchaseCost).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-          <div class="order-actions">
-            <button class="order-action-btn complete" data-action="complete" data-order-id="${order._id}" ${order.status === 'Concluído' || order.status === 'Cancelado' ? 'disabled' : ''}><i class='fas fa-check'></i> Concluído</button>
-            <button class="order-action-btn cancel" data-action="cancel" data-order-id="${order._id}" ${order.status === 'Cancelado' || order.status === 'Concluído' ? 'disabled' : ''}><i class='fas fa-times'></i> Cancelar</button>
+        `;
+
+        // Gerar HTML do card do pedido
+        // Utilitário para formatar data/hora no horário de Brasília (UTC-3)
+        function formatDateToBRT(dateInput) {
+          const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+          // Converter para horário de Brasília (UTC-3)
+          const brtDate = new Date(date.getTime() - (date.getTimezoneOffset() * 60000) - (3 * 60 * 60 * 1000));
+          const day = String(brtDate.getDate()).padStart(2, '0');
+          const month = String(brtDate.getMonth() + 1).padStart(2, '0');
+          const year = brtDate.getFullYear();
+          const hours = String(brtDate.getHours()).padStart(2, '0');
+          const minutes = String(brtDate.getMinutes()).padStart(2, '0');
+          return `${day}/${month}/${year} ${hours}:${minutes}`;
+        }
+        const orderDate = order.createdAt ? (order.createdAt.toDate ? order.createdAt.toDate() : new Date(order.createdAt)) : new Date();
+        const formattedDate = formatDateToBRT(orderDate);
+        
+        return `
+          <div class="order-card" data-order-id="${order._id}" data-status="${normalizedStatus}" id="order-${order._id}" style="margin-bottom: 20px; background: #fff; border-radius: 10px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); overflow: hidden; transition: all 0.3s ease;">
+            <!-- Cabeçalho do pedido -->
+            <div class="order-header" style="padding: 15px 20px; background: #f8f9fa; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
+              <div style="display: flex; align-items: center;">
+                <span class="order-number" style="font-weight: 600; color: #2c3e50; font-size: 1.1em;">
+                  #${orderNumber}
+                </span>
+                <span class="status-badge ${statusClass}" style="margin-left: 12px; padding: 4px 12px; border-radius: 12px; font-size: 0.85em; font-weight: 500; background-color: ${statusClass === 'completed' ? '#e3f7e9' : statusClass === 'cancelled' ? '#fee2e2' : '#fff3cd'}; color: ${statusClass === 'completed' ? '#0d6832' : statusClass === 'cancelled' ? '#b91c1c' : '#856404'}; border: 1px solid ${statusClass === 'completed' ? '#a3e6b8' : statusClass === 'cancelled' ? '#fecaca' : '#ffeeba'};">
+                  ${statusLabel}
+                </span>
+              </div>
+              <div class="order-date" data-date="${orderDate.toISOString().split('T')[0]}" style="font-size: 0.9em; color: #666;">
+                <i class="far fa-calendar-alt" style="margin-right: 5px; color: #6c757d;"></i>
+                ${formattedDate}
+              </div>
+            </div>
+            
+            <!-- Corpo do pedido -->
+            <div class="order-body" style="padding: 20px;">
+              <!-- Informações do cliente -->
+              <div class="customer-info" style="margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #f0f0f0; display: block;">
+                <style>
+                  .customer-info > div { display: flex !important; align-items: center; margin-bottom: 8px; }
+                  .customer-info i { display: inline-block; min-width: 18px; text-align: center; margin-right: 8px; color: #6c757d; }
+                </style>
+                <div style="margin-bottom: 8px;">
+                  <i class="fas fa-user"></i>
+                  <span class="customer-name" style="font-weight: 500; color: #2c3e50;">${escapeHtml(customerName)}</span>
+                </div>
+                ${order.customerEmail ? `
+                  <div style="margin-bottom: 8px;">
+                    <i class="fas fa-envelope"></i>
+                    <span style="color: #555;">${escapeHtml(order.customerEmail)}</span>
+                  </div>
+                ` : ''}
+                ${order.customerPhone ? `
+                  <div style="margin-bottom: 8px;">
+                    <i class="fas fa-phone"></i>
+                    <span style="color: #555;">${formatPhoneNumber(order.customerPhone)}</span>
+                  </div>
+                ` : ''}
+                ${order.paymentMethod ? `
+                  <div style="margin-bottom: 0;">
+                    <i class="fas ${order.paymentMethod === 'pix' ? 'fa-bolt' : (order.paymentMethod === 'credit' || order.paymentMethod === 'debit') ? 'fa-credit-card' : 'fa-credit-card'}"></i>
+                    <span style="color: #555;">${getPaymentMethodLabel(order.paymentMethod)}</span>
+                  </div>
+                ` : ''}
+                ${(order.installments && order.installments > 1) ? `
+                  <div style="margin-bottom: 0;">
+                    <i class="fas fa-layer-group"></i>
+                    <span style="color: #555;">Parcelamento: ${order.installments}x</span>
+                  </div>
+                ` : ''}
+              </div>
+
+              <!-- Itens do pedido -->
+              <div class="order-products" style="margin-bottom: 20px;">
+                <h4 style="font-size: 0.95em; color: #555; margin: 0 0 10px 0; display: flex; align-items: center;">
+                  <i class="fas fa-box-open" style="margin-right: 8px;"></i>
+                  Itens do Pedido
+                </h4>
+                <div class="table-responsive" style="overflow-x: auto;">
+                  <table class="order-products-table" style="width: 100%; border-collapse: collapse; font-size: 0.95em;">
+                    <thead>
+                      <tr style="background-color: #f8f9fa; border-bottom: 1px solid #dee2e6;">
+                        <th style="text-align: left; padding: 10px; font-weight: 500;">Produto</th>
+                        <th style="text-align: center; padding: 10px; font-weight: 500; width: 80px;">Qtd</th>
+                        <th style="text-align: right; padding: 10px; font-weight: 500; width: 120px;">Unitário</th>
+                        <th style="text-align: right; padding: 10px; font-weight: 500; width: 120px;">Subtotal</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${itemsHtml}
+                    </tbody>
+                    <tfoot>
+                      <tr style="background-color: #f8f9fa; font-weight: 600; border-top: 2px solid #dee2e6;">
+                        <td colspan="3" style="text-align: right; padding: 12px 10px;">Total do Pedido:</td>
+                        <td style="text-align: right; padding: 12px 10px; font-size: 1.1em; color: #2c3e50;">
+                          R$ ${totalPedido.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+
+              <!-- Seção de detalhes financeiros -->
+              <div class="financial-details">
+                <div class="financial-details-toggle" onclick="toggleFinancialDetails(this)" style="cursor: pointer; padding: 10px; background-color: #f8f9fa; border-radius: 6px; margin-bottom: 15px; display: flex; align-items: center; gap: 8px; user-select: none;">
+                  <i class="fas fa-chart-line" style="margin-right: 8px; color: #ff1493;"></i>
+                  <span>Ver detalhes financeiros</span>
+                  <i class="fas fa-chevron-down" style="margin-left: 8px; transition: transform 0.3s ease;"></i>
+                </div>
+                <div class="financial-details-content" style="display: none; padding: 15px; background-color: #fdfdfd; border: 1px solid #eee; border-radius: 6px; margin-top: -10px;">
+                  <div class="financial-summary" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                    <div class="financial-item" style="padding: 12px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid #4caf50;">
+                      <div style="font-size: 0.85em; color: #555; margin-bottom: 5px;">Valor Total</div>
+                      <div style="font-size: 1.2em; font-weight: 600; color: #2c3e50;">
+                        R$ ${totalPedido.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                    </div>
+                    <div class="financial-item" style="padding: 12px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid #2196f3;">
+                      <div style="font-size: 0.85em; color: #555; margin-bottom: 5px;">Custo de Compra</div>
+                      <div style="font-size: 1.2em; font-weight: 600; color: #2c3e50;">
+                        R$ ${purchaseCost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                    </div>
+                    <div class="financial-item" style="padding: 12px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid #ff9800;">
+                      <div style="font-size: 0.85em; color: #555; margin-bottom: 5px;">Lucro Estimado</div>
+                      <div style="font-size: 1.2em; font-weight: 600; color: #2c3e50;">
+                        R$ ${lucroEstimado.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                    </div>
+                    <div class="financial-item" style="padding: 12px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid #9c27b0;">
+                      <div style="font-size: 0.85em; color: #555; margin-bottom: 5px;">Status do Pagamento</div>
+                      <div>
+                        <span class="status-badge ${paymentStatus.toLowerCase()}" style="display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 0.9em; font-weight: 500; background-color: ${paymentStatus === 'Pago' ? '#e3f7e9' : paymentStatus === 'Parcial' ? '#fff3cd' : '#fee2e2'}; color: ${paymentStatus === 'Pago' ? '#0d6832' : paymentStatus === 'Parcial' ? '#856404' : '#b91c1c'}; border: 1px solid ${paymentStatus === 'Pago' ? '#a3e6b8' : paymentStatus === 'Parcial' ? '#ffeeba' : '#fecaca'}">
+                          ${paymentStatus}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Histórico de pagamentos -->
+                  ${paymentsHtml}
+
+                  <!-- Ações de pagamento -->
+                  <div class="payment-actions" style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee; display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button class="btn-add-payment" onclick="window.openPaymentModal('${order._id}', ${totalPedido}, ${valorPendente})" style="background-color: #4caf50; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 0.9em; display: inline-flex; align-items: center; gap: 5px; transition: background-color 0.2s;">
+                      <i class="fas fa-plus"></i>
+                      Registrar Pagamento
+                    </button>
+                    ${!order.paymentAgreement ? `
+                    <button class="btn-add-agreement" onclick="window.openAgreementModal('${order._id}')" style="background-color: #2196f3; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 0.9em; display: inline-flex; align-items: center; gap: 5px; transition: background-color 0.2s;">
+                      <i class="fas fa-file-contract"></i>
+                      Criar Acordo
+                    </button>` : ''}
+                    <button class="btn-print" onclick="window.printOrder('${order._id}')" style="background-color: #6c757d; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 0.9em; display: inline-flex; align-items: center; gap: 5px; transition: background-color 0.2s; margin-left: auto;">
+                      <i class="fas fa-print"></i>
+                      Imprimir
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Rodapé do pedido com ações -->
+            <div class="order-footer" style="padding: 12px 20px; background: #f8f9fa; border-top: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+              <div style="font-size: 0.9em; color: #666;">
+                <span style="font-weight: 500; margin-right: 5px;">ID:</span>
+                <span style="font-family: monospace;">${order._id}</span>
+              </div>
+              <div class="order-actions" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                ${order.status !== 'Concluído' && order.status !== 'Cancelado' ? `
+                  <button class="order-action-btn complete" data-action="complete" data-order-id="${order._id}" style="background-color: #4caf50; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.9em; display: inline-flex; align-items: center; gap: 5px; transition: background-color 0.2s;">
+                    <i class="fas fa-check"></i>
+                    Marcar como Concluído
+                  </button>
+                ` : ''}
+                
+                ${order.status !== 'Cancelado' ? `
+                  <button class="order-action-btn cancel" data-action="cancel" data-order-id="${order._id}" style="background-color: #f44336; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.9em; display: inline-flex; align-items: center; gap: 5px; transition: background-color 0.2s;" ${order.status === 'Concluído' || order.status === 'Cancelado' ? 'disabled style="opacity: 0.6; cursor: not-allowed;"' : ''}>
+                    <i class="fas fa-times"></i>
+                    Cancelar Pedido
+                  </button>
+                ` : ''}
+                
+                <button class="order-action-btn delete" data-action="delete" data-order-id="${order._id}" style="background-color: #dc3545; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.9em; display: inline-flex; align-items: center; gap: 5px; transition: background-color 0.2s;">
+                  <i class="fas fa-trash"></i>
+                  Excluir
+                </button>
+                
+                <button class="order-action-btn whatsapp" onclick="window.openWhatsApp(${JSON.stringify(order).replace(/&/g, '&amp;').replace(/"/g, '&quot;')}, '${order._id}')" style="background-color: #25d366; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.9em; display: inline-flex; align-items: center; gap: 5px; transition: background-color 0.2s;">
+                  <i class="fab fa-whatsapp"></i>
+                  WhatsApp
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
-      `;
+        `;
+      } catch (error) {
+        console.error('Erro ao gerar HTML do pedido:', error);
+        return `
+          <div class="order-card error" style="padding: 20px; background: #fff8f8; border: 1px solid #ffdddd; border-radius: 8px; margin-bottom: 20px; color: #721c24;">
+            <h3 style="margin-top: 0; color: #721c24;">Erro ao carregar pedido</h3>
+            <p>Ocorreu um erro ao carregar os dados deste pedido. Por favor, tente novamente mais tarde.</p>
+            <p style="font-size: 0.9em; color: #856404; background-color: #fff3cd; padding: 10px; border-radius: 4px; margin-top: 10px;">
+              <i class="fas fa-exclamation-triangle"></i> ID do Pedido: ${order._id || 'Desconhecido'}
+            </p>
+          </div>
+        `;
+      }
     }).join('');
 
     // 2. Só depois, calcule os totalizadores:
@@ -98,75 +860,46 @@ export async function renderOrdersList() {
       }
     });
 
-    // Renderizar cards
-    html = orders.map(order => {
-  const statusClass = order.status === 'Concluído' ? 'completed' : order.status === 'Cancelado' ? 'cancelled' : '';
-  const statusLabel = order.status || 'Pendente';
-
-  // Corrigir data do pedido para evitar Invalid Date
-  let dataPedido = '';
-  if (order.createdAt) {
-    if (typeof order.createdAt.toDate === 'function') {
-      dataPedido = order.createdAt.toDate().toLocaleString('pt-BR');
-    } else if (typeof order.createdAt === 'number') {
-      dataPedido = new Date(order.createdAt).toLocaleString('pt-BR');
-    } else if (typeof order.createdAt === 'string') {
-      dataPedido = new Date(order.createdAt).toLocaleString('pt-BR');
+    // Atualizar resumo
+    if (ordersSummary) {
+      ordersSummary.style.display = 'block';
+      ordersSummary.innerHTML = `
+        <div class="summary-card">
+          <div class="summary-item">
+            <span class="summary-label">Total de Pedidos</span>
+            <span class="summary-value">${totalPedidos}</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">Total Vendido</span>
+            <span class="summary-value">R$ ${totalVendido.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">Custo Total</span>
+            <span class="summary-value">R$ ${totalCompra.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          </div>
+          <div class="summary-item highlight">
+            <span class="summary-label">Lucro Estimado</span>
+            <span class="summary-value">R$ ${totalLucro.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          </div>
+        </div>
+      `;
     }
-  }
 
-  // Calcular custo de compra real do pedido (robusto)
-  let purchaseCost = 0;
-  (order.items || []).forEach(item => {
-    const produto = window.products?.find(p => String(p.id) === String(item.productId));
-    if (produto && produto.purchasePrice) {
-      purchaseCost += Number(produto.purchasePrice) * Number(item.quantity || 1);
-    }
-  });
-  order._purchaseCost = purchaseCost; // Salva para uso no resumo
 
-  return `
-    <div class="order-card" data-order-id="${order._id}">
-      <div class="order-header">
-        <div><b>Pedido:</b> ${order.orderNumber || order._id}</div>
-        <span class="order-status ${statusClass}">${statusLabel}</span>
-      </div>
-      <div class="order-meta"><b>Cliente:</b> ${order.customerName || '-'}<br><span class="order-date">${dataPedido}</span></div>
-      <div class="order-products">
-        <b>Produtos:</b>
-        <ul>
-          ${(order.items || []).map(item => `<li>${item.name} (${item.quantity}x)</li>`).join('')}
-        </ul>
-      </div>
-      <div class="order-total"><b>Total:</b> R$ ${(order.total ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-      <div class="order-meta"><b>Custo de compra:</b> R$ ${purchaseCost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}<br><b>Lucro estimado:</b> R$ ${((order.total ?? 0)-purchaseCost).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-      <div class="order-actions">
-        <button class="order-action-btn complete" data-action="complete" data-order-id="${order._id}" ${order.status === 'Concluído' ? 'disabled' : ''}><i class='fas fa-check'></i> Concluído</button>
-        <button class="order-action-btn cancel" data-action="cancel" data-order-id="${order._id}" ${order.status === 'Cancelado' ? 'disabled' : ''}><i class='fas fa-times'></i> Cancelar</button>
-      </div>
-    </div>
-  `;
-}).join('');
-
-    ordersList.innerHTML = html || '<p>Nenhum pedido encontrado.</p>';
-
-    // Delegação de eventos para ações dos pedidos
-    ordersList.removeEventListener('__orders_action__', window.__ordersActionHandler__); // Remove antigo, se existir
-    window.__ordersActionHandler__ = function(e) {
-      const btn = e.target.closest('.order-action-btn');
-      if (!btn || btn.disabled) return;
-      const orderId = btn.getAttribute('data-order-id');
-      const action = btn.getAttribute('data-action');
-      if (action === 'complete') {
-        window.StockModule.completeOrder(orderId);
-      } else if (action === 'cancel') {
-        // Chama a função para cancelar o pedido
-        window.StockModule.cancelOrder(orderId);
-      }
-    };
-    ordersList.addEventListener('click', window.__ordersActionHandler__, false);
-    ordersList.__orders_action__ = true;
-
+    // Atualiza o conteúdo da lista de pedidos
+    console.log('Atualizando HTML da lista de pedidos...');
+    console.log('Tamanho do HTML gerado:', html ? html.length : 0);
+    console.log('Elemento ordersList:', ordersList);
+    // Garante que todos os cards são concatenados e inseridos de uma vez
+    ordersList.innerHTML = html && html.trim().length > 0 ? html : '<p>Nenhum pedido encontrado.</p>';
+    console.log('HTML atualizado no DOM');
+    
+    // Aplica os filtros após carregar os pedidos
+    setTimeout(() => {
+      console.log('Aplicando filtros após carregar os pedidos...');
+      applyFilters();
+    }, 0);
+    
     // Atualiza totalizadores
     if (ordersSummary) {
       ordersSummary.innerHTML = `
@@ -182,12 +915,88 @@ export async function renderOrdersList() {
           <span class="summary-label">Valor de Compra</span>
           <span class="summary-value">R$ ${totalCompra.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
         </div>
-        <div class="summary-item">
+        <div class="summary-item highlight">
           <span class="summary-label">Lucro Estimado</span>
           <span class="summary-value">R$ ${totalLucro.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
         </div>
       `;
-      ordersSummary.style.display = 'flex';
+      
+      // Configura o toggle do resumo
+      setTimeout(() => {
+        const summaryHeader = document.getElementById('summaryHeader');
+        const summaryCollapsible = summaryHeader?.parentElement;
+        
+        if (summaryHeader && summaryCollapsible) {
+          // Remove event listener antigo se existir
+          const newHeader = summaryHeader.cloneNode(true);
+          summaryHeader.parentNode.replaceChild(newHeader, summaryHeader);
+          
+          // Inicia recolhido
+          summaryCollapsible.classList.add('collapsed');
+          
+          // Adiciona o evento de clique
+          newHeader.addEventListener('click', (e) => {
+            e.stopPropagation();
+            summaryCollapsible.classList.toggle('collapsed');
+            const icon = newHeader.querySelector('.toggle-icon');
+            if (icon) {
+              icon.textContent = summaryCollapsible.classList.contains('collapsed') ? '+' : '-';
+            }
+          });
+        }
+        
+        // Configura os filtros
+        const filterStatus = document.getElementById('filterStatus');
+        const searchInput = document.getElementById('searchTerm');
+        const filterDate = document.getElementById('filterDate');
+        const applyFiltersBtn = document.getElementById('applyFilters');
+        const clearFiltersBtn = document.getElementById('clearFilters');
+        
+        // Função para aplicar os filtros
+        const applyFilter = (e) => {
+          if (e) e.preventDefault();
+          applyFilters();
+        };
+        
+        if (filterStatus && applyFiltersBtn && clearFiltersBtn) {
+          // Adiciona os event listeners
+          applyFiltersBtn.addEventListener('click', applyFilter);
+          clearFiltersBtn.addEventListener('click', clearFilters);
+          
+          // Aplica o filtro ao pressionar Enter no campo de busca
+          searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+              applyFilter(e);
+            }
+          });
+          
+          // Aplica o filtro ao mudar a seleção de status ou data
+          filterStatus.addEventListener('change', applyFilter);
+          filterDate.addEventListener('change', applyFilter);
+          
+          // Aplica o filtro inicial se houver parâmetros na URL
+          const urlParams = new URLSearchParams(window.location.search);
+          const statusParam = urlParams.get('status');
+          const searchParam = urlParams.get('search');
+          const dateParam = urlParams.get('date');
+          
+          if (statusParam || searchParam || dateParam) {
+            // Pequeno atraso para garantir que o DOM esteja pronto
+            setTimeout(() => {
+              if (statusParam) {
+                filterStatus.value = statusParam;
+              }
+              if (searchParam) {
+                searchInput.value = decodeURIComponent(searchParam);
+              }
+              if (dateParam) {
+                filterDate.value = dateParam;
+              }
+              applyFilters();
+            }, 100);
+          }
+        }
+      }); // Fecha o setTimeout
     }
   } catch (err) {
     ordersList.innerHTML = '<p>Erro ao carregar pedidos.</p>';
@@ -196,8 +1005,414 @@ export async function renderOrdersList() {
   }
 }
 
+// Função para criar um acordo de pagamento
+window.createPaymentAgreement = async function(orderId, installments, firstPaymentDate) {
+  try {
+    if (!orderId || !installments || !firstPaymentDate) {
+      throw new Error('Dados do acordo de pagamento inválidos');
+    }
+
+    const paymentDates = [];
+    const date = new Date(firstPaymentDate);
+    
+    for (let i = 0; i < installments; i++) {
+      if (i > 0) {
+        // Adiciona 1 mês para cada parcela subsequente
+        date.setMonth(date.getMonth() + 1);
+      }
+      paymentDates.push(date.toISOString().split('T')[0]);
+    }
+
+    const orderRef = doc(db, 'orders', orderId);
+    
+    await updateDoc(orderRef, {
+      paymentAgreement: {
+        installments: parseInt(installments),
+        dates: paymentDates
+      },
+      updatedAt: new Date().toISOString()
+    });
+
+    // Recarregar a lista de pedidos
+    await renderOrdersList();
+    
+    return true;
+  } catch (error) {
+    console.error('Erro ao criar acordo de pagamento:', error);
+    throw error;
+  }
+};
+
+// Função para excluir um pedido
+window.deleteOrder = async function(orderId) {
+  try {
+    const result = await Swal.fire({
+      title: 'Tem certeza?',
+      text: "Esta ação não pode ser desfeita! O pedido será removido permanentemente.",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#3085d6',
+      cancelButtonColor: '#d33',
+      confirmButtonText: 'Sim, excluir!',
+      cancelButtonText: 'Cancelar'
+    });
+
+    if (result.isConfirmed) {
+      // Obter o pedido antes de excluir para devolver ao estoque
+      const orderRef = doc(db, 'orders', orderId);
+      const orderSnap = await getDoc(orderRef);
+      
+      if (orderSnap.exists()) {
+        const order = orderSnap.data();
+        
+        // Devolver itens ao estoque se o pedido não estiver cancelado
+        if (order.status !== 'Cancelado') {
+          const batch = writeBatch(db);
+          
+          for (const item of (order.items || [])) {
+            const productRef = doc(db, 'products', item.productId);
+            const productSnap = await getDoc(productRef);
+            
+            if (productSnap.exists()) {
+              const currentStock = productSnap.data().stock || 0;
+              batch.update(productRef, {
+                stock: currentStock + (item.quantity || 1)
+              });
+            }
+          }
+          
+          await batch.commit();
+        }
+        
+        // Excluir o pedido
+        await deleteDoc(orderRef);
+        
+        // Recarregar a lista de pedidos
+        await renderOrdersList();
+        
+        Swal.fire(
+          'Excluído!',
+          'O pedido foi excluído com sucesso.',
+          'success'
+        );
+      }
+    }
+  } catch (error) {
+    console.error('Erro ao excluir pedido:', error);
+    Swal.fire(
+      'Erro!',
+      'Ocorreu um erro ao excluir o pedido.',
+      'error'
+    );
+  }
+};
+
 // Funções globais para ações dos pedidos
 window.StockModule = window.StockModule || {};
+
+// Função para abrir o WhatsApp com mensagem pré-definida
+window.openWhatsApp = function(phone, orderId) {
+  // Se phone for um objeto (order), extrai o telefone corretamente
+  let phoneNumber = '';
+  if (typeof phone === 'object' && phone !== null) {
+    // Tenta obter o telefone em diferentes formatos do pedido
+    const order = phone;
+    phoneNumber = order.customerPhone || 
+                 (order.customer && order.customer.phone) || 
+                 '';
+    orderId = orderId || order.orderNumber || order._id;
+  } else {
+    phoneNumber = phone || '';
+  }
+
+  if (!phoneNumber) {
+    alert('Número de telefone não disponível para este cliente.');
+    return;
+  }
+  
+  // Remove caracteres não numéricos
+  phoneNumber = phoneNumber.replace(/\D/g, '');
+  
+  // Verifica se o número tem o DDD (mínimo 10 dígitos com DDD)
+  if (phoneNumber.length < 10) {
+    alert('Número de telefone inválido.');
+    return;
+  }
+  
+  // Adiciona o 9º dígito se necessário (para celulares com 8 dígitos)
+  if (phoneNumber.length === 10) {
+    phoneNumber = phoneNumber.substring(0, 2) + '9' + phoneNumber.substring(2);
+  }
+  
+  // Mensagem padrão
+  const message = `Olá! Gostaria de falar sobre o pedido #${orderId}.`;
+  
+  // Formata a URL do WhatsApp
+  const whatsappUrl = `https://wa.me/55${phoneNumber}?text=${encodeURIComponent(message)}`;
+  
+  // Abre em uma nova aba
+  window.open(whatsappUrl, '_blank');
+};
+
+// Função para abrir o modal de pagamento
+window.openPaymentModal = function(orderId, orderTotal, pendingAmount) {
+  const modal = document.createElement('div');
+  modal.className = 'modal';
+  modal.id = 'paymentModal';
+  
+  // Formatar valores para exibição
+  const formatCurrency = (value) => 
+    parseFloat(value).toLocaleString('pt-BR', { 
+      minimumFractionDigits: 2, 
+      maximumFractionDigits: 2 
+    });
+
+  modal.innerHTML = `
+    <div class="modal-content" style="max-width: 500px;">
+      <div class="modal-header">
+        <h3>Registrar Pagamento</h3>
+        <span class="close" onclick="document.body.removeChild(document.getElementById('paymentModal'))">&times;</span>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Valor Total do Pedido</label>
+          <input type="text" class="form-control" value="R$ ${formatCurrency(orderTotal)}" disabled>
+        </div>
+        <div class="form-group">
+          <label>Valor Pendente</label>
+          <input type="text" class="form-control" value="R$ ${formatCurrency(pendingAmount)}" disabled>
+        </div>
+        <div class="form-group">
+          <label for="paymentAmount">Valor do Pagamento *</label>
+          <div class="input-with-prefix">
+            <span>R$</span>
+            <input type="number" id="paymentAmount" step="0.01" min="0.01" max="${pendingAmount}" 
+                   class="form-control" placeholder="0,00" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="paymentMethod">Forma de Pagamento *</label>
+          <select id="paymentMethod" class="form-control" required>
+            <option value="">Selecione...</option>
+            <option value="pix">PIX</option>
+            <option value="credit">Cartão de Crédito</option>
+            <option value="debit">Cartão de Débito</option>
+            <option value="boleto">Boleto</option>
+            <option value="cash">Dinheiro</option>
+            <option value="bank_transfer">Transferência Bancária</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="paymentDate">Data do Pagamento</label>
+          <input type="date" id="paymentDate" class="form-control" 
+                 value="${new Date().toISOString().split('T')[0]}">
+        </div>
+        <div class="form-group">
+          <label>
+            <input type="checkbox" id="setAsPaid" ${pendingAmount <= orderTotal ? 'checked' : ''}>
+            Marcar como totalmente pago
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" 
+                onclick="document.body.removeChild(document.getElementById('paymentModal'))">
+          Cancelar
+        </button>
+        <button type="button" class="btn btn-primary" onclick="window.savePayment('${orderId}')">
+          Salvar Pagamento
+        </button>
+      </div>
+    </div>
+  `;
+  
+  document.body.appendChild(modal);
+  
+  // Focar no campo de valor
+  setTimeout(() => {
+    const amountInput = document.getElementById('paymentAmount');
+    if (amountInput) amountInput.focus();
+  }, 100);
+};
+
+// Função para abrir o modal de acordo de pagamento
+window.openAgreementModal = function(orderId) {
+  const modal = document.createElement('div');
+  modal.className = 'modal';
+  modal.id = 'agreementModal';
+  
+  const today = new Date().toISOString().split('T')[0];
+  
+  modal.innerHTML = `
+    <div class="modal-content" style="max-width: 500px;">
+      <div class="modal-header">
+        <h3>Criar Acordo de Pagamento</h3>
+        <span class="close" onclick="document.body.removeChild(document.getElementById('agreementModal'))">&times;</span>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="installments">Número de Parcelas</label>
+          <select id="installments" class="form-control" required>
+            <option value="1">1x (À vista)</option>
+            <option value="2">2x</option>
+            <option value="3">3x</option>
+            <option value="4">4x</option>
+            <option value="5">5x</option>
+            <option value="6">6x</option>
+            <option value="7">7x</option>
+            <option value="8">8x</option>
+            <option value="9">9x</option>
+            <option value="10">10x</option>
+            <option value="11">11x</option>
+            <option value="12">12x</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="firstPaymentDate">Data do Primeiro Pagamento</label>
+          <input type="date" id="firstPaymentDate" class="form-control" 
+                 value="${today}" min="${today}" required>
+        </div>
+        <div class="form-group">
+          <div id="paymentSchedule" style="margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 4px;">
+            <p><strong>Cronograma de Pagamentos:</strong></p>
+            <ul id="scheduleList" style="margin: 10px 0 0 20px; padding: 0;"></ul>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" 
+                onclick="document.body.removeChild(document.getElementById('agreementModal'))">
+          Cancelar
+        </button>
+        <button type="button" class="btn btn-primary" 
+                onclick="window.saveAgreement('${orderId}')">
+          Salvar Acordo
+        </button>
+      </div>
+    </div>
+  `;
+  
+  document.body.appendChild(modal);
+  
+  // Atualizar o cronograma quando os valores mudarem
+  const updateSchedule = () => {
+    const installments = parseInt(document.getElementById('installments').value);
+    const firstDate = document.getElementById('firstPaymentDate').value;
+    const date = new Date(firstDate);
+    const scheduleList = document.getElementById('scheduleList');
+    
+    let html = '';
+    for (let i = 0; i < installments; i++) {
+      const currentDate = new Date(date);
+      if (i > 0) {
+        currentDate.setMonth(date.getMonth() + i);
+      }
+      const formattedDate = currentDate.toLocaleDateString('pt-BR');
+      html += `<li>Parcela ${i + 1}: ${formattedDate}</li>`;
+    }
+    
+    scheduleList.innerHTML = html;
+  };
+  
+  document.getElementById('installments').addEventListener('change', updateSchedule);
+  document.getElementById('firstPaymentDate').addEventListener('change', updateSchedule);
+  
+  // Atualizar o cronograma inicial
+  updateSchedule();
+};
+
+// Função para salvar o acordo de pagamento
+window.saveAgreement = async function(orderId) {
+  try {
+    const installments = document.getElementById('installments').value;
+    const firstPaymentDate = document.getElementById('firstPaymentDate').value;
+    
+    if (!installments || !firstPaymentDate) {
+      alert('Por favor, preencha todos os campos do acordo.');
+      return;
+    }
+    
+    await window.createPaymentAgreement(orderId, installments, firstPaymentDate);
+    
+    // Fechar o modal
+    const modal = document.getElementById('agreementModal');
+    if (modal) document.body.removeChild(modal);
+    
+    // Mostrar mensagem de sucesso
+    alert('Acordo de pagamento criado com sucesso!');
+    
+  } catch (error) {
+    console.error('Erro ao salvar acordo:', error);
+    alert('Ocorreu um erro ao criar o acordo de pagamento. Por favor, tente novamente.');
+  }
+};
+
+// Função para salvar um novo pagamento
+window.savePayment = async function(orderId) {
+  try {
+    const amount = parseFloat(document.getElementById('paymentAmount').value);
+    const method = document.getElementById('paymentMethod').value;
+    const date = document.getElementById('paymentDate').value;
+    const setAsPaid = document.getElementById('setAsPaid').checked;
+    
+    if (!amount || amount <= 0) {
+      alert('Por favor, informe um valor válido para o pagamento.');
+      return;
+    }
+    
+    if (!method) {
+      alert('Por favor, selecione uma forma de pagamento.');
+      return;
+    }
+    
+    // Obter dados atuais do pedido
+    const orderRef = doc(db, 'orders', orderId);
+    const orderDoc = await getDoc(orderRef);
+    const orderData = orderDoc.data();
+    
+    // Preparar atualização
+    const payment = {
+      amount,
+      method,
+      date: new Date(date).toISOString(),
+      createdAt: new Date().toISOString()
+    };
+    
+    const currentPayments = orderData.payments || [];
+    const updatedPayments = [...currentPayments, payment];
+    const totalPaid = updatedPayments.reduce((sum, p) => sum + parseFloat(p.amount), 0);
+    
+    // Determinar o novo status
+    let paymentStatus = 'Pendente';
+    if (totalPaid >= (orderData.total || 0)) {
+      paymentStatus = 'Pago';
+    } else if (totalPaid > 0) {
+      paymentStatus = 'Parcial';
+    }
+    
+    // Atualizar o pedido
+    await updateDoc(orderRef, {
+      payments: updatedPayments,
+      paymentStatus,
+      updatedAt: new Date().toISOString()
+    });
+    
+    // Fechar o modal
+    const modal = document.getElementById('paymentModal');
+    if (modal) document.body.removeChild(modal);
+    
+    // Recarregar a lista de pedidos
+    await renderOrdersList();
+    
+    // Mostrar mensagem de sucesso
+    alert('Pagamento registrado com sucesso!');
+    
+  } catch (error) {
+    console.error('Erro ao registrar pagamento:', error);
+    alert('Ocorreu um erro ao registrar o pagamento. Por favor, tente novamente.');
+  }
+};
+
 // Definição das funções de pedidos
 
 window.StockModule.completeOrder = async function(orderId) {
@@ -2022,6 +3237,7 @@ export async function showAddProductModal() {
 }
 
 async function showTab(tabName) {
+  console.log(`Mostrando aba: ${tabName}`);
   const tabs = document.querySelectorAll(".tab-content");
   const buttons = document.querySelectorAll(".tab-button");
 
@@ -2036,6 +3252,9 @@ async function showTab(tabName) {
   if (selectedTab) {
     selectedTab.style.display = "block";
     selectedTab.classList.add("active");
+    console.log(`Aba ${tabName}Tab exibida`);
+  } else {
+    console.error(`Elemento ${tabName}Tab não encontrado`);
   }
 
   // Atualizar botões
@@ -2052,34 +3271,30 @@ async function showTab(tabName) {
   url.searchParams.set("tab", tabName);
   window.history.pushState({}, "", url);
 
-  // Função para formatar valores com vírgula
-  function formatCurrency(value) {
-    return value.toFixed(2).replace(".", ",");
-  }
-
   // Renderizar conteúdo específico
-  switch (tabName) {
-    case "stock":
-      renderStockList();
-      break;
-    case "specialOffers":
-      renderSpecialOffers();
-      break;
-    case "waitlist":
-      renderWaitlistList();
-      break;
-    case "orders":
-      renderOrdersList();
-      break;
+  try {
+    switch (tabName) {
+      case "stock":
+        console.log("Renderizando lista de estoque...");
+        await renderStockList();
+        break;
+      case "specialOffers":
+        console.log("Renderizando ofertas especiais...");
+        await renderSpecialOffers();
+        break;
+      case "waitlist":
+        console.log("Renderizando lista de espera...");
+        await renderWaitlistList();
+        break;
+      case "orders":
+        console.log("Renderizando lista de pedidos...");
+        await renderOrdersList();
+        break;
+    }
+    console.log(`Conteúdo da aba ${tabName} renderizado com sucesso`);
+  } catch (error) {
+    console.error(`Erro ao renderizar a aba ${tabName}:`, error);
   }
-
-  // Log do estado
-  console.log("Estado das abas após mudança:");
-  tabs.forEach((tab) => {
-    console.log(
-      `${tab.id}: display=${tab.style.display}, active=${tab.classList.contains("active")}`,
-    );
-  });
 }
 
 function renderSpecialOffers() {
@@ -2711,8 +3926,36 @@ async function setupEventListeners() {
     // Botões das abas
     const stockTabBtn = document.getElementById("stockTabBtn");
     const specialOffersTabBtn = document.getElementById("specialOffersTabBtn");
-
     const waitlistTabBtn = document.getElementById("waitlistTabBtn");
+    
+    // Configurar listeners para os filtros de pedidos
+    const searchInput = document.getElementById('searchTerm');
+    const dateFilter = document.getElementById('filterDate');
+    const statusFilter = document.getElementById('filterStatus');
+    const applyFiltersBtn = document.getElementById('applyFilters');
+    const clearFiltersBtn = document.getElementById('clearFilters');
+    
+    if (searchInput) {
+      searchInput.addEventListener('keyup', (e) => {
+        if (e.key === 'Enter') applyFilters();
+      });
+    }
+    
+    if (dateFilter) {
+      dateFilter.addEventListener('change', applyFilters);
+    }
+    
+    if (statusFilter) {
+      statusFilter.addEventListener('change', applyFilters);
+    }
+    
+    if (applyFiltersBtn) {
+      applyFiltersBtn.addEventListener('click', applyFilters);
+    }
+    
+    if (clearFiltersBtn) {
+      clearFiltersBtn.addEventListener('click', clearFilters);
+    }
 
     if (stockTabBtn) {
       stockTabBtn.addEventListener("click", () => showTab("stock"));
@@ -2746,6 +3989,48 @@ async function setupEventListeners() {
       // Agora salva apenas alterações pendentes para evitar excesso de writes
       saveButton.addEventListener("click", () => savePendingChanges());
     }
+
+    // Toggle collapsible summary
+    function setupSummaryToggle() {
+      const summaryHeader = document.getElementById('summaryHeader');
+      const summaryCollapsible = summaryHeader?.parentElement;
+      
+      if (summaryHeader && summaryCollapsible) {
+          // Start collapsed
+          summaryCollapsible.classList.add('collapsed');
+          
+          summaryHeader.addEventListener('click', () => {
+              summaryCollapsible.classList.toggle('collapsed');
+              const icon = summaryHeader.querySelector('.toggle-icon');
+              if (icon) {
+                  icon.textContent = summaryCollapsible.classList.contains('collapsed') ? '+' : '-';
+              }
+          });
+      }
+  }
+
+  // Inicialização
+  document.addEventListener('DOMContentLoaded', async function() {
+      // Setup summary toggle
+      setupSummaryToggle();
+  });
+
+    // Configuração dos eventos de clique nos botões de ação dos pedidos
+    document.addEventListener('click', async (e) => {
+      const target = e.target.closest('.order-action-btn');
+      if (!target) return;
+  
+      const action = target.dataset.action;
+      const orderId = target.dataset.orderId;
+  
+      if (action === 'complete') {
+        await completeOrder(orderId);
+      } else if (action === 'cancel') {
+        await cancelOrder(orderId);
+      } else if (action === 'delete') {
+        await window.deleteOrder(orderId);
+      }
+    });
 
     // Event listeners para filtros da lista de espera
     const waitlistFilters = document.querySelectorAll(".waitlist-filter");
@@ -2807,71 +4092,107 @@ function fileToBase64(file) {
 
 window.updateStock = updateStock;
 
-// Definir funções no objeto StockModule global
-if (!window.StockModule) {
-  window.StockModule = {};
-}
-
 // Função para atualizar a lista manualmente
-window.StockModule.refreshStock = async () => {
+const refreshStock = async () => {
+  const refreshBtn = document.getElementById("refreshStock");
+  const originalText = refreshBtn ? refreshBtn.innerHTML : '';
+  
   try {
     // Mostrar loading
-    const refreshBtn = document.getElementById("refreshStock");
-    const originalText = refreshBtn.innerHTML;
-    refreshBtn.innerHTML =
-      '<i class="fas fa-spinner fa-spin"></i> Atualizando...';
-    refreshBtn.disabled = true;
+    if (refreshBtn) {
+      refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Atualizando...';
+      refreshBtn.disabled = true;
+    }
 
-    // Limpar cache local
-    localStorage.removeItem("products");
-    localStorage.removeItem("specialOffers");
-
-    // Forçar nova consulta ao Firestore
+    // Forçar atualização dos produtos do Firestore
     const productsCollection = collection(window.db, "products");
     const snapshot = await getDocs(productsCollection);
-
-    // Atualizar produtos localmente
-    products = [];
+    
+    // Atualizar lista de produtos local
+    window.products = [];
     snapshot.forEach((doc) => {
       const data = doc.data();
-      products.push({
+      window.products.push({
         id: doc.id,
         ...data,
       });
     });
 
-    // Re-renderizar todas as listas
-    renderStockList();
-    renderSpecialOffers();
+    // Re-renderizar a aba atual
+    const activeTab = document.querySelector('.tab-button.active')?.getAttribute('data-tab');
+    if (activeTab) {
+      switch (activeTab) {
+        case 'stock':
+          await renderStockList();
+          break;
+        case 'specialOffers':
+          await renderSpecialOffers();
+          break;
+        case 'waitlist':
+          await renderWaitlistList();
+          break;
+        case 'orders':
+          await renderOrdersList();
+          break;
+      }
+    }
 
-    // Restaurar botão antes de mostrar o SweetAlert
-    refreshBtn.innerHTML = originalText;
-    refreshBtn.disabled = false;
-
-    // Mostrar feedback de sucesso
-    Swal.fire({
-      title: "Atualizado!",
-      text: "Lista atualizada com sucesso.",
-      icon: "success",
-      confirmButtonColor: "#4CAF50",
-    });
+    // Feedback visual de sucesso
+    if (refreshBtn) {
+      const originalColor = refreshBtn.style.backgroundColor;
+      refreshBtn.style.backgroundColor = '#4CAF50';
+      refreshBtn.innerHTML = '<i class="fas fa-check"></i> Atualizado!';
+      
+      // Resetar após 2 segundos
+      setTimeout(() => {
+        if (refreshBtn) {
+          refreshBtn.innerHTML = originalText;
+          refreshBtn.style.backgroundColor = originalColor;
+          refreshBtn.disabled = false;
+        }
+      }, 2000);
+    }
+    
+    return true;
   } catch (error) {
     console.error("Erro ao atualizar lista:", error);
-
-    // Restaurar botão antes de mostrar o erro
-    refreshBtn.innerHTML = originalText;
-    refreshBtn.disabled = false;
-
-    Swal.fire({
-      title: "Erro",
-      text: "Erro ao atualizar lista: " + error.message,
-      icon: "error",
-      confirmButtonColor: "#ff1493",
-    });
+    
+    // Feedback visual de erro
+    if (refreshBtn) {
+      const originalColor = refreshBtn.style.backgroundColor;
+      refreshBtn.style.backgroundColor = '#f44336';
+      refreshBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Erro';
+      
+      // Resetar após 2 segundos
+      setTimeout(() => {
+        if (refreshBtn) {
+          refreshBtn.innerHTML = originalText;
+          refreshBtn.style.backgroundColor = originalColor;
+          refreshBtn.disabled = false;
+        }
+      }, 2000);
+    }
+    
+    return false;
   }
 };
 
+// Definir funções no objeto StockModule global
+if (!window.StockModule) {
+  window.StockModule = {};
+}
+
+// Adicionar função refreshStock ao StockModule
+window.StockModule.refreshStock = refreshStock;
+
+// Adicionar função refreshStock diretamente ao objeto window para garantir disponibilidade
+window.refreshStock = refreshStock;
+
+
+console.log('Atualizando StockModule com as funções...');
+// Atualiza o objeto StockModule com todas as funções necessárias
 Object.assign(window.StockModule, {
+  renderOrdersList,
   showAddProductModal,
   closeProductModal,
   editProduct,
@@ -2883,4 +4204,19 @@ Object.assign(window.StockModule, {
   showTab,
   toggleSpecialOffer,
   updateProductImage,
+  refreshStock, // Adiciona a função refreshStock ao objeto StockModule
+  
+  // Adiciona funções de pedidos que podem ser necessárias
+  completeOrder,
+  cancelOrder,
+  openPaymentModal,
+  openAgreementModal,
+  saveAgreement,
+  savePayment,
+  // Adiciona um alias para refreshStock para garantir disponibilidade
+  refreshStock: refreshStock
 });
+
+// Log para depuração
+console.log('StockModule após atualização:', Object.keys(window.StockModule));
+console.log('refreshStock está disponível?', typeof window.StockModule.refreshStock === 'function');

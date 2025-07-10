@@ -31,7 +31,7 @@ export async function refreshProducts() {
     window.products = await loadProducts();
     if (typeof renderProductList === 'function') renderProductList();
 }
-import { collection, onSnapshot, addDoc, getDocs, query, where, getDoc, doc, updateDoc, increment, writeBatch } from 'https://www.gstatic.com/firebasejs/10.1.0/firebase-firestore.js';
+import { collection, onSnapshot, addDoc, getDocs, query, where, getDoc, doc, updateDoc, increment, writeBatch, runTransaction } from 'https://www.gstatic.com/firebasejs/10.1.0/firebase-firestore.js';
 
 // Estado global
 let cart = [];  // Carrinho de compras
@@ -687,8 +687,42 @@ async function handleWaitlistSubmit(event) {
     }
 }
 
-function requestOutOfStockProduct(productId) {
-    openWaitlistModal(productId);
+
+async function requestOutOfStockProduct(productId) {
+    try {
+        const productsCollection = collection(window.db, 'products');
+        const productDoc = await getDoc(doc(productsCollection, productId));
+
+        if (!productDoc.exists()) {
+            Swal.fire({
+                title: 'Produto não encontrado',
+                text: 'Este produto não existe mais.',
+                icon: 'error'
+            });
+            return;
+        }
+
+        const product = productDoc.data();
+        if (product.active !== false && Number(product.quantity) > 0) {
+            Swal.fire({
+                title: 'Produto disponível!',
+                text: 'O produto já está disponível. Aproveite para comprar agora!',
+                icon: 'success'
+            }).then(() => {
+                window.location.reload();
+            });
+            return;
+        }
+
+        // Produto ainda esgotado, abrir modal de lista de espera normalmente
+        openWaitlistModal(productId);
+    } catch (error) {
+        Swal.fire({
+            title: 'Erro',
+            text: 'Erro ao verificar estoque. Tente novamente.',
+            icon: 'error'
+        });
+    }
 }
 
 
@@ -1432,37 +1466,31 @@ if (checkoutForm) {
                 updatedAt: new Date().toISOString()
             };
             
-            // Salvar pedido no Firestore
-            let orderRef;
-            orderRef = await addDoc(collection(db, 'orders'), orderData);
-            console.log('Pedido salvo com ID:', orderRef.id);
-            
-            // Atualizar estoque
-            console.log('Iniciando atualização de estoque para itens:', cart);
-            const batch = writeBatch(db);
-            
-            // Atualizar estoque para cada item do carrinho
-            for (const item of cart) {
-                try {
-                    const productRef = doc(db, 'products', String(item.id)); // Garante que o ID seja string
-                    console.log(`Atualizando estoque - Produto ID: ${item.id}, Quantidade: ${item.quantity}`);
-                    
-                    // Usa increment para evitar condições de corrida
-                    // Tenta atualizar tanto 'stock' quanto 'quantity' para garantir compatibilidade
-                    batch.update(productRef, {
+            // Salvar pedido e atualizar estoque de forma atômica
+            await runTransaction(db, async (transaction) => {
+                // 1. Verificar estoque de todos os produtos
+                for (const item of cart) {
+                    const productRef = doc(db, 'products', String(item.id));
+                    const productSnap = await transaction.get(productRef);
+                    const estoqueAtual = productSnap.data().quantity || 0;
+                    if (estoqueAtual < item.quantity) {
+                        throw new Error(`Estoque insuficiente para o produto "${item.name}". Disponível: ${estoqueAtual}, solicitado: ${item.quantity}`);
+                    }
+                }
+                // 2. Descontar estoque
+                for (const item of cart) {
+                    const productRef = doc(db, 'products', String(item.id));
+                    transaction.update(productRef, {
                         quantity: increment(-item.quantity),
-                        stock: increment(-item.quantity), // Para compatibilidade
+                        stock: increment(-item.quantity),
                         updatedAt: new Date().toISOString()
                     });
-                } catch (error) {
-                    console.error(`Erro ao processar item ${item.id}:`, error);
-                    throw new Error(`Falha ao processar o item ${item.name}: ${error.message}`);
                 }
-            }
-            
-            // Executa todas as atualizações em uma única transação
-            await batch.commit();
-            console.log('Estoque atualizado com sucesso para todos os itens');
+                // 3. Criar pedido
+                const ordersCol = collection(db, 'orders');
+                transaction.set(doc(ordersCol), orderData);
+            });
+            console.log('Pedido criado e estoque atualizado com sucesso!');
             
             // Atualizar a interface do usuário
             updateOrderConfirmationUI(orderData, whatsappMessage);
