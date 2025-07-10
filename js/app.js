@@ -616,6 +616,11 @@ function maskPhone(event) {
 
 async function handleWaitlistSubmit(event) {
     event.preventDefault();
+    const form = document.getElementById('waitlistForm');
+    const submitBtn = form.querySelector('button[type="submit"]');
+    if (submitBtn.disabled) return; // já está processando
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processando...';
 
     const phone = document.getElementById('waitlistPhone').value;
     // Validar formato do telefone
@@ -675,6 +680,10 @@ async function handleWaitlistSubmit(event) {
             timer: 3000,
             timerProgressBar: true
         });
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = 'Cadastrar';
+        }
         console.log('Pedido enviado com sucesso para o WhatsApp');
     } catch (error) {
         console.error('Erro ao processar pedido:', error);
@@ -684,6 +693,10 @@ async function handleWaitlistSubmit(event) {
             icon: 'error',
             confirmButtonColor: '#4CAF50'
         });
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = 'Cadastrar';
+        }
     }
 }
 
@@ -1406,7 +1419,7 @@ if (checkoutForm) {
             // Definir o valor final com base no método de pagamento
             const finalAmount = isPix ? pixTotal : total;
             const paymentInfo = isPix 
-                ? `💠 PIX (${Math.round(((total - pixTotal) / total) * 100)}% de desconto)` 
+                ? `⚡ PIX (${Math.round(((total - pixTotal) / total) * 100)}% de desconto)` 
                 : '💳 Cartão de Crédito';
                 
             // Adicionar informações de parcelamento se for cartão
@@ -1439,10 +1452,14 @@ if (checkoutForm) {
                 whatsappMessage += `- ${item.quantity}x ${item.name} - R$ ${itemTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
             });
             
-            whatsappMessage += `\n*Forma de Pagamento:* ${paymentDetails}\n`;
+            whatsappMessage += `\n*Pagamento:* ${paymentDetails}\n`;
             whatsappMessage += `*Valor Total:* R$ ${finalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n\n`;
-            whatsappMessage += `*Endereço de Entrega:*\n`;
-            whatsappMessage += `(O cliente irá informar o endereço no WhatsApp)`;
+            if (isPix) {
+                whatsappMessage += `*Chave Pix:* (71)99142-7989`;
+            } else {
+                whatsappMessage += `*Endereço de Entrega:*\n`;
+                whatsappMessage += `(O cliente irá informar o endereço no WhatsApp)`;
+            }
             
             // Criar objeto do pedido
             const orderData = {
@@ -1500,23 +1517,65 @@ if (checkoutForm) {
             localStorage.setItem('cart', JSON.stringify(cart));
             updateCartCount();
             updateCartState();
-            
+
             // Mostrar mensagem de sucesso
-            await Swal.fire({
-                title: 'Pedido realizado com sucesso!',
-                html: `Seu pedido #${orderNumber} foi recebido. Clique no botão abaixo para enviar pelo WhatsApp.`,
-                icon: 'success',
-                confirmButtonColor: '#4CAF50',
-                confirmButtonText: 'Abrir WhatsApp',
-                showCancelButton: true,
-                cancelButtonText: 'Fechar',
-                allowOutsideClick: false
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    window.open(`https://wa.me/5571991427989?text=${encodeURIComponent(whatsappMessage)}`, '_blank');
-                }
-            });
-            
+            if (isPix) {
+                await Swal.fire({
+                    title: 'Pedido realizado com sucesso!',
+                    html: `Seu pedido #${orderNumber} foi recebido.<br>Copie o link, efetue o pagamento, e envie o comprovante clicando no botão para enviar pelo WhatsApp.<br><br>
+                    <button id="copyPixBtn" style="background:#ff1493;color:#fff;border:none;padding:10px 18px;border-radius:5px;font-size:16px;cursor:pointer;transition:background 0.2s;">💠 Copiar Chave PIX</button>`,
+                    icon: 'success',
+                    showCancelButton: true,
+                    confirmButtonColor: '#4CAF50',
+                    confirmButtonText: 'Abrir WhatsApp',
+                    cancelButtonText: 'Cancelar',
+                    allowOutsideClick: false,
+                    didOpen: () => {
+                        const btn = document.getElementById('copyPixBtn');
+                        const pixCopiaCola = '00020126570014br.gov.bcb.pix0114+55719914279890217Comprinha Essenza5204000053039865802BR5924Jose Abel Silva De Jesus6009Sao Paulo62130509abelsilva6304FFDF';
+                        if (btn) {
+                            btn.addEventListener('click', async () => {
+                                try {
+                                    await navigator.clipboard.writeText(pixCopiaCola);
+                                    btn.textContent = '💠✔ Chave PIX Copiada!';
+                                    btn.style.background = '#4CAF50';
+                                    setTimeout(() => {
+                                        btn.textContent = '💠 Copiar Chave PIX';
+                                        btn.style.background = '#ff1493';
+                                    }, 2000);
+                                } catch (e) {
+                                    btn.textContent = 'Erro ao copiar';
+                                    btn.style.background = '#b71c1c';
+                                    setTimeout(() => {
+                                        btn.textContent = '💠 Copiar Chave PIX';
+                                        btn.style.background = '#ff1493';
+                                    }, 2000);
+                                }
+                            });
+                        }
+                    }
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        window.open(`https://wa.me/5571991427989?text=${encodeURIComponent(whatsappMessage)}`, '_blank');
+                    }
+                });
+            } else {
+                await Swal.fire({
+                    title: 'Pedido realizado com sucesso!',
+                    html: `Seu pedido #${orderNumber} foi recebido. Clique no botão abaixo para enviar pelo WhatsApp.`,
+                    icon: 'success',
+                    confirmButtonColor: '#4CAF50',
+                    confirmButtonText: 'Abrir WhatsApp',
+                    showCancelButton: true,
+                    cancelButtonText: 'Fechar',
+                    allowOutsideClick: false
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        window.open(`https://wa.me/5571991427989?text=${encodeURIComponent(whatsappMessage)}`, '_blank');
+                    }
+                });
+            }
+
             // Resetar o formulário
             checkoutForm.reset();
         } catch (error) {
