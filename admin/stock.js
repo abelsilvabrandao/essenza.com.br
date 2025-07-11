@@ -700,12 +700,21 @@ export async function renderOrdersList() {
                     <span style="color: #555;">${getPaymentMethodLabel(order.paymentMethod)}</span>
                   </div>
                 ` : ''}
-                ${(order.installments && order.installments > 1) ? `
-                  <div style="margin-bottom: 0;">
-                    <i class="fas fa-layer-group"></i>
-                    <span style="color: #555;">Parcelamento: ${order.installments}x</span>
-                  </div>
-                ` : ''}
+                ${(
+  (order.paymentMethod === 'pix') || (order.paymentMethod === 'credit' && order.installments === 1)
+) ? `
+  <div style="margin-bottom: 0;">
+    <i class="fas fa-money-bill-wave"></i>
+    <span style="color: #555;">Pagamento à vista: ${order.total ? `R$ ${Number(order.total).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}` : ''}</span>
+  </div>
+` : (
+  order.paymentMethod === 'credit' && order.installments > 1
+) ? `
+  <div style="margin-bottom: 0;">
+    <i class="fas fa-layer-group"></i>
+    <span style="color: #555;">Parcelamento: ${order.installments}x de R$ ${(Number(order.total)/Number(order.installments)).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}</span>
+  </div>
+` : ''}
               </div>
 
               <!-- Itens do pedido -->
