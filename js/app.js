@@ -31,7 +31,7 @@ export async function refreshProducts() {
     window.products = await loadProducts();
     if (typeof renderProductList === 'function') renderProductList();
 }
-import { collection, onSnapshot, addDoc, getDocs, query, where, getDoc, doc, updateDoc, increment, writeBatch, runTransaction } from 'https://www.gstatic.com/firebasejs/10.1.0/firebase-firestore.js';
+import { collection, onSnapshot, addDoc, getDocs, query, where, getDoc, doc, updateDoc, increment, writeBatch, runTransaction, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.1.0/firebase-firestore.js';
 
 // Estado global
 let cart = [];  // Carrinho de compras
@@ -1479,8 +1479,8 @@ if (checkoutForm) {
                 paymentMethod,
                 installments: isPix ? 1 : installments,
                 status: 'Pendente',
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp()
             };
             
             // Salvar pedido e atualizar estoque de forma atômica

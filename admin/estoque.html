@@ -118,44 +118,38 @@
         </div>
     </div>
         
-        <div class="filters" style="margin: 20px 0; background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 15px;">
-            <div class="filter-group">
-              <label for="searchTerm">Buscar:</label>
-              <input type="text" id="searchTerm" class="filter-input" placeholder="Nº pedido, cliente..." style="width: 100%;">
-            </div>
-            
-            <div class="filter-group">
-              <label for="filterDate">Data:</label>
-              <input type="date" id="filterDate" class="filter-input">
-            </div>
-            
-            <div class="filter-group">
-              <label for="filterStatus">Status:</label>
-              <select id="filterStatus" class="filter-select">
-                <option value="">Todos os status</option>
-                <option value="Pendente">Pendente</option>
-                <option value="Concluído">Concluído</option>
-                <option value="Cancelado">Cancelado</option>
-              </select>
-            </div>
-          </div>
-          <div style="display: flex; gap: 10px;">
-            <button id="applyFilters" class="btn" style="background-color: #4caf50; color: white; border: none;">
-              <i class="fas fa-search"></i> Buscar
-            </button>
-            <button id="clearFilters" class="btn" style="background-color: #f0f0f0; border: 1px solid #ddd;">
-              <i class="fas fa-times"></i> Limpar
-            </button>
-          </div>
-        </div>
+        <div class="filters">
+  <div class="filter-group">
+    <label for="searchTerm">Buscar:</label>
+    <input type="text" id="searchTerm" class="filter-input" placeholder="Nº pedido, cliente...">
+  </div>
+  <div class="filter-group">
+    <label for="filterDate">Data:</label>
+    <input type="date" id="filterDate" class="filter-input">
+  </div>
+  <div class="filter-group">
+    <label for="filterStatus">Status:</label>
+    <select id="filterStatus" class="filter-select">
+      <option value="">Todos os status</option>
+      <option value="Pendente">Pendente</option>
+      <option value="Concluído">Concluído</option>
+      <option value="Cancelado">Cancelado</option>
+    </select>
+  </div>
+  <button id="applyFilters" class="btn">
+    <i class="fas fa-search"></i> Buscar
+  </button>
+  <button id="clearFilters" class="btn btn-secondary">
+    <i class="fas fa-times"></i> Limpar
+  </button>
+</div>
         
         <div id="ordersList" class="orders-list"></div>
         <div id="noResultsMessage" style="display: none; text-align: center; padding: 20px; color: #666; grid-column: 1 / -1;">
           <p>Nenhum pedido encontrado com os filtros atuais.</p>
-          <button onclick="clearFilters()" class="btn" style="margin-top: 10px; background-color: #f0f0f0; border: 1px solid #ddd;">
-            <i class="fas fa-times"></i> Limpar filtros
-          </button>
+          <button onclick="clearFilters()" class="btn btn-secondary" style="margin-top: 10px;">
+  <i class="fas fa-times"></i> Limpar filtros
+</button>
         </div>
     </div>
 </div>
@@ -542,5 +536,6 @@
 <script src="dashboard.js" type="module"></script>
 <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 <script src="accordion.js"></script>
+
 </body>
 </html>

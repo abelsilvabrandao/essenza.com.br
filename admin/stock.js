@@ -391,9 +391,11 @@ export function applyFilters() {
       message.innerHTML = `
         <i class="fas fa-inbox" style="font-size: 3em; opacity: 0.3; margin-bottom: 15px;"></i>
         <p>${messageText}</p>
-        <button onclick="clearFilters()" class="btn" style="margin-top: 15px;">
-          <i class="fas fa-undo"></i> Limpar filtros
-        </button>
+        <div style="display: flex; justify-content: center; width: 100%;">
+  <button onclick="clearFilters()" class="btn btn-primary" style="margin-top: 15px;">
+    <i class="fas fa-undo"></i> Limpar filtros
+  </button>
+</div>
       `;
       ordersList.appendChild(message);
     }
@@ -502,6 +504,10 @@ export async function renderOrdersList() {
       return dateB - dateA; // Ordem decrescente (mais recente primeiro)
     });
 
+    // Atualiza cache global para handlers dos botões de acordo
+    window.ordersCache = orders;
+    console.log('[DEBUG] window.ordersCache atualizado:', window.ordersCache.length, 'pedidos');
+
     // Gerar HTML dos cards
     html = orders.map(order => {
       // Normalizar o status para garantir consistência
@@ -604,27 +610,32 @@ export async function renderOrdersList() {
                   </tr>
                 </thead>
                 <tbody>
-                  ${payments.map(payment => {
-                    const paymentDate = payment.date ? (payment.date.toDate ? payment.date.toDate() : new Date(payment.date)) : new Date();
-                    const paymentStatus = payment.status || 'Aprovado';
-                    const statusClass = paymentStatus.toLowerCase() === 'aprovado' ? 'status-approved' : 
-                                      paymentStatus.toLowerCase() === 'pendente' ? 'status-pending' : 'status-rejected';
-                    
-                    return `
-                      <tr style="border-bottom: 1px solid #f1f1f1;">
-                        <td style="padding: 8px; border-bottom: 1px solid #f1f1f1;">${paymentDate.toLocaleDateString('pt-BR')}</td>
-                        <td style="text-align: right; padding: 8px; border-bottom: 1px solid #f1f1f1; font-weight: 500; white-space: nowrap;">
-                          R$ ${Number(payment.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </td>
-                        <td style="padding: 8px; border-bottom: 1px solid #f1f1f1;">${getPaymentMethodLabel(payment.method)}</td>
-                        <td style="padding: 8px; border-bottom: 1px solid #f1f1f1;">
-                          <span class="status-badge ${statusClass}" style="display: inline-block; padding: 3px 8px; border-radius: 12px; font-size: 0.8em; font-weight: 500;">
-                            ${paymentStatus}
-                          </span>
-                        </td>
-                      </tr>
-                    `;
-                  }).join('')}
+                  ${payments.map((payment, idx) => {
+  const paymentDate = payment.date ? (payment.date.toDate ? payment.date.toDate() : new Date(payment.date)) : new Date();
+  const paymentStatus = payment.status || 'Aprovado';
+  const statusClass = paymentStatus.toLowerCase() === 'aprovado' ? 'status-approved' : 
+    paymentStatus.toLowerCase() === 'pendente' ? 'status-pending' : 'status-rejected';
+
+  return `
+    <tr style="border-bottom: 1px solid #f1f1f1;">
+      <td style="padding: 8px; border-bottom: 1px solid #f1f1f1; white-space:nowrap;">${(() => {
+  let dt = payment.createdAt ? new Date(payment.createdAt) : payment.date ? (payment.date.toDate ? payment.date.toDate() : new Date(payment.date)) : new Date();
+  const pad = n => String(n).padStart(2, '0');
+  return pad(dt.getDate()) + '/' + pad(dt.getMonth()+1) + '/' + dt.getFullYear() + ' ' + pad(dt.getHours()) + ':' + pad(dt.getMinutes());
+})()}</td>
+      <td style="text-align: right; padding: 8px; border-bottom: 1px solid #f1f1f1; font-weight: 500; white-space: nowrap;">
+        R$ ${Number(payment.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+      </td>
+      <td style="padding: 8px; border-bottom: 1px solid #f1f1f1;">${getPaymentMethodLabel(payment.method)}</td>
+      <td style="padding: 8px; border-bottom: 1px solid #f1f1f1;">
+        <span class="status-badge ${statusClass}" style="display: inline-block; padding: 3px 8px; border-radius: 12px; font-size: 0.8em; font-weight: 500;${statusClass === 'status-approved' ? 'background: #e3f7e9; color: #0d6832; border: 1px solid #a3e6b8;' : ''}${statusClass === 'status-pending' ? 'background: #fffbe8; color: #d97706; border: 1px solid #ffeeba;' : ''}${statusClass === 'status-rejected' ? 'background: #fde2e1; color: #b91c1c; border: 1px solid #fca5a5;' : ''}">
+          ${paymentStatus}
+        </span>
+        <button class="delete-payment-btn" data-order-id="${order._id}" data-payment-idx="${idx}" title="Excluir pagamento" style="margin-left:8px; background:#ff1493; color:white; border:none; border-radius:4px; padding:3px 8px; cursor:pointer; font-size:0.9em;"><i class="fas fa-trash"></i></button>
+      </td>
+    </tr>
+  `;
+}).join('')}
                 </tbody>
               </table>
             </div>
@@ -635,6 +646,59 @@ export async function renderOrdersList() {
             Nenhum pagamento registrado para este pedido.
           </div>
         `;
+
+        // --- Handler de exclusão de pagamento ---
+        setTimeout(() => {
+          document.querySelectorAll('.delete-payment-btn').forEach(btn => {
+            btn.onclick = async function(e) {
+              e.preventDefault();
+              const orderId = this.getAttribute('data-order-id');
+              const paymentIdx = parseInt(this.getAttribute('data-payment-idx'));
+              if (!orderId || isNaN(paymentIdx)) return;
+              const result = await Swal.fire({
+                title: 'Excluir pagamento?',
+                text: 'Tem certeza que deseja remover este pagamento? Esta ação não pode ser desfeita.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Sim, excluir',
+                cancelButtonText: 'Cancelar'
+              });
+              if (result.isConfirmed) {
+                try {
+                  const orderRef = doc(window.db, 'orders', orderId);
+                  const orderSnap = await getDoc(orderRef);
+                  if (orderSnap.exists()) {
+                    const orderData = orderSnap.data();
+                    let paymentsArr = Array.isArray(orderData.payments) ? [...orderData.payments] : [];
+                    paymentsArr.splice(paymentIdx, 1);
+                    const valorTotal = Number(orderData.total) || 0;
+                    const totalPago = paymentsArr.reduce((sum, payment) => sum + (Number(payment.amount) || 0), 0);
+                    const valorPendente = Math.max(0, valorTotal - totalPago);
+                    let paymentStatus = 'Pendente';
+                    if (valorPendente === 0 && valorTotal > 0) {
+                      paymentStatus = 'Pago';
+                    } else if (totalPago > 0) {
+                      paymentStatus = 'Parcial';
+                    }
+                    await updateDoc(orderRef, {
+                      payments: paymentsArr,
+                      paymentStatus,
+                      valorPendente,
+                      updatedAt: new Date().toISOString()
+                    });
+                    Swal.fire('Excluído!', 'O pagamento foi removido e o status financeiro foi atualizado.', 'success');
+                    renderOrdersList();
+                  }
+                } catch (err) {
+                  Swal.fire('Erro', 'Não foi possível excluir o pagamento. Tente novamente.', 'error');
+                }
+              }
+            };
+          });
+        }, 100);
+        // Fim do handler de exclusão
 
         // Gerar HTML do card do pedido
         // Utilitário para formatar data/hora no horário de Brasília (UTC-3)
@@ -756,23 +820,19 @@ export async function renderOrdersList() {
                   <i class="fas fa-chevron-down" style="margin-left: 8px; transition: transform 0.3s ease;"></i>
                 </div>
                 <div class="financial-details-content" style="display: none; padding: 15px; background-color: #fdfdfd; border: 1px solid #eee; border-radius: 6px; margin-top: -10px;">
-                  <div class="financial-summary" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                   <div class="financial-summary" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px;">
+
+
                     <div class="financial-item" style="padding: 12px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid #4caf50;">
                       <div style="font-size: 0.85em; color: #555; margin-bottom: 5px;">Valor Total</div>
                       <div style="font-size: 1.2em; font-weight: 600; color: #2c3e50;">
                         R$ ${totalPedido.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </div>
                     </div>
-                    <div class="financial-item" style="padding: 12px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid #2196f3;">
-                      <div style="font-size: 0.85em; color: #555; margin-bottom: 5px;">Custo de Compra</div>
-                      <div style="font-size: 1.2em; font-weight: 600; color: #2c3e50;">
-                        R$ ${purchaseCost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </div>
-                    </div>
-                    <div class="financial-item" style="padding: 12px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid #ff9800;">
-                      <div style="font-size: 0.85em; color: #555; margin-bottom: 5px;">Lucro Estimado</div>
-                      <div style="font-size: 1.2em; font-weight: 600; color: #2c3e50;">
-                        R$ ${lucroEstimado.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    <div class="financial-item" style="padding: 12px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid #f59e0b;">
+                      <div style="font-size: 0.85em; color: #555; margin-bottom: 5px;">Valor Pendente</div>
+                      <div style="font-size: 1.2em; font-weight: 600; color: #dc2626;">
+                        R$ ${valorPendente.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </div>
                     </div>
                     <div class="financial-item" style="padding: 12px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid #9c27b0;">
@@ -785,20 +845,141 @@ export async function renderOrdersList() {
                     </div>
                   </div>
 
+
+
+                  <!-- Exibir acordo de pagamento, se existir -->
+  ${order.paymentAgreement ? `
+   <div class="agreement-info" style="grid-column: 1/-1; background: #e3f2fd; border-left: 3px solid #2196f3; border-radius: 6px; padding: 12px; margin-bottom: 10px;">
+     <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
+       <i class="fas fa-file-contract" style="color: #2196f3;"></i>
+       <span style="font-weight: 600; color: #1565c0;">Acordo de Pagamento (${order.paymentAgreement.installments}x):</span>
+  <button class="edit-agreement-btn" data-order-id="${order._id}" title="Editar acordo" style="margin-left: 10px; background: #2196f3; color: white; border: none; border-radius: 4px; padding: 3px 9px; cursor: pointer; font-size: 0.9em; display: inline-flex; align-items: center;" onclick="window.openAgreementModal('${order._id}', true)"><i class="fas fa-edit"></i></button>
+  <button class="delete-agreement-btn" data-order-id="${order._id}" title="Excluir acordo" style="margin-left: 5px; background: #e53935; color: white; border: none; border-radius: 4px; padding: 3px 9px; cursor: pointer; font-size: 0.9em; display: inline-flex; align-items: center;"><i class="fas fa-trash"></i></button>
+     </div>
+     <div style="margin-left: 30px;">
+       <table style="width: 100%; font-size: 0.97em;">
+         <thead>
+           <tr>
+             <th style="text-align:left;">Parcela</th>
+             <th style="text-align:center;">Vencimento</th>
+             <th style="text-align:right;">Valor</th>
+             <th style="text-align:right;">Pago</th>
+             <th style="text-align:right;">Status</th>
+             <th style="text-align:center;">Ação</th>
+           </tr>
+         </thead>
+         <tbody>
+           ${order.paymentAgreement.dates.map((date, idx) => {
+             const [ano, mes, dia] = date.split('-'); const dataFormatada = `${dia}/${mes}/${ano}`;
+             // Filtra pagamentos vinculados a esta parcela
+             const parcelaPagamentos = (order.payments || []).filter(p => p.installmentIndex === idx);
+             const valorParcela = Math.round((order.total || 0) / order.paymentAgreement.installments * 100) / 100;
+             const totalPagoParcela = parcelaPagamentos.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+             let status = 'Pendente', cor = '#fff3cd', txt = '#856404', borda = '#ffeeba';
+             if (totalPagoParcela >= valorParcela) {
+               status = 'Pago'; cor = '#e3f7e9'; txt = '#0d6832'; borda = '#a3e6b8';
+             } else if (totalPagoParcela > 0) {
+               status = 'Parcial'; cor = '#fffbe8'; txt = '#d97706'; borda = '#ffeeba';
+             }
+             return `
+               <tr>
+                 <td style="padding: 2px 6px;">${idx+1} / ${order.paymentAgreement.installments}</td>
+                 <td style="padding: 2px 6px; text-align:center;">${(() => { const [ano, mes, dia] = date.split('-'); return `${dia}/${mes}/${ano}`; })()}</td>
+                 <td style="padding: 2px 6px; text-align:right;">R$ ${valorParcela.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                 <td style="padding: 2px 6px; text-align:right;">R$ ${totalPagoParcela.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                 <td style="padding: 2px 6px; text-align:right;">
+                   <span style="padding: 2px 10px; border-radius: 10px; font-size: 0.9em; background: ${cor}; color: ${txt}; border: 1px solid ${borda};">
+                     ${status}
+                   </span>
+                 </td>
+                 <td style="padding: 2px 6px; text-align:center;">
+                   <button class="btn-add-payment" onclick="window.openPaymentModal('${order._id}', ${valorParcela}, ${(valorParcela-totalPagoParcela).toFixed(2)}, ${idx})" style="background-color: #4caf50; color: white; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 0.85em; display: inline-flex; align-items: center; gap: 4px;">
+                     <i class='fas fa-plus'></i> Pagar Parcela
+                   </button>
+                 </td>
+               </tr>
+               ${parcelaPagamentos.length > 0 ? `<tr><td colspan="6" style="padding: 0 0 8px 0; background: #f8f9fa; font-size: 0.92em; color: #555;">
+                 ${parcelaPagamentos.map(p => {
+                   const dt = p.createdAt ? new Date(p.createdAt) : p.date ? (p.date.toDate ? p.date.toDate() : new Date(p.date)) : new Date();
+                   const pad = n => String(n).padStart(2, '0');
+                   // Descobrir o índice global desse pagamento no array order.payments
+                   const globalIdx = (order.payments || []).findIndex(pay => pay === p);
+                   return `<span style='margin-right:10px;'>Pagamento: R$ ${Number(p.amount).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})} em ${pad(dt.getDate())}/${pad(dt.getMonth()+1)}/${dt.getFullYear()}
+                     <button class="delete-payment-btn" data-order-id="${order._id}" data-payment-idx="${globalIdx}" title="Excluir pagamento" style="margin-left:8px; background:#ff1493; color:white; border:none; border-radius:4px; padding:2px 7px; cursor:pointer; font-size:0.85em;"><i class="fas fa-trash"></i></button></span>`;
+                 }).join('<br>')}
+               </td></tr>` : ''}
+             `;
+           }).join('')}
+         </tbody>
+       </table>
+     </div>
+   </div>
+   ` : ''}
                   <!-- Histórico de pagamentos -->
-                  ${paymentsHtml}
+                  <!-- Pagamentos avulsos (sem vínculo de parcela) -->
+${(() => {
+  const avulsos = (order.payments || []).filter(p => typeof p.installmentIndex === 'undefined' || p.installmentIndex === null);
+  if (!avulsos.length) return '';
+  return `<div class='payment-history' style='margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee;'>
+    <h4 style='font-size: 0.95em; color: #555; margin: 0 0 10px 0; display: flex; align-items: center;'>
+      <i class="fas fa-history" style="margin-right: 8px;"></i>
+      Pagamentos Avulsos
+    </h4>
+    <div class="table-responsive" style="max-height: 200px; overflow-y: auto;">
+      <table class="payment-table" style="width: 100%; border-collapse: collapse; font-size: 0.9em;">
+        <thead>
+          <tr style="background-color: #f8f9fa;">
+            <th style="text-align: left; padding: 8px; font-weight: 500; border-bottom: 1px solid #dee2e6;">Data</th>
+            <th style="text-align: right; padding: 8px; font-weight: 500; border-bottom: 1px solid #dee2e6;">Valor</th>
+            <th style="text-align: left; padding: 8px; font-weight: 500; border-bottom: 1px solid #dee2e6;">Forma</th>
+            <th style="text-align: left; padding: 8px; font-weight: 500; border-bottom: 1px solid #dee2e6;">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${avulsos.map((payment, idx) => {
+            const paymentDate = payment.date ? (payment.date.toDate ? payment.date.toDate() : new Date(payment.date)) : new Date();
+            const paymentStatus = payment.status || 'Aprovado';
+            const statusClass = paymentStatus.toLowerCase() === 'aprovado' ? 'status-approved' : 
+              paymentStatus.toLowerCase() === 'pendente' ? 'status-pending' : 'status-rejected';
+            return `
+              <tr style="border-bottom: 1px solid #f1f1f1;">
+                <td style="padding: 8px; border-bottom: 1px solid #f1f1f1; white-space:nowrap;">${(() => {
+                  let dt = payment.createdAt ? new Date(payment.createdAt) : payment.date ? (payment.date.toDate ? payment.date.toDate() : new Date(payment.date)) : new Date();
+                  const pad = n => String(n).padStart(2, '0');
+                  return pad(dt.getDate()) + '/' + pad(dt.getMonth()+1) + '/' + dt.getFullYear() + ' ' + pad(dt.getHours()) + ':' + pad(dt.getMinutes());
+                })()}</td>
+                <td style="text-align: right; padding: 8px; border-bottom: 1px solid #f1f1f1; font-weight: 500; white-space: nowrap;">
+                  R$ ${Number(payment.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </td>
+                <td style="padding: 8px; border-bottom: 1px solid #f1f1f1;">${getPaymentMethodLabel(payment.method)}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #f1f1f1;">
+                  <span class="status-badge ${statusClass}" style="display: inline-block; padding: 3px 8px; border-radius: 12px; font-size: 0.8em; font-weight: 500;${statusClass === 'status-approved' ? 'background: #e3f7e9; color: #0d6832; border: 1px solid #a3e6b8;' : ''}${statusClass === 'status-pending' ? 'background: #fffbe8; color: #d97706; border: 1px solid #ffeeba;' : ''}${statusClass === 'status-rejected' ? 'background: #fde2e1; color: #b91c1c; border: 1px solid #fca5a5;' : ''}">
+                    ${paymentStatus}
+                  </span>
+                  <button class="delete-payment-btn" data-order-id="${order._id}" data-payment-idx="${idx}" title="Excluir pagamento" style="margin-left:8px; background:#ff1493; color:white; border:none; border-radius:4px; padding:3px 8px; cursor:pointer; font-size:0.9em;"><i class="fas fa-trash"></i></button>
+                </td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+})()}
+
 
                   <!-- Ações de pagamento -->
                   <div class="payment-actions" style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee; display: flex; gap: 10px; flex-wrap: wrap;">
-                    <button class="btn-add-payment" onclick="window.openPaymentModal('${order._id}', ${totalPedido}, ${valorPendente})" style="background-color: #4caf50; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 0.9em; display: inline-flex; align-items: center; gap: 5px; transition: background-color 0.2s;">
+                    <button class="btn-add-payment" onclick="console.log('Clicou em Registrar Pagamento:', '${order._id}', ${totalPedido}, ${valorPendente}); window.openPaymentModal('${order._id}', ${totalPedido}, ${valorPendente})" style="background-color: #4caf50; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 0.9em; display: inline-flex; align-items: center; gap: 5px; transition: background-color 0.2s;">
                       <i class="fas fa-plus"></i>
                       Registrar Pagamento
                     </button>
-                    ${!order.paymentAgreement ? `
-                    <button class="btn-add-agreement" onclick="window.openAgreementModal('${order._id}')" style="background-color: #2196f3; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 0.9em; display: inline-flex; align-items: center; gap: 5px; transition: background-color 0.2s;">
-                      <i class="fas fa-file-contract"></i>
-                      Criar Acordo
-                    </button>` : ''}
+                    <button class="btn-add-agreement" onclick="console.log('Clicou em Criar Acordo:', '${order._id}'); window.openAgreementModal('${order._id}')" style="background-color: #2196f3; color: white; border: none; padding: 8px 16px; border-radius: 4px; font-size: 0.9em; display: inline-flex; align-items: center; gap: 5px; transition: background-color 0.2s;${order.paymentAgreement ? ' opacity: 0.6;' : ' cursor: pointer;'}" ${order.paymentAgreement ? 'disabled' : ''}>
+  <i class="fas fa-file-contract"></i>
+  ${order.paymentAgreement ? 'Acordo Criado' : 'Criar Acordo'}
+</button>
+
+
                     <button class="btn-print" onclick="window.printOrder('${order._id}')" style="background-color: #6c757d; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 0.9em; display: inline-flex; align-items: center; gap: 5px; transition: background-color 0.2s; margin-left: auto;">
                       <i class="fas fa-print"></i>
                       Imprimir
@@ -902,6 +1083,78 @@ export async function renderOrdersList() {
     // Garante que todos os cards são concatenados e inseridos de uma vez
     ordersList.innerHTML = html && html.trim().length > 0 ? html : '<p>Nenhum pedido encontrado.</p>';
     console.log('HTML atualizado no DOM');
+
+    // Event delegation para editar/excluir acordo
+    if (ordersList) {
+      ordersList.removeEventListener('click', window._agreementBtnDelegation, true);
+      window._agreementBtnDelegation = async function(event) {
+        const target = event.target.closest('.edit-agreement-btn, .delete-agreement-btn');
+        if (!target) return;
+        const orderId = target.getAttribute('data-order-id');
+        if (!orderId) return;
+        if (target.classList.contains('delete-agreement-btn')) {
+          console.log('[DEBUG] Clique em .delete-agreement-btn para pedido', orderId);
+          const result = await Swal.fire({
+            title: 'Excluir acordo?',
+            text: 'Deseja realmente remover este acordo? Os pagamentos já registrados serão excluídos.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Sim, excluir',
+            cancelButtonText: 'Cancelar'
+          });
+          if (result.isConfirmed) {
+            try {
+              const orderRef = doc(window.db, 'orders', orderId);
+              // Buscar o pedido atualizado para recalcular pagamentos
+               const orderSnap = await getDoc(orderRef);
+               let orderData = orderSnap.exists() ? orderSnap.data() : {};
+               let payments = Array.isArray(orderData.payments) ? orderData.payments : [];
+// Remove pagamentos vinculados ao acordo (com installmentIndex definido)
+payments = payments.filter(p => typeof p.installmentIndex === 'undefined' || p.installmentIndex === null);
+const valorTotal = Number(orderData.total) || 0;
+const totalPago = payments.reduce((sum, payment) => sum + (Number(payment.amount) || 0), 0);
+const valorPendente = Math.max(0, valorTotal - totalPago);
+let paymentStatus = 'Pendente';
+if (valorPendente === 0 && valorTotal > 0) {
+  paymentStatus = 'Pago';
+} else if (totalPago > 0) {
+  paymentStatus = 'Parcial';
+}
+await updateDoc(orderRef, {
+  paymentAgreement: null,
+  payments: payments,
+  paymentStatus,
+  valorPendente,
+  updatedAt: new Date().toISOString()
+});
+               Swal.fire('Acordo excluído!', 'O acordo de pagamento foi removido e o status financeiro foi atualizado.', 'success');
+               renderOrdersList();
+            } catch (err) {
+              Swal.fire('Erro', 'Não foi possível excluir o acordo. Tente novamente.', 'error');
+            }
+          }
+        } else if (target.classList.contains('edit-agreement-btn')) {
+          console.log('[DEBUG] Clique em .edit-agreement-btn para pedido', orderId);
+          const order = (window.ordersCache || []).find(o => o._id === orderId);
+          if (!order || !order.paymentAgreement) return;
+          Swal.fire({
+            title: 'Editar Acordo de Pagamento',
+            html: (() => {
+              let html = `<div class='form-group'><label for='swalEditInstallments'>Número de Parcelas</label><select id='swalEditInstallments' class='form-control' required>`;
+              for (let i = 1; i <= 12; i++) html += `<option value='${i}' ${order.paymentAgreement.installments === i ? 'selected' : ''}>${i}x</option>`;
+              html += `</select></div><div class='form-group'><div id='swalEditPaymentSchedule' style='margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 4px;'><p><strong>Datas das Parcelas:</strong></p><div id='swalEditScheduleInputs' style='display: flex; flex-direction: column; gap: 10px;'></div></div></div>`;
+              return html;
+            })(),
+            showCancelButton: true,
+            confirmButtonText: 'Salvar'
+          });
+        }
+      };
+      ordersList.addEventListener('click', window._agreementBtnDelegation, true);
+      console.log('[DEBUG] Event delegation para acordo ativado em #ordersList');
+    }
     
     // Aplica os filtros após carregar os pedidos
     setTimeout(() => {
@@ -1015,25 +1268,28 @@ export async function renderOrdersList() {
 }
 
 // Função para criar um acordo de pagamento
-window.createPaymentAgreement = async function(orderId, installments, firstPaymentDate) {
+window.createPaymentAgreement = async function(orderId, installments, datesOrFirstPaymentDate) {
   try {
-    if (!orderId || !installments || !firstPaymentDate) {
+    if (!orderId || !installments || !datesOrFirstPaymentDate) {
       throw new Error('Dados do acordo de pagamento inválidos');
     }
 
-    const paymentDates = [];
-    const date = new Date(firstPaymentDate);
-    
-    for (let i = 0; i < installments; i++) {
-      if (i > 0) {
-        // Adiciona 1 mês para cada parcela subsequente
-        date.setMonth(date.getMonth() + 1);
+    let paymentDates = [];
+    // Se receber um array, usa as datas fornecidas (novo fluxo SweetAlert2)
+    if (Array.isArray(datesOrFirstPaymentDate)) {
+      paymentDates = datesOrFirstPaymentDate.map(d => d);
+    } else {
+      // Compatibilidade: gera as datas automaticamente a partir da primeira data
+      const date = new Date(datesOrFirstPaymentDate);
+      for (let i = 0; i < installments; i++) {
+        if (i > 0) {
+          date.setMonth(date.getMonth() + 1);
+        }
+        paymentDates.push(date.toISOString().split('T')[0]);
       }
-      paymentDates.push(date.toISOString().split('T')[0]);
     }
 
     const orderRef = doc(db, 'orders', orderId);
-    
     await updateDoc(orderRef, {
       paymentAgreement: {
         installments: parseInt(installments),
@@ -1044,7 +1300,6 @@ window.createPaymentAgreement = async function(orderId, installments, firstPayme
 
     // Recarregar a lista de pedidos
     await renderOrdersList();
-    
     return true;
   } catch (error) {
     console.error('Erro ao criar acordo de pagamento:', error);
@@ -1164,192 +1419,296 @@ window.openWhatsApp = function(phone, orderId) {
 };
 
 // Função para abrir o modal de pagamento
-window.openPaymentModal = function(orderId, orderTotal, pendingAmount) {
-  const modal = document.createElement('div');
-  modal.className = 'modal';
-  modal.id = 'paymentModal';
-  
-  // Formatar valores para exibição
-  const formatCurrency = (value) => 
-    parseFloat(value).toLocaleString('pt-BR', { 
-      minimumFractionDigits: 2, 
-      maximumFractionDigits: 2 
+function openPaymentModal(orderId, orderTotal, pendingAmount) {
+  // Usa SweetAlert2 para exibir o modal de pagamento
+  const formatCurrency = (value) =>
+    parseFloat(value).toLocaleString('pt-BR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
     });
 
-  modal.innerHTML = `
-    <div class="modal-content" style="max-width: 500px;">
-      <div class="modal-header">
-        <h3>Registrar Pagamento</h3>
-        <span class="close" onclick="document.body.removeChild(document.getElementById('paymentModal'))">&times;</span>
+  Swal.fire({
+    title: 'Registrar Pagamento',
+    html: `
+      <div class="form-group">
+        <label>Valor Total do Pedido</label>
+        <input type="text" class="form-control" value="R$ ${formatCurrency(orderTotal)}" disabled>
       </div>
-      <div class="modal-body">
-        <div class="form-group">
-          <label>Valor Total do Pedido</label>
-          <input type="text" class="form-control" value="R$ ${formatCurrency(orderTotal)}" disabled>
-        </div>
-        <div class="form-group">
-          <label>Valor Pendente</label>
-          <input type="text" class="form-control" value="R$ ${formatCurrency(pendingAmount)}" disabled>
-        </div>
-        <div class="form-group">
-          <label for="paymentAmount">Valor do Pagamento *</label>
-          <div class="input-with-prefix">
-            <span>R$</span>
-            <input type="number" id="paymentAmount" step="0.01" min="0.01" max="${pendingAmount}" 
-                   class="form-control" placeholder="0,00" required>
-          </div>
-        </div>
-        <div class="form-group">
-          <label for="paymentMethod">Forma de Pagamento *</label>
-          <select id="paymentMethod" class="form-control" required>
-            <option value="">Selecione...</option>
-            <option value="pix">PIX</option>
-            <option value="credit">Cartão de Crédito</option>
-            <option value="debit">Cartão de Débito</option>
-            <option value="boleto">Boleto</option>
-            <option value="cash">Dinheiro</option>
-            <option value="bank_transfer">Transferência Bancária</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label for="paymentDate">Data do Pagamento</label>
-          <input type="date" id="paymentDate" class="form-control" 
-                 value="${new Date().toISOString().split('T')[0]}">
-        </div>
-        <div class="form-group">
-          <label>
-            <input type="checkbox" id="setAsPaid" ${pendingAmount <= orderTotal ? 'checked' : ''}>
-            Marcar como totalmente pago
-          </label>
+      <div class="form-group">
+        <label>Valor Pendente</label>
+        <input type="text" class="form-control" value="R$ ${formatCurrency(pendingAmount)}" disabled>
+      </div>
+      ${window.lastOrderForPayment && window.lastOrderForPayment.paymentAgreement ? `
+      <div class="form-group">
+        <label for="swalInstallmentSelect">Selecione a Parcela do Acordo *</label>
+        <select id="swalInstallmentSelect" class="form-control" required>
+          <option value="">Escolha a parcela...</option>
+          ${window.lastOrderForPayment.paymentAgreement.dates.map((date, idx) => {
+              // Format date to DD/MM/YYYY
+              let brDate = '';
+              if (date) {
+                const d = new Date(date);
+                if (!isNaN(d)) {
+                  const day = String(d.getDate()).padStart(2, '0');
+                  const month = String(d.getMonth() + 1).padStart(2, '0');
+                  const year = d.getFullYear();
+                  brDate = `${day}/${month}/${year}`;
+                } else {
+                  // fallback if not a valid date
+                  brDate = date;
+                }
+              }
+              const valor = window.lastOrderForPayment.paymentAgreement.amountPerInstallment ? `R$ ${formatCurrency(window.lastOrderForPayment.paymentAgreement.amountPerInstallment)}` : '';
+              return `<option value="${idx}">${idx+1}ª parcela - ${brDate} ${valor}</option>`;
+            }).join('')}
+        </select>
+      </div>
+      ` : ''}
+      <div class="form-group">
+        <label for="swalPaymentAmount">Valor do Pagamento *</label>
+        <div class="input-with-prefix">
+          <span>R$</span>
+          <input type="number" id="swalPaymentAmount" step="0.01" min="0.01" max="${pendingAmount}" class="form-control" placeholder="0,00" required>
         </div>
       </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" 
-                onclick="document.body.removeChild(document.getElementById('paymentModal'))">
-          Cancelar
-        </button>
-        <button type="button" class="btn btn-primary" onclick="window.savePayment('${orderId}')">
-          Salvar Pagamento
-        </button>
+      <div class="form-group">
+        <label for="swalPaymentMethod">Forma de Pagamento *</label>
+        <select id="swalPaymentMethod" class="form-control" required>
+          <option value="">Selecione...</option>
+          <option value="pix">PIX</option>
+          <option value="credit">Cartão de Crédito</option>
+          <option value="debit">Cartão de Débito</option>
+          <option value="boleto">Boleto</option>
+          <option value="cash">Dinheiro</option>
+          <option value="bank_transfer">Transferência Bancária</option>
+        </select>
       </div>
-    </div>
-  `;
-  
-  document.body.appendChild(modal);
-  
-  // Focar no campo de valor
+      <div class="form-group">
+        <label for="swalPaymentDate">Data do Pagamento</label>
+        <input type="date" id="swalPaymentDate" class="form-control" value="${new Date().toISOString().split('T')[0]}">
+      </div>
+      <div class="form-group">
+        <label>
+          <input type="checkbox" id="swalSetAsPaid" ${pendingAmount <= orderTotal ? 'checked' : ''}>
+          Marcar como totalmente pago
+        </label>
+      </div>
+    `,
+    showCancelButton: true,
+    confirmButtonText: 'Salvar Pagamento',
+    cancelButtonText: 'Cancelar',
+    focusConfirm: false,
+    customClass: {
+      popup: 'swal2-modal swal2-payment-modal',
+      confirmButton: 'btn btn-primary',
+      cancelButton: 'btn btn-secondary'
+    },
+    preConfirm: () => {
+      const amount = parseFloat(document.getElementById('swalPaymentAmount').value);
+      const method = document.getElementById('swalPaymentMethod').value;
+      const date = document.getElementById('swalPaymentDate').value;
+      const setAsPaid = document.getElementById('swalSetAsPaid').checked;
+      let installmentIndex = null;
+      if (window.lastOrderForPayment && window.lastOrderForPayment.paymentAgreement) {
+        installmentIndex = document.getElementById('swalInstallmentSelect').value;
+        if (installmentIndex === '') {
+          Swal.showValidationMessage('Selecione a parcela do acordo.');
+          return false;
+        }
+        installmentIndex = parseInt(installmentIndex);
+      }
+      if (!amount || amount <= 0) {
+        Swal.showValidationMessage('Por favor, informe um valor válido para o pagamento.');
+        return false;
+      }
+      if (!method) {
+        Swal.showValidationMessage('Por favor, selecione uma forma de pagamento.');
+        return false;
+      }
+      return { amount, method, date, setAsPaid, installmentIndex };
+    }
+  }).then((result) => {
+    if (result.isConfirmed && result.value) {
+      window.savePayment(orderId, result.value.amount, result.value.method, result.value.date, result.value.setAsPaid, result.value.installmentIndex);
+    }
+  });
+
   setTimeout(() => {
-    const amountInput = document.getElementById('paymentAmount');
+    const amountInput = document.getElementById('swalPaymentAmount');
     if (amountInput) amountInput.focus();
-  }, 100);
+  }, 150);
+}
+
+
+window.openPaymentModal = function(orderId, orderTotal, pendingAmount) {
+  // Busca o pedido para saber se tem acordo e passar para o modal
+  const orders = window.ordersCache || [];
+  const order = orders.find(o => o._id === orderId);
+  window.lastOrderForPayment = order || null;
+  try {
+    return openPaymentModal.apply(this, [orderId, orderTotal, pendingAmount]);
+  } catch (e) {
+    alert('Erro ao abrir modal de pagamento. Veja o console.');
+    console.error('openPaymentModal erro:', e);
+  }
 };
 
 // Função para abrir o modal de acordo de pagamento
-window.openAgreementModal = function(orderId) {
-  const modal = document.createElement('div');
-  modal.className = 'modal';
-  modal.id = 'agreementModal';
-  
-  const today = new Date().toISOString().split('T')[0];
-  
-  modal.innerHTML = `
-    <div class="modal-content" style="max-width: 500px;">
-      <div class="modal-header">
-        <h3>Criar Acordo de Pagamento</h3>
-        <span class="close" onclick="document.body.removeChild(document.getElementById('agreementModal'))">&times;</span>
-      </div>
-      <div class="modal-body">
-        <div class="form-group">
-          <label for="installments">Número de Parcelas</label>
-          <select id="installments" class="form-control" required>
-            <option value="1">1x (À vista)</option>
-            <option value="2">2x</option>
-            <option value="3">3x</option>
-            <option value="4">4x</option>
-            <option value="5">5x</option>
-            <option value="6">6x</option>
-            <option value="7">7x</option>
-            <option value="8">8x</option>
-            <option value="9">9x</option>
-            <option value="10">10x</option>
-            <option value="11">11x</option>
-            <option value="12">12x</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label for="firstPaymentDate">Data do Primeiro Pagamento</label>
-          <input type="date" id="firstPaymentDate" class="form-control" 
-                 value="${today}" min="${today}" required>
-        </div>
-        <div class="form-group">
-          <div id="paymentSchedule" style="margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 4px;">
-            <p><strong>Cronograma de Pagamentos:</strong></p>
-            <ul id="scheduleList" style="margin: 10px 0 0 20px; padding: 0;"></ul>
-          </div>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" 
-                onclick="document.body.removeChild(document.getElementById('agreementModal'))">
-          Cancelar
-        </button>
-        <button type="button" class="btn btn-primary" 
-                onclick="window.saveAgreement('${orderId}')">
-          Salvar Acordo
-        </button>
-      </div>
-    </div>
-  `;
-  
-  document.body.appendChild(modal);
-  
-  // Atualizar o cronograma quando os valores mudarem
-  const updateSchedule = () => {
-    const installments = parseInt(document.getElementById('installments').value);
-    const firstDate = document.getElementById('firstPaymentDate').value;
-    const date = new Date(firstDate);
-    const scheduleList = document.getElementById('scheduleList');
-    
-    let html = '';
-    for (let i = 0; i < installments; i++) {
-      const currentDate = new Date(date);
-      if (i > 0) {
-        currentDate.setMonth(date.getMonth() + i);
-      }
-      const formattedDate = currentDate.toLocaleDateString('pt-BR');
-      html += `<li>Parcela ${i + 1}: ${formattedDate}</li>`;
+function openAgreementModal(orderId, isEdit = false) {
+  // Buscar dados do pedido se for edição
+  let agreementData = null;
+  if (isEdit && window.ordersCache) {
+    const order = window.ordersCache.find(o => o._id === orderId);
+    if (order && order.paymentAgreement) {
+      agreementData = order.paymentAgreement;
     }
-    
-    scheduleList.innerHTML = html;
-  };
-  
-  document.getElementById('installments').addEventListener('change', updateSchedule);
-  document.getElementById('firstPaymentDate').addEventListener('change', updateSchedule);
-  
-  // Atualizar o cronograma inicial
-  updateSchedule();
+  }
+  const today = new Date().toISOString().split('T')[0];
+
+  Swal.fire({
+    title: isEdit ? 'Editar Acordo de Pagamento' : 'Criar Acordo de Pagamento',
+    html: `
+      <div class="form-group">
+        <label for="swalInstallments">Número de Parcelas</label>
+        <select id="swalInstallments" class="form-control" required>
+          ${[...Array(12)].map((_,i) => `<option value="${i+1}"${agreementData && agreementData.installments === (i+1) ? ' selected' : ''}>${i+1}x${i===0?' (À vista)':''}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Datas das Parcelas</label>
+        <div id="swalScheduleInputs" style="display: flex; flex-direction: column; gap: 10px;"></div>
+      </div>
+    `,
+    showCancelButton: true,
+    confirmButtonText: 'Salvar Acordo',
+    cancelButtonText: 'Cancelar',
+    focusConfirm: false,
+    customClass: {
+      popup: 'swal2-modal swal2-agreement-modal',
+      confirmButton: 'btn btn-primary',
+      cancelButton: 'btn btn-secondary'
+    },
+    didOpen: () => {
+      const today = new Date().toISOString().split('T')[0];
+      // Função para gerar inputs de data para cada parcela
+      const updateScheduleInputs = () => {
+        const installments = parseInt(document.getElementById('swalInstallments').value);
+        const container = document.getElementById('swalScheduleInputs');
+        container.innerHTML = '';
+        let lastDate = today;
+        for (let i = 0; i < installments; i++) {
+          let value = '';
+          if (agreementData && Array.isArray(agreementData.dates) && agreementData.dates[i]) {
+            value = agreementData.dates[i];
+          } else if (i === 0) {
+            value = today;
+          } else {
+            // Sugere mês seguinte à anterior
+            const prevInput = container.querySelectorAll('input[type=date]')[i-1];
+            let baseDate = prevInput && prevInput.value ? new Date(prevInput.value) : new Date(today);
+            baseDate.setMonth(baseDate.getMonth() + 1);
+            value = baseDate.toISOString().split('T')[0];
+          }
+          const label = document.createElement('label');
+          label.innerText = `Parcela ${i + 1}`;
+          label.style.fontWeight = '500';
+          label.style.marginBottom = '2px';
+          const input = document.createElement('input');
+          input.type = 'date';
+          input.className = 'form-control';
+          input.required = true;
+          input.min = today;
+          input.value = value;
+          input.id = `swalInstallmentDate${i+1}`;
+          container.appendChild(label);
+          container.appendChild(input);
+        }
+      };
+      document.getElementById('swalInstallments').addEventListener('change', updateScheduleInputs);
+      updateScheduleInputs();
+    },
+    preConfirm: () => {
+      const installments = parseInt(document.getElementById('swalInstallments').value);
+      const dates = [];
+      for (let i = 0; i < installments; i++) {
+        const input = document.getElementById(`swalInstallmentDate${i+1}`);
+        if (!input || !input.value) {
+          Swal.showValidationMessage(`Preencha a data da parcela ${i+1}.`);
+          return false;
+        }
+        dates.push(input.value);
+      }
+      return { installments, dates };
+    }
+  }).then(async (result) => {
+    if (result.isConfirmed && result.value) {
+      if (isEdit) {
+        // Atualizar o acordo no Firestore
+        try {
+          const orderRef = doc(window.db, 'orders', orderId);
+          await updateDoc(orderRef, {
+            paymentAgreement: {
+              installments: parseInt(result.value.installments),
+              dates: result.value.dates
+            },
+            updatedAt: new Date().toISOString()
+          });
+          await renderOrdersList();
+          Swal.fire('Acordo atualizado!', 'O acordo de pagamento foi editado com sucesso.', 'success');
+        } catch (err) {
+          Swal.fire('Erro', 'Não foi possível atualizar o acordo. Tente novamente.', 'error');
+        }
+      } else {
+        window.saveAgreement(orderId, result.value.installments, result.value.dates);
+      }
+    }
+  });
+}
+
+window.openAgreementModal = function(...args) {
+  console.log('[DEBUG] openAgreementModal chamado', args);
+  try {
+    return openAgreementModal.apply(this, args);
+  } catch (e) {
+    alert('Erro ao abrir modal de acordo. Veja o console.');
+    console.error('openAgreementModal erro:', e);
+  }
 };
 
 // Função para salvar o acordo de pagamento
-window.saveAgreement = async function(orderId) {
+window.saveAgreement = async function(orderId, installments, dates) {
   try {
-    const installments = document.getElementById('installments').value;
-    const firstPaymentDate = document.getElementById('firstPaymentDate').value;
-    
-    if (!installments || !firstPaymentDate) {
+    // Compatibilidade: se não vierem por parâmetro, tenta pegar do DOM antigo
+    if (!installments || !dates) {
+      const domInstallments = document.getElementById('installments')?.value || 1;
+      const domFirstPaymentDate = document.getElementById('firstPaymentDate')?.value;
+      if (!domInstallments || !domFirstPaymentDate) {
+        alert('Por favor, preencha todos os campos do acordo.');
+        return;
+      }
+      installments = domInstallments;
+      dates = [domFirstPaymentDate];
+    }
+    // Validação extra
+    if (!orderId || !installments || !dates || !Array.isArray(dates) || dates.length === 0) {
       alert('Por favor, preencha todos os campos do acordo.');
       return;
     }
-    
-    await window.createPaymentAgreement(orderId, installments, firstPaymentDate);
-    
-    // Fechar o modal
+    // Chama a função que salva o acordo, passando todas as datas
+    await window.createPaymentAgreement(orderId, installments, dates);
+
+    // Fechar o modal SweetAlert2 (se aberto)
+    if (Swal.isVisible()) Swal.close();
+    // Fechar o modal antigo se existir
     const modal = document.getElementById('agreementModal');
     if (modal) document.body.removeChild(modal);
-    
+
+    // Atualizar a lista de pedidos
+    await renderOrdersList();
+
     // Mostrar mensagem de sucesso
     alert('Acordo de pagamento criado com sucesso!');
-    
+
   } catch (error) {
     console.error('Erro ao salvar acordo:', error);
     alert('Ocorreu um erro ao criar o acordo de pagamento. Por favor, tente novamente.');
@@ -1357,12 +1716,21 @@ window.saveAgreement = async function(orderId) {
 };
 
 // Função para salvar um novo pagamento
-window.savePayment = async function(orderId) {
+window.savePayment = async function(orderId, amount, method, date, setAsPaid, installmentIndex) {
   try {
-    const amount = parseFloat(document.getElementById('paymentAmount').value);
-    const method = document.getElementById('paymentMethod').value;
-    const date = document.getElementById('paymentDate').value;
-    const setAsPaid = document.getElementById('setAsPaid').checked;
+    // Permitir chamada tanto pelo SweetAlert2 quanto pelo DOM antigo (fallback)
+    if (typeof amount === 'undefined') {
+      amount = parseFloat(document.getElementById('paymentAmount')?.value);
+    }
+    if (typeof method === 'undefined') {
+      method = document.getElementById('paymentMethod')?.value;
+    }
+    if (typeof date === 'undefined') {
+      date = document.getElementById('paymentDate')?.value;
+    }
+    if (typeof setAsPaid === 'undefined') {
+      setAsPaid = document.getElementById('setAsPaid')?.checked;
+    }
     
     if (!amount || amount <= 0) {
       alert('Por favor, informe um valor válido para o pagamento.');
@@ -1383,9 +1751,15 @@ window.savePayment = async function(orderId) {
     const payment = {
       amount,
       method,
-      date: new Date(date).toISOString(),
-      createdAt: new Date().toISOString()
+      // Salva a data do pagamento exatamente como informada (YYYY-MM-DD)
+      date: date,
+      // Salva o momento do registro do pagamento (data/hora local completa)
+      createdAt: new Date().toLocaleString('sv-SE', { timeZone: 'America/Sao_Paulo' })
     };
+
+    if (typeof installmentIndex !== 'undefined' && installmentIndex !== null) {
+      payment.installmentIndex = installmentIndex;
+    }
     
     const currentPayments = orderData.payments || [];
     const updatedPayments = [...currentPayments, payment];
@@ -3827,11 +4201,12 @@ export async function savePendingChanges() {
 }
 
 function closeProductModal() {
-  const modal = document.getElementById("productModal");
+  const modal = document.querySelector('.modal-content');
   if (!modal) {
     console.error("Modal não encontrado");
     return;
   }
+  modal.closest('.modal').classList.remove("active");
   modal.classList.remove("active");
 }
 
