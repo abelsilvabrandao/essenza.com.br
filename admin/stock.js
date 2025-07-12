@@ -1,4 +1,34 @@
 // Gerenciamento de estoque
+
+/**
+ * Formata a descrição do produto, aplicando:
+ * - Título: linha terminada com * (negrito, sublinhado colorido)
+ * - Texto: justificado
+ * @param {string} description Texto da descrição
+ * @param {string} underlineColor Classe CSS do sublinhado (ex: 'underline-red')
+ * @returns {string} HTML formatado
+ */
+function formatProductDescription(description, underlineColor = 'underline-primary') {
+  if (!description) return '';
+  // Quebra em linhas
+  const lines = description.split(/\r?\n/);
+  let html = '';
+  lines.forEach((line, idx) => {
+    const isTitle = line.trim().endsWith('*');
+    if (isTitle) {
+      const cleanTitle = line.trim().replace(/\*+$/, '').trim();
+      html += `<span class="desc-title ${underlineColor}"><b>${escapeHtml(cleanTitle)}</b></span>`;
+    } else if (line.trim()) {
+      html += `<p class="desc-text">${escapeHtml(line.trim())}</p>`;
+    }
+    // Linhas em branco = espaçamento extra
+    if (!line.trim() && idx !== 0) {
+      html += '<div style="height:0.5em"></div>';
+    }
+  });
+  return html;
+}
+
 import {
   collection,
   getDocs,
@@ -2109,7 +2139,7 @@ async function renderStockList() {
             <div class="stock-item-content">
                 <div class="stock-item-info">
   <h3>${product.name}</h3>
-  ${product.description ? `<div class="product-description" style="color:#666; font-size:0.9em; margin: 0.2em 0 0.5em 0;">${product.description}</div>` : ''}
+  ${product.description ? `<div class="product-description">${formatProductDescription(product.description, product.descUnderlineColor)}</div>` : ''}
   <div class="product-category-label">
     ${typeof product.category === 'string' && product.category.trim() ? product.category : '<span style=\"color:#bbb;\">Sem categoria</span>'}
   </div>

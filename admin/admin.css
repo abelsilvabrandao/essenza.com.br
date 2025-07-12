@@ -1793,6 +1793,57 @@ input[type="checkbox"] {
 }
 
 /* Produtos */
+
+.desc-title {
+  font-size: 1.08em;
+  font-weight: bold;
+  display: inline-block;
+  margin-bottom: 0.2em;
+  padding-bottom: 1px;
+  line-height: 1.2;
+}
+.underline-red {
+  border-bottom: 2.5px solid #e53935;
+}
+.underline-green {
+  border-bottom: 2.5px solid #43a047;
+}
+.underline-blue {
+  border-bottom: 2.5px solid #1976d2;
+}
+.underline-pink {
+  border-bottom: 2.5px solid #ff1493;
+}
+.underline-yellow {
+  border-bottom: 2.5px solid #ffc107;
+}
+.underline-orange {
+  border-bottom: 2.5px solid #ff9800;
+}
+.underline-purple {
+  border-bottom: 2.5px solid #8e24aa;
+}
+.underline-primary {
+  border-bottom: 2.5px solid var(--primary-color);
+}
+.underline-secondary {
+  border-bottom: 2.5px solid var(--secondary-color);
+}
+
+.product-description p {
+  margin: 0.3em 0 0.7em 0;
+  line-height: 1.6;
+  color: #666;
+  font-size: 0.98em;
+}
+.product-description b {
+  font-weight: bold;
+}
+.product-description u,
+.product-description .desc-title {
+  text-underline-offset: 3px;
+}
+
 .btn-add {
     background: var(--primary-color);
     color: white;

@@ -1,5 +1,38 @@
 import { loadProducts } from './products.js';
 
+/**
+ * Formata a descrição do produto para exibição (título com * e sublinhado colorido, texto justificado)
+ * @param {string} description
+ * @param {string} underlineColor
+ * @returns {string}
+ */
+function formatProductDescription(description, underlineColor = 'underline-primary') {
+  if (!description) return '';
+  const lines = description.split(/\r?\n/);
+  let html = '';
+  lines.forEach((line, idx) => {
+    const isTitle = line.trim().endsWith('*');
+    if (isTitle) {
+      const cleanTitle = line.replace(/\s*\*+\s*$/, '').trim();
+      html += `<span class=\"desc-title ${underlineColor}\"><b>${escapeHtml(cleanTitle)}</b></span><br>`;
+    } else if (line.trim()) {
+      html += `<span class="desc-text">${escapeHtml(line.trim())}</span>`;
+    }
+    if (!line.trim() && idx !== 0) {
+      html += '<div style="height:0.5em"></div>';
+    }
+  });
+  return html;
+}
+
+function escapeHtml(text) {
+  const map = {
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+  };
+  return text.replace(/[&<>"']/g, m => map[m]);
+}
+
+
 // Inicializar listener em tempo real para produtos
 export function listenProductsRealtime() {
     const productsCol = collection(window.db, 'products');
@@ -475,7 +508,65 @@ async function renderProductList() {
             <div class="product-category-label" style="font-size:0.93em;color:#888;margin-top:-0.15em;margin-bottom:0.6em;">
                 ${typeof product.category === 'string' && product.category.trim() ? product.category : '<span style=\"color:#bbb;\">Sem categoria</span>'}
             </div>
-            <p class="product-description">${product.description || ''}</p>
+            <div class="product-description">
+  ${(() => {
+    if (!product.description) return '';
+    const lines = product.description.split(/\r?\n/);
+    let html = '';
+    let showSeeMore = false;
+    let i = 0;
+    while (i < lines.length) {
+      if (lines[i].trim().endsWith('*')) {
+        const title = lines[i].trim().replace(/\*+$/, '').trim();
+        html += `<span class=\"desc-title underline-primary\"><b>${escapeHtml(title)}</b></span>`;
+        // Preview: até 2 linhas ou 120 caracteres após o título
+        let previewText = '';
+        let previewCount = 0;
+        let previewCharLimit = 60;
+        let j = i + 1;
+        let previewEnded = false;
+        while (j < lines.length && previewCount < 2 && previewText.length < previewCharLimit) {
+          if (lines[j].trim() && !lines[j].trim().endsWith('*')) {
+            let toAdd = lines[j].trim();
+            if (previewText.length + toAdd.length > previewCharLimit) {
+              toAdd = toAdd.slice(0, previewCharLimit - previewText.length);
+              previewEnded = true;
+            }
+            previewText += (previewText ? ' ' : '') + toAdd;
+            previewCount++;
+            if (previewText.length >= previewCharLimit) previewEnded = true;
+          }
+          if (lines[j].trim().endsWith('*')) break;
+          j++;
+        }
+        // Se houver mais linhas após o preview (antes do próximo título ou fim), mostrar ... e botão
+        let hasHidden = false;
+        let k = j;
+        while (k < lines.length) {
+          if (lines[k].trim() && !lines[k].trim().endsWith('*')) {
+            hasHidden = true;
+            break;
+          }
+          if (lines[k].trim().endsWith('*')) break;
+          k++;
+        }
+        // Se previewEnded (bateu limite de caracteres/linhas) ou tem linhas ocultas, mostrar ... e botão
+        if (previewText) {
+          html += `<span class=\"desc-text\">${escapeHtml(previewText)}${(hasHidden || previewEnded) ? '...' : ''}</span>`;
+        }
+        if (hasHidden || previewEnded) showSeeMore = true;
+        i = j;
+      } else {
+        i++;
+      }
+      
+    }
+    if (showSeeMore) {
+      html += ` <button class=\"see-more-btn\" data-product-id=\"${product.id}\" title=\"Ver descrição completa\" style=\"background:none;border:none;cursor:pointer;padding:0 0.2em;vertical-align:middle;display:inline-flex;align-items:center;\"><i class=\"fas fa-search\" style=\"margin-right:0.3em;\"></i>Ver mais</button>`;
+    }
+    return html;
+  })()}
+</div>
             <div class="price-info">
                 ${product.oldPrice ? `
                     <p class="old-price">
@@ -552,6 +643,10 @@ async function renderProductList() {
             productsGrid.appendChild(productElement);
         }
 
+    // Add event delegation for 'Ver mais' after rendering all products
+    productsGrid.removeEventListener('click', handleSeeMoreClick);
+    productsGrid.addEventListener('click', handleSeeMoreClick);
+
     } catch (error) {
         console.error('Erro ao renderizar lista de produtos:', error);
         Swal.fire({
@@ -560,6 +655,28 @@ async function renderProductList() {
             icon: 'error'
         });
     }
+}
+
+// Handler for 'Ver mais' button click
+function handleSeeMoreClick(event) {
+    const btn = event.target.closest('.see-more-btn');
+    if (!btn) return;
+    const productId = btn.getAttribute('data-product-id');
+    const product = window.products.find(p => String(p.id) === String(productId));
+    if (!product) return;
+    Swal.fire({
+        title: product.name,
+        html: formatProductDescription(product.description, product.descUnderlineColor || 'underline-primary'),
+        showCloseButton: true,
+        showConfirmButton: false,
+        customClass: {
+            popup: 'swal2-product-desc-modal'
+        },
+        width: 600,
+        didOpen: () => {
+            // Optional: focus modal or scroll
+        }
+    });
 }
 
 
