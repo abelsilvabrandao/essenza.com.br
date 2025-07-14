@@ -116,6 +116,13 @@
                 </div>
             </div>
             <div class="cart-total" id="cartTotalContainer" style="display: none;">
+                <!-- Campo de cupom -->
+                <div class="cart-coupon-row" style="margin-bottom: 1rem; display: flex; gap: 0.5rem; align-items: center;">
+                    <input type="text" id="couponInput" class="coupon-input" placeholder="Cupom de desconto" style="flex:1;max-width:170px;">
+                    <button type="button" id="clearCouponBtn" class="btn-clear-coupon" style="display:none;margin-left:-32px;background:transparent;border:none;color:#888;font-size:1.2rem;cursor:pointer;align-self:center;" aria-label="Limpar cupom">&times;</button>
+                    <button type="button" id="applyCouponBtn" class="btn btn-secondary" style="padding: 0.35rem 0.9rem;">Aplicar</button>
+                </div>
+                <div id="couponFeedback" class="coupon-feedback"></div>
                 <div class="payment-method-selector">
                     <div class="payment-method-options">
                         <label class="payment-option">
@@ -123,7 +130,7 @@
                             <span class="payment-option-content">
                                 <i class="fas fa-bolt"></i>
                                 <span>PIX</span>
-                                <span class="discount-badge">Desconto</span>
+                                <span class="discount-badge" id="pixDiscountBadge">-10%</span>
                             </span>
                         </label>
                         <label class="payment-option">
@@ -131,6 +138,13 @@
                             <span class="payment-option-content">
                                 <i class="far fa-credit-card"></i>
                                 <span>Cartão</span>
+                            </span>
+                        </label>
+                        <label class="payment-option">
+                            <input type="radio" name="paymentMethod" id="paymentMethodAgreement" value="agreement" onchange="togglePaymentMethod()">
+                            <span class="payment-option-content">
+                                <i class="fas fa-file-signature"></i>
+                                <span>Acordo</span>
                             </span>
                         </label>
                     </div>
@@ -147,6 +161,13 @@
                             <option value="3">3x sem juros</option>
                         </select>
                     </div>
+                    <div class="installment-selector" id="agreementsContainer" style="display:none;">
+    <label for="agreements">Parcelar em:</label>
+    <select id="agreements" class="installment-select" onchange="updateCartTotals()">
+        <option value="1" selected>1x sem juros</option>
+        <option value="2">2x sem juros</option>
+    </select>
+</div>
                 </div>
                 <form id="checkoutForm" class="checkout-form">
                 <input type="text" id="customerName" placeholder="Nome completo" required>

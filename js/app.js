@@ -1285,56 +1285,97 @@ function updateCartTotals() {
     }
 
     const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const pixTotalValue = cart.reduce((sum, item) => sum + (item.pixPrice * item.quantity), 0);
-    const discountPercentage = Math.round(((total - pixTotalValue) / total) * 100);
+    let finalTotal = total;
+    let couponDiscount = 0;
+    let couponBadge = '';
+
+    // Aplicar desconto do cupom, se houver
+    if (appliedCoupon) {
+        if (appliedCoupon.type === 'percent') {
+            couponDiscount = Math.round(total * (appliedCoupon.value / 100));
+            finalTotal = total - couponDiscount;
+            couponBadge = `<div class="discount-badge">Cupom aplicado: -${appliedCoupon.value}%</div>`;
+        } else if (appliedCoupon.type === 'fixed') {
+            couponDiscount = appliedCoupon.value;
+            finalTotal = Math.max(0, total - couponDiscount);
+            couponBadge = `<div class="discount-badge">Cupom aplicado: -R$ ${appliedCoupon.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>`;
+        }
+    }
+
     const paymentMethod = elements.paymentMethod.value;
-    
+
     // Atualizar visibilidade do seletor de parcelas
     if (elements.installmentsContainer) {
         elements.installmentsContainer.style.display = paymentMethod === 'credit' ? 'flex' : 'none';
     }
 
-    // Se for PIX, mostrar o total com desconto
     if (paymentMethod === 'pix') {
+        const pixTotalValue = cart.reduce((sum, item) => sum + (item.pixPrice * item.quantity), 0);
+        const discountPercentage = Math.round(((total - pixTotalValue) / total) * 100);
+        let displayTotal = finalTotal;
+        let pixBadge = '';
+        if (appliedCoupon) {
+            displayTotal = Math.max(0, finalTotal); // Cupom já aplicado
+        } else {
+            displayTotal = pixTotalValue;
+            pixBadge = `<div class="discount-badge">Economize ${discountPercentage}% no PIX</div>`;
+        }
         elements.cartTotal.innerHTML = `
             <div class="total-info">
                 <div class="total-row">
-                    <span>Total:</span>
+                    <span>Total (${cart.reduce((sum, item) => sum + item.quantity, 0)} itens):</span>
                     <span class="old-price">R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
                 <div class="total-row highlight">
-                    <span>Total com desconto PIX:</span>
-                    <span class="total-amount">R$ ${pixTotalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    <span>Total com desconto:</span>
+                    <span class="total-amount">R$ ${displayTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
-                <div class="discount-badge">Economize ${discountPercentage}%</div>
+                ${couponBadge || pixBadge}
             </div>
         `;
-    } else {
-        // Se for cartão, mostrar parcelamento
-        const installments = elements.installments ? parseInt(elements.installments.value) : 1;
-        const installmentValue = calculateInstallment(total, installments);
-        
+    } else if (paymentMethod === 'agreement') {
+        const agreementsSelect = document.getElementById('agreements');
+        let agreements = agreementsSelect ? parseInt(agreementsSelect.value) : 1;
+        if (agreements !== 1 && agreements !== 2) agreements = 1;
+        const installmentValue = calculateInstallment(finalTotal, agreements);
         elements.cartTotal.innerHTML = `
             <div class="total-info">
                 <div class="total-row">
-                    <span>Total:</span>
-                    <span class="total-amount">R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    <span>Total (${cart.reduce((sum, item) => sum + item.quantity, 0)} itens):</span>
+                    <span class="total-amount">R$ ${finalTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
                 <div class="installment-info">
-                    ${installments}x de R$ ${installmentValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    ${installments > 6 ? `(com juros - Total: R$ ${(installmentValue * installments).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})` : 'sem juros'}
+                    ou ${agreements}x de R$ ${installmentValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} sem juros
                 </div>
+                ${couponBadge}
+            </div>
+        `;
+    } else {
+        const installments = elements.installments ? parseInt(elements.installments.value) : 1;
+        const installmentValue = calculateInstallment(finalTotal, installments);
+        elements.cartTotal.innerHTML = `
+            <div class="total-info">
+                <div class="total-row">
+                    <span>Total (${cart.reduce((sum, item) => sum + item.quantity, 0)} itens):</span>
+                    <span class="total-amount">R$ ${finalTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+                <div class="installment-info">
+                    ou ${installments}x de R$ ${installmentValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${installments > 6 ? `(com juros - Total: R$ ${(installmentValue * installments).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})` : 'sem juros'}
+                </div>
+                ${couponBadge}
             </div>
         `;
     }
 }
+
 
 // Função para alternar entre PIX e Cartão
 function togglePaymentMethod() {
     const paymentMethod = document.querySelector('input[name="paymentMethod"]:checked')?.value;
     if (!paymentMethod) return;
     
-    const installmentsContainer = document.querySelector('.installment-selector');
+    const installmentsContainer = document.getElementById('installmentsContainer');
+    const agreementsContainer = document.getElementById('agreementsContainer');
     const paymentMethodField = document.getElementById('paymentMethod');
     
     if (paymentMethodField) {
@@ -1344,15 +1385,155 @@ function togglePaymentMethod() {
     if (installmentsContainer) {
         installmentsContainer.style.display = paymentMethod === 'credit' ? 'block' : 'none';
     }
-    
+    if (agreementsContainer) {
+        agreementsContainer.style.display = paymentMethod === 'agreement' ? 'block' : 'none';
+    }
+
+    // Mostrar/ocultar opção acordo conforme cupom
+    const agreementOption = document.getElementById('paymentMethodAgreement')?.closest('.payment-option');
+    if (agreementOption) {
+        if (appliedCoupon && appliedCoupon.enableAgreement) {
+            agreementOption.style.display = '';
+        } else {
+            agreementOption.style.display = 'none';
+            // Se estava selecionado, volta para pix
+            if (paymentMethod === 'agreement') {
+                document.getElementById('paymentMethodPix').checked = true;
+                if (paymentMethodField) paymentMethodField.value = 'pix';
+            }
+        }
+    }
+
     updateCartTotals();
 }
+
+// Lógica para aplicar cupom e atualizar métodos de pagamento
+const couponInput = document.getElementById('couponInput');
+const applyCouponBtn = document.getElementById('applyCouponBtn');
+import { getCouponByCode } from './coupons-client.js';
+
+let appliedCoupon = null;
+
+if (couponInput && applyCouponBtn) {
+    // Lógica do botão X para limpar cupom
+    const clearCouponBtn = document.getElementById('clearCouponBtn');
+    function updateClearCouponBtn() {
+        if (couponInput.value.trim()) {
+            clearCouponBtn.style.display = '';
+        } else {
+            clearCouponBtn.style.display = 'none';
+        }
+    }
+    couponInput.addEventListener('input', updateClearCouponBtn);
+    if (clearCouponBtn) {
+        clearCouponBtn.addEventListener('click', () => {
+            couponInput.value = '';
+            couponInput.classList.remove('input-success', 'input-error');
+            appliedCoupon = null;
+            updateClearCouponBtn();
+            togglePaymentMethod();
+            updateCartTotals();
+        });
+    }
+    // Inicializa estado do botão X
+    updateClearCouponBtn();
+    const couponFeedback = document.getElementById('couponFeedback');
+
+    const handleCoupon = async () => {
+        const code = couponInput.value.trim().toUpperCase(); // Sempre maiúsculo
+        appliedCoupon = null;
+        couponFeedback.textContent = '';
+        couponFeedback.className = 'coupon-feedback';
+        if (code) {
+            const coupon = await getCouponByCode(code);
+            if (coupon) {
+                // --- Validação de datas ---
+                const today = new Date();
+                let valid = true;
+                let errorMsg = '';
+
+                if (!coupon.noExpiration) {
+                    // Validar início
+                    if (coupon.startDate) {
+                        const start = new Date(coupon.startDate);
+                        if (today < start.setHours(0,0,0,0)) {
+                            valid = false;
+                            errorMsg = 'Este cupom só poderá ser usado a partir de ' + start.toLocaleDateString('pt-BR') + '.';
+                        }
+                    }
+                    // Validar fim
+                    if (valid && coupon.endDate) {
+                        const end = new Date(coupon.endDate);
+                        if (today > end.setHours(23,59,59,999)) {
+                            valid = false;
+                            errorMsg = 'Este cupom está expirado.';
+                        }
+                    }
+                }
+
+                if (!valid) {
+                    couponInput.classList.remove('input-success');
+                    couponInput.classList.add('input-error');
+                    couponFeedback.textContent = errorMsg;
+                    couponFeedback.className = 'coupon-feedback feedback-error';
+                    appliedCoupon = null;
+                } else {
+                    appliedCoupon = coupon;
+                    couponInput.classList.remove('input-error');
+                    couponInput.classList.add('input-success');
+                    couponFeedback.textContent = 'Cupom aplicado com sucesso!';
+                    couponFeedback.className = 'coupon-feedback feedback-success';
+                }
+            } else {
+                couponInput.classList.remove('input-success');
+                couponInput.classList.add('input-error');
+                couponFeedback.textContent = 'O cupom informado não existe ou está incorreto.';
+                couponFeedback.className = 'coupon-feedback feedback-error';
+            }
+        } else {
+            couponInput.classList.remove('input-success','input-error');
+            couponFeedback.textContent = '';
+            couponFeedback.className = 'coupon-feedback';
+        }
+        togglePaymentMethod();
+        updateCartTotals();
+    };
+
+    // Limpar feedback ao limpar cupom
+    if (clearCouponBtn) {
+        clearCouponBtn.addEventListener('click', () => {
+            couponFeedback.textContent = '';
+            couponFeedback.className = 'coupon-feedback';
+        });
+    }
+
+    applyCouponBtn.addEventListener('click', handleCoupon);
+    // Removido o listener de input para só aplicar ao clicar
+}
+
 
 // Torna a função disponível globalmente
 window.togglePaymentMethod = togglePaymentMethod;
 
 // Toggle cart modal
 function toggleCart() {
+    // Garante exibição correta dos métodos de pagamento
+    const agreementOption = document.getElementById('paymentMethodAgreement')?.closest('.payment-option');
+    const couponValue = document.getElementById('couponInput')?.value.trim().toUpperCase();
+    if (agreementOption) {
+        if (couponValue === 'ACORDO2025') {
+            agreementOption.style.display = '';
+        } else {
+            agreementOption.style.display = 'none';
+            // Se estava selecionado, volta para pix
+            const paymentMethodField = document.getElementById('paymentMethod');
+            if (document.getElementById('paymentMethodAgreement').checked) {
+                document.getElementById('paymentMethodPix').checked = true;
+                if (paymentMethodField) paymentMethodField.value = 'pix';
+            }
+        }
+    }
+
     if (!ensureDOMReferences()) return;
 
     const cartModal = document.getElementById('cartModal');
@@ -1533,22 +1714,56 @@ if (checkoutForm) {
             // Gerar número do pedido
             const orderNumber = generateOrderNumber();
             
+            // Aplicar desconto do cupom se houver
+            let couponDiscount = 0;
+            let couponDescText = '';
+            let finalTotal = total;
+            if (appliedCoupon) {
+                if (appliedCoupon.type === 'percent') {
+                    couponDiscount = Math.round(total * (appliedCoupon.value / 100));
+                    finalTotal = total - couponDiscount;
+                    couponDescText = `Cupom aplicado: -${appliedCoupon.value}%`;
+                } else if (appliedCoupon.type === 'fixed') {
+                    couponDiscount = appliedCoupon.value;
+                    finalTotal = Math.max(0, total - couponDiscount);
+                    couponDescText = `Cupom aplicado: -R$ ${appliedCoupon.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+                }
+            }
+
+            // Aplicar desconto do cupom ao valor do PIX também
+            let pixFinalTotal = pixTotal;
+            if (appliedCoupon) {
+                if (appliedCoupon.type === 'percent') {
+                    pixFinalTotal = pixTotal - Math.round(pixTotal * (appliedCoupon.value / 100));
+                } else if (appliedCoupon.type === 'fixed') {
+                    pixFinalTotal = Math.max(0, pixTotal - appliedCoupon.value);
+                }
+            }
+
             // Definir o valor final com base no método de pagamento
-            const finalAmount = isPix ? pixTotal : total;
+            const finalAmount = isPix ? pixFinalTotal : finalTotal;
             const paymentInfo = isPix 
-                ? `⚡ PIX (${Math.round(((total - pixTotal) / total) * 100)}% de desconto)` 
-                : '💳 Cartão de Crédito';
-                
-            // Adicionar informações de parcelamento se for cartão
+                ? `⚡ PIX${appliedCoupon ? ' + Cupom' : ''} (${Math.round(((total - pixFinalTotal) / total) * 100)}% de desconto)` 
+                : (paymentMethod === 'agreement' ? '🤝 Acordo' : '💳 Cartão de Crédito');
+
+            // Adicionar informações de parcelamento se for cartão ou acordo
             let paymentDetails = paymentInfo;
             let installments = 1;
             let installmentValue = finalAmount;
-            
-            if (!isPix) {
-                installments = parseInt(document.getElementById('installments')?.value || '1');
-                installmentValue = calculateInstallment(total, installments);
+
+            if (paymentMethod === 'agreement' || paymentMethod === 'credit') {
+                // Para acordo e cartão, usar o valor já com desconto
+                let selectedInstallments = 1;
+                if (paymentMethod === 'agreement') {
+                    selectedInstallments = parseInt(document.getElementById('agreements')?.value || '1');
+                    if (isNaN(selectedInstallments) || selectedInstallments < 1) selectedInstallments = 1;
+                } else {
+                    selectedInstallments = parseInt(document.getElementById('installments')?.value || '1');
+                    if (isNaN(selectedInstallments) || selectedInstallments < 1) selectedInstallments = 1;
+                }
+                installments = selectedInstallments;
+                installmentValue = calculateInstallment(finalAmount, installments);
                 paymentDetails += ` em ${installments}x de R$ ${installmentValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-                
                 if (installments > 6) {
                     const totalWithInterest = installmentValue * installments;
                     paymentDetails += ` (com juros - Total: R$ ${totalWithInterest.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`;
@@ -1556,6 +1771,12 @@ if (checkoutForm) {
                     paymentDetails += ' sem juros';
                 }
             }
+
+            // Adicionar texto do cupom ao final dos detalhes do pagamento se houver
+            if (appliedCoupon && couponDescText) {
+                paymentDetails += `\n${couponDescText}`;
+            }
+
             
             // Formatar mensagem para o WhatsApp
             let whatsappMessage = `*NOVO PEDIDO #${orderNumber}*\n\n`;
@@ -1565,12 +1786,28 @@ if (checkoutForm) {
             whatsappMessage += `*Itens do Pedido:*\n`;
             
             cart.forEach(item => {
-                const itemTotal = isPix ? (item.pixPrice * item.quantity) : (item.price * item.quantity);
+                let itemUnitPrice = isPix ? (item.pixPrice || item.price) : item.price;
+                // Aplica desconto proporcional do cupom ao item
+                if (appliedCoupon) {
+                    if (appliedCoupon.type === 'percent') {
+                        itemUnitPrice = itemUnitPrice - (itemUnitPrice * (appliedCoupon.value / 100));
+                    } else if (appliedCoupon.type === 'fixed') {
+                        // Distribui o desconto fixo proporcionalmente entre os itens
+                        const totalCartValue = isPix ? pixTotal : total;
+                        const itemShare = (itemUnitPrice * item.quantity) / totalCartValue;
+                        itemUnitPrice = itemUnitPrice - (appliedCoupon.value * itemShare / item.quantity);
+                    }
+                }
+                const itemTotal = itemUnitPrice * item.quantity;
                 whatsappMessage += `- ${item.quantity}x ${item.name} - R$ ${itemTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
             });
             
             whatsappMessage += `\n*Pagamento:* ${paymentDetails}\n`;
-            whatsappMessage += `*Valor Total:* R$ ${finalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n\n`;
+            whatsappMessage += `*Valor Total:* R$ ${finalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
+            if (appliedCoupon && couponDescText) {
+                whatsappMessage += `*${couponDescText}*\n`;
+            }
+            whatsappMessage += `\n`;
             if (isPix) {
                 whatsappMessage += `*Chave Pix:* (71)99142-7989`;
             } else {
@@ -1595,6 +1832,12 @@ if (checkoutForm) {
                 total: finalAmount,
                 paymentMethod,
                 installments: isPix ? 1 : installments,
+                coupon: appliedCoupon ? {
+                    code: appliedCoupon.code,
+                    type: appliedCoupon.type,
+                    value: appliedCoupon.value
+                } : null,
+                couponDiscount,
                 status: 'Pendente',
                 createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp()
@@ -1764,12 +2007,18 @@ function updateOrderConfirmationUI(orderData, whatsappMessage) {
             </div>
             <div class="order-total-row">
                 <span>Forma de pagamento:</span>
-                <span>${orderData.paymentMethod === 'pix' ? 'PIX' : `Cartão (${orderData.installments}x)`}</span>
+                <span>${orderData.paymentMethod === 'pix'
+                    ? 'PIX'
+                    : orderData.paymentMethod === 'agreement'
+                        ? `🤝 Acordo (${orderData.installments}x)`
+                        : `💳 Cartão de Crédito (${orderData.installments}x)`
+                }</span>
             </div>
             <div class="order-total-row total">
                 <strong>Total:</strong>
                 <strong>R$ ${orderData.total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
             </div>
+            ${orderData.coupon && orderData.couponDiscount ? `<div class="order-total-row coupon-row"><span>${orderData.coupon.type === 'percent' ? `Cupom aplicado: -${orderData.coupon.value}%` : `Cupom aplicado: -R$ ${orderData.coupon.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}</span></div>` : ''}
         </div>
     </div>`;
     

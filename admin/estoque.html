@@ -48,6 +48,67 @@
 
             <!-- Aba de Estoque -->
             <div id="stockTab" class="tab-content active">
+              <!-- Accordion Cupons -->
+              <div class="accordion-section">
+                <div class="accordion-header">Cupons <span class="arrow">&#9654;</span></div>
+                <div class="accordion-content">
+                  
+
+<!-- Filtros de Cupons -->
+<div class="filters coupon-filters" style="margin-bottom: 1.5rem;">
+  <div class="filter-group">
+    <label for="filterValidity">Validade</label>
+    <select id="filterValidity" class="filter-select">
+      <option value="all">Todos</option>
+      <option value="active">Vigentes</option>
+      <option value="expired">Expirados</option>
+      <option value="noexpiration">Sem expiração</option>
+    </select>
+  </div>
+  <div class="filter-group">
+    <label for="filterCouponCode">Código</label>
+    <input type="text" id="filterCouponCode" class="filter-input" placeholder="Buscar código...">
+  </div>
+  <div class="filter-group">
+    <label for="filterCouponType">Tipo</label>
+    <select id="filterCouponType" class="filter-select">
+      <option value="">Todos</option>
+      <option value="percent">Percentual (%)</option>
+      <option value="fixed">Valor (R$)</option>
+    </select>
+  </div>
+  <div class="filter-group">
+    <label for="filterMinValue">Valor Mín.</label>
+    <input type="number" id="filterMinValue" class="filter-input" placeholder="0">
+  </div>
+  <div class="filter-group">
+    <label for="filterMaxValue">Valor Máx.</label>
+    <input type="number" id="filterMaxValue" class="filter-input" placeholder="9999">
+  </div>
+  <div class="filter-group checkbox-container">
+    <input type="checkbox" id="filterAgreement">
+    <label for="filterAgreement">Apenas com Acordo</label>
+  </div>
+  <button id="applyCouponFilters" class="btn" type="button"><i class="fas fa-search"></i> Buscar</button>
+  <button id="openAddCouponModal" class="btn" type="button"><i class="fas fa-plus"></i> Adicionar Cupom</button>
+  <button id="clearCouponFilters" class="btn btn-secondary" type="button"><i class="fas fa-times"></i> Limpar</button>
+</div>
+                  <table class="dashboard-table" id="couponsTable" style="min-width:400px;width:100%;">
+                    <thead>
+                      <tr>
+  <th>Código</th>
+  <th>Tipo</th>
+  <th>Valor</th>
+  <th>Acordo</th>
+  <th>Validade</th>
+  <th>Status</th>
+  <th>Ações</th>
+</tr>
+                    </thead>
+                    <tbody id="couponsTableBody"></tbody>
+                  </table>
+                </div>
+              </div>
   <div class="accordion-section">
     <div class="accordion-header">Produtos Cadastrados <span class="arrow">&#9654;</span></div>
     <div class="accordion-content">
@@ -536,6 +597,8 @@
 <script src="dashboard.js" type="module"></script>
 <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 <script src="accordion.js"></script>
+<script src="./stock.js" type="module"></script>
+<script type="module" src="./coupons-admin.js"></script>
 
 </body>
 </html>

@@ -2976,6 +2976,59 @@ color: white !important;
     background-color: #c7147b !important;
 }
 
+/* --- Cupom: Ações na tabela --- */
+.coupon-actions {
+  display: flex;
+  flex-direction: row;
+  gap: 0.7rem;
+  justify-content: center;
+  align-items: center;
+}
+.coupon-actions .btn-edit,
+.coupon-actions .delete-button {
+  min-width: 90px;
+  padding: 0.4rem 1.1rem;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: 600;
+  box-shadow: 0 1px 4px #ff14932a;
+  transition: background 0.18s, color 0.18s, box-shadow 0.18s, transform 0.15s;
+}
+.coupon-actions .btn-edit {
+  background: linear-gradient(90deg, #4CAF50 70%, #43e97b 100%);
+  color: #fff;
+  border: none;
+}
+.coupon-actions .btn-edit:hover {
+  background: linear-gradient(90deg, #43e97b 70%, #25d366 100%);
+  transform: translateY(-2px) scale(1.03);
+  box-shadow: 0 4px 12px #43e97b22;
+}
+.coupon-actions .delete-button {
+  background: linear-gradient(90deg, #ff1493 60%, #ff5ab3 100%);
+  color: #fff;
+  border: none;
+}
+.coupon-actions .delete-button:hover {
+  background: linear-gradient(90deg, #ff5ab3 60%, #ff1493 100%);
+  transform: translateY(-2px) scale(1.03);
+  box-shadow: 0 4px 12px #ff149322;
+}
+@media (max-width: 600px) {
+  .coupon-actions {
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  .coupon-actions .btn-edit,
+  .coupon-actions .delete-button {
+    width: 100%;
+    min-width: 0;
+    font-size: 0.97rem;
+    padding: 0.5rem 0.7rem;
+  }
+}
+
+
 .delete-button i {
     font-size: 1.1rem !important;
     margin-right: 5px !important;
@@ -3304,6 +3357,101 @@ color: white !important;
     width: 16px;
     height: 16px;
     cursor: pointer;
+}
+
+/* Cupons - Formulário e Filtros */
+.coupon-form {
+  display: flex;
+  gap: 1.2rem;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  margin-bottom: 1.3rem;
+}
+.coupon-form .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 120px;
+}
+.coupon-form .checkbox-container {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.7rem;
+}
+.coupon-form input[type="text"],
+.coupon-form input[type="number"],
+.coupon-form input[type="date"],
+.coupon-form select {
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1.5px solid #e0e0e0;
+  font-size: 1rem;
+  background: #fff;
+  color: #333;
+  transition: border 0.2s;
+}
+.coupon-form input[type="text"]:focus,
+.coupon-form input[type="number"]:focus,
+.coupon-form select:focus {
+  border-color: var(--primary-color);
+  outline: none;
+  box-shadow: 0 0 0 2px #ff69b430;
+}
+.coupon-form label {
+  font-size: 1em;
+  color: var(--primary-color);
+  font-weight: 500;
+}
+
+.coupon-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.2rem;
+  align-items: flex-end;
+  margin-bottom: 1.2rem;
+}
+.coupon-filters .filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 120px;
+}
+.coupon-filters .checkbox-container {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.7rem;
+}
+.coupon-filters .filter-input,
+.coupon-filters .filter-select,
+.coupon-filters input[type="date"] {
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1.5px solid #e0e0e0;
+  font-size: 1rem;
+  background: #fff;
+  color: #333;
+  transition: border 0.2s;
+}
+.coupon-filters .filter-input:focus,
+.coupon-filters .filter-select:focus {
+  border-color: var(--primary-color);
+  outline: none;
+  box-shadow: 0 0 0 2px #ff69b430;
+}
+.coupon-filters label {
+  font-size: 1em;
+  color: var(--primary-color);
+  font-weight: 500;
+}
+
+@media (max-width: 700px) {
+  .coupon-form, .coupon-filters {
+    flex-direction: column;
+    gap: 0.8rem;
+    align-items: stretch;
+  }
 }
 
 /* Personalização do SweetAlert2 */

@@ -593,7 +593,14 @@ export async function renderOrdersList() {
       try {
         const orderNumber = order.orderNumber || order._id.substring(0, 8).toUpperCase();
         const customerName = order.customerName || order.customer?.name || 'Cliente não identificado';
-        const paymentMethod = getPaymentMethodLabel(order.paymentMethod || 'credit');
+        let paymentMethodLabel = getPaymentMethodLabel(order.paymentMethod || 'credit');
+        if (order.paymentMethod === 'agreement') {
+          paymentMethodLabel = 'Acordo';
+        } else if (order.paymentMethod === 'credit' && order.installments > 1) {
+          paymentMethodLabel = `Cartão de Crédito (${order.installments}x)`;
+        } else if (order.paymentMethod === 'pix') {
+          paymentMethodLabel = 'PIX';
+        }
         const totalPedido = Number(order.total) || 0;
         const lucroEstimado = Math.max(0, totalPedido - purchaseCost);
 
@@ -752,11 +759,15 @@ export async function renderOrdersList() {
             <div class="order-header" style="padding: 15px 20px; background: #f8f9fa; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
               <div style="display: flex; align-items: center;">
                 <span class="order-number" style="font-weight: 600; color: #2c3e50; font-size: 1.1em;">
-                  #${orderNumber}
-                </span>
-                <span class="status-badge ${statusClass}" style="margin-left: 12px; padding: 4px 12px; border-radius: 12px; font-size: 0.85em; font-weight: 500; background-color: ${statusClass === 'completed' ? '#e3f7e9' : statusClass === 'cancelled' ? '#fee2e2' : '#fff3cd'}; color: ${statusClass === 'completed' ? '#0d6832' : statusClass === 'cancelled' ? '#b91c1c' : '#856404'}; border: 1px solid ${statusClass === 'completed' ? '#a3e6b8' : statusClass === 'cancelled' ? '#fecaca' : '#ffeeba'};">
-                  ${statusLabel}
-                </span>
+  #${orderNumber}
+</span>
+<span class="status-badge ${statusClass}" style="margin-left: 12px; padding: 4px 12px; border-radius: 12px; font-size: 0.85em; font-weight: 500; background-color: ${statusClass === 'completed' ? '#e3f7e9' : statusClass === 'cancelled' ? '#fee2e2' : '#fff3cd'}; color: ${statusClass === 'completed' ? '#0d6832' : statusClass === 'cancelled' ? '#b91c1c' : '#856404'}; border: 1px solid ${statusClass === 'completed' ? '#a3e6b8' : statusClass === 'cancelled' ? '#fecaca' : '#ffeeba'};">
+  ${statusLabel}
+</span>
+<span class="status-badge payment-status-badge ${paymentStatus.toLowerCase()}" style="margin-left: 10px; padding: 4px 12px; border-radius: 12px; font-size: 0.85em; font-weight: 500; background-color: ${paymentStatus === 'Pago' ? '#e3f7e9' : paymentStatus === 'Parcial' ? '#fff3cd' : '#fee2e2'}; color: ${paymentStatus === 'Pago' ? '#0d6832' : paymentStatus === 'Parcial' ? '#856404' : '#b91c1c'}; border: 1px solid ${paymentStatus === 'Pago' ? '#a3e6b8' : paymentStatus === 'Parcial' ? '#ffeeba' : '#fecaca'};">
+  ${paymentStatus === 'Pago' ? '<i class="fas fa-check-circle" style="margin-right: 4px;"></i>' : paymentStatus === 'Parcial' ? '<i class="fas fa-hourglass-half" style="margin-right: 4px;"></i>' : '<i class="fas fa-exclamation-circle" style="margin-right: 4px;"></i>'}
+  ${paymentStatus}
+</span>
               </div>
               <div class="order-date" data-date="${orderDate.toISOString().split('T')[0]}" style="font-size: 0.9em; color: #666;">
                 <i class="far fa-calendar-alt" style="margin-right: 5px; color: #6c757d;"></i>
@@ -789,24 +800,33 @@ export async function renderOrdersList() {
                   </div>
                 ` : ''}
                 ${order.paymentMethod ? `
-                  <div style="margin-bottom: 0;">
-                    <i class="fas ${order.paymentMethod === 'pix' ? 'fa-bolt' : (order.paymentMethod === 'credit' || order.paymentMethod === 'debit') ? 'fa-credit-card' : 'fa-credit-card'}"></i>
-                    <span style="color: #555;">${getPaymentMethodLabel(order.paymentMethod)}</span>
-                  </div>
-                ` : ''}
+  <div style="margin-bottom: 0;">
+    <i class="fas ${order.paymentMethod === 'pix' ? 'fa-bolt' : (order.paymentMethod === 'credit' || order.paymentMethod === 'debit') ? 'fa-credit-card' : order.paymentMethod === 'agreement' ? 'fa-handshake' : 'fa-credit-card'}"></i>
+    <span style="color: #555; font-weight: 500;">${paymentMethodLabel}</span>
+  </div>
+` : ''}
                 ${(
-  (order.paymentMethod === 'pix') || (order.paymentMethod === 'credit' && order.installments === 1)
+  (order.paymentMethod === 'credit' && order.installments > 1)
+  || (order.paymentMethod === 'agreement' && order.paymentAgreement && Number(order.paymentAgreement.installments) > 1)
+) ? `
+  <div style="margin-bottom: 0;">
+    <i class="fas fa-layer-group"></i>
+    <span style="color: #555;">Parcelamento: ${(order.paymentMethod === 'credit') ? order.installments : order.paymentAgreement.installments}x de R$ ${(
+      order.paymentMethod === 'credit'
+        ? (Number(order.total)/Number(order.installments))
+        : (
+            order.paymentAgreement.installmentValue
+              ? Number(order.paymentAgreement.installmentValue)
+              : (Number(order.total) / Number(order.paymentAgreement.installments))
+          )
+    ).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}</span>
+  </div>
+` : (
+  (order.paymentMethod === 'pix') || (order.paymentMethod === 'credit' && order.installments === 1) || (order.paymentMethod === 'agreement' && order.paymentAgreement && Number(order.paymentAgreement.installments) === 1)
 ) ? `
   <div style="margin-bottom: 0;">
     <i class="fas fa-money-bill-wave"></i>
     <span style="color: #555;">Pagamento à vista: ${order.total ? `R$ ${Number(order.total).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}` : ''}</span>
-  </div>
-` : (
-  order.paymentMethod === 'credit' && order.installments > 1
-) ? `
-  <div style="margin-bottom: 0;">
-    <i class="fas fa-layer-group"></i>
-    <span style="color: #555;">Parcelamento: ${order.installments}x de R$ ${(Number(order.total)/Number(order.installments)).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}</span>
   </div>
 ` : ''}
               </div>
@@ -831,13 +851,27 @@ export async function renderOrdersList() {
                       ${itemsHtml}
                     </tbody>
                     <tfoot>
-                      <tr style="background-color: #f8f9fa; font-weight: 600; border-top: 2px solid #dee2e6;">
-                        <td colspan="3" style="text-align: right; padding: 12px 10px;">Total do Pedido:</td>
-                        <td style="text-align: right; padding: 12px 10px; font-size: 1.1em; color: #2c3e50;">
-                          R$ ${totalPedido.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </td>
-                      </tr>
-                    </tfoot>
+  ${order.coupon ? `
+    <tr style="background-color: #f8f9fa;">
+      <td colspan="3" style="text-align: right; padding: 8px 10px; color: #888; font-size: 0.96em;">Subtotal:</td>
+      <td style="text-align: right; padding: 8px 10px; color: #888; font-size: 0.96em;">
+        R$ ${(order.originalTotal || (order.coupon && order.coupon.type === 'percent' ? Math.round(order.total / (1 - order.coupon.value/100)) : order.total + (order.coupon?.value || 0)) ).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+      </td>
+    </tr>
+    <tr style="background-color: #f8f9fa;">
+      <td colspan="3" style="text-align: right; padding: 8px 10px; color: #2196f3; font-size: 0.97em;">Cupom aplicado${order.coupon.code ? ` (${order.coupon.code})` : ''}:</td>
+      <td style="text-align: right; padding: 8px 10px; color: #2196f3; font-size: 0.97em;">
+        ${order.coupon.type === 'percent' ? `- ${order.coupon.value}%` : `- R$ ${(order.coupon.value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+      </td>
+    </tr>
+  ` : ''}
+  <tr style="background-color: #f8f9fa; font-weight: 600; border-top: 2px solid #dee2e6;">
+    <td colspan="3" style="text-align: right; padding: 12px 10px;">Total do Pedido:</td>
+    <td style="text-align: right; padding: 12px 10px; font-size: 1.1em; color: #2c3e50;">
+      R$ ${totalPedido.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+    </td>
+  </tr>
+</tfoot>
                   </table>
                 </div>
               </div>
@@ -851,29 +885,33 @@ export async function renderOrdersList() {
                 </div>
                 <div class="financial-details-content" style="display: none; padding: 15px; background-color: #fdfdfd; border: 1px solid #eee; border-radius: 6px; margin-top: -10px;">
                    <div class="financial-summary" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px;">
-
-
-                    <div class="financial-item" style="padding: 12px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid #4caf50;">
-                      <div style="font-size: 0.85em; color: #555; margin-bottom: 5px;">Valor Total</div>
-                      <div style="font-size: 1.2em; font-weight: 600; color: #2c3e50;">
-                        R$ ${totalPedido.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </div>
-                    </div>
-                    <div class="financial-item" style="padding: 12px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid #f59e0b;">
-                      <div style="font-size: 0.85em; color: #555; margin-bottom: 5px;">Valor Pendente</div>
-                      <div style="font-size: 1.2em; font-weight: 600; color: #dc2626;">
-                        R$ ${valorPendente.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </div>
-                    </div>
-                    <div class="financial-item" style="padding: 12px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid #9c27b0;">
-                      <div style="font-size: 0.85em; color: #555; margin-bottom: 5px;">Status do Pagamento</div>
-                      <div>
-                        <span class="status-badge ${paymentStatus.toLowerCase()}" style="display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 0.9em; font-weight: 500; background-color: ${paymentStatus === 'Pago' ? '#e3f7e9' : paymentStatus === 'Parcial' ? '#fff3cd' : '#fee2e2'}; color: ${paymentStatus === 'Pago' ? '#0d6832' : paymentStatus === 'Parcial' ? '#856404' : '#b91c1c'}; border: 1px solid ${paymentStatus === 'Pago' ? '#a3e6b8' : paymentStatus === 'Parcial' ? '#ffeeba' : '#fecaca'}">
-                          ${paymentStatus}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
+  <div class="financial-item" style="padding: 12px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid #4caf50;">
+    <div style="font-size: 0.85em; color: #555; margin-bottom: 5px;">Valor Total</div>
+    <div style="font-size: 1.2em; font-weight: 600; color: #2c3e50;">
+      R$ ${totalPedido.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+    </div>
+  </div>
+  <div class="financial-item" style="padding: 12px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid #f59e0b;">
+    <div style="font-size: 0.85em; color: #555; margin-bottom: 5px;">Valor Pendente</div>
+    <div style="font-size: 1.2em; font-weight: 600; color: #dc2626;">
+      R$ ${valorPendente.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+    </div>
+  </div>
+  <div class="financial-item" style="padding: 12px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid #9c27b0;">
+    <div style="font-size: 0.85em; color: #555; margin-bottom: 5px;">Status do Pagamento</div>
+    <div>
+      <span class="status-badge ${paymentStatus.toLowerCase()}" style="display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 0.9em; font-weight: 500; background-color: ${paymentStatus === 'Pago' ? '#e3f7e9' : paymentStatus === 'Parcial' ? '#fff3cd' : '#fee2e2'}; color: ${paymentStatus === 'Pago' ? '#0d6832' : paymentStatus === 'Parcial' ? '#856404' : '#b91c1c'}; border: 1px solid ${paymentStatus === 'Pago' ? '#a3e6b8' : paymentStatus === 'Parcial' ? '#ffeeba' : '#fecaca'}">
+        ${paymentStatus}
+      </span>
+    </div>
+  </div>
+  ${order.coupon ? `<div class="financial-item" style="padding: 12px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid #2196f3;">
+    <div style="font-size: 0.85em; color: #2196f3; margin-bottom: 5px;">Cupom aplicado${order.coupon.code ? ` (${order.coupon.code})` : ''}</div>
+    <div style="font-size: 1.1em; font-weight: 500; color: #2196f3;">
+      ${order.coupon.type === 'percent' ? `-${order.coupon.value}%` : `- R$ ${(order.coupon.value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+    </div>
+  </div>` : ''}
+</div>
 
 
 
@@ -1045,10 +1083,10 @@ ${(() => {
                   Excluir
                 </button>
                 
-                <button class="order-action-btn whatsapp" onclick="window.openWhatsApp(${JSON.stringify(order).replace(/&/g, '&amp;').replace(/"/g, '&quot;')}, '${order._id}')" style="background-color: #25d366; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.9em; display: inline-flex; align-items: center; gap: 5px; transition: background-color 0.2s;">
-                  <i class="fab fa-whatsapp"></i>
-                  WhatsApp
-                </button>
+                <button class="order-action-btn whatsapp" onclick='window.openWhatsAppModal(JSON.parse(this.getAttribute("data-order")))' data-order='${JSON.stringify(order).replace(/'/g, "&#39;")}' style="background-color: #25d366; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.9em; display: inline-flex; align-items: center; gap: 5px; transition: background-color 0.2s;">
+  <i class="fab fa-whatsapp"></i>
+  WhatsApp
+</button>
               </div>
             </div>
           </div>
@@ -1406,47 +1444,102 @@ window.StockModule = window.StockModule || {};
 
 // Função para abrir o WhatsApp com mensagem pré-definida
 window.openWhatsApp = function(phone, orderId) {
-  // Se phone for um objeto (order), extrai o telefone corretamente
-  let phoneNumber = '';
-  if (typeof phone === 'object' && phone !== null) {
-    // Tenta obter o telefone em diferentes formatos do pedido
-    const order = phone;
-    phoneNumber = order.customerPhone || 
-                 (order.customer && order.customer.phone) || 
-                 '';
-    orderId = orderId || order.orderNumber || order._id;
-  } else {
-    phoneNumber = phone || '';
-  }
+  // (Função original mantida para compatibilidade)
+  // Recomenda-se usar window.openWhatsAppModal para mensagens personalizadas.
+};
 
-  if (!phoneNumber) {
-    alert('Número de telefone não disponível para este cliente.');
-    return;
+// Função para abrir o modal SweetAlert2 com modelos de mensagem WhatsApp
+window.openWhatsAppModal = async function(order) {
+  // Extrai dados do pedido
+  const orderNumber = order.orderNumber || order._id?.substring(0, 8).toUpperCase();
+  const customerName = order.customerName || order.customer?.name || 'Cliente';
+  const customerPhone = order.customerPhone || order.customer?.phone || '';
+  const customerEmail = order.customerEmail || order.customer?.email || '';
+  const paymentMethod = order.paymentMethod || '';
+  const paymentLabel = window.getPaymentMethodLabel ? window.getPaymentMethodLabel(paymentMethod) : paymentMethod;
+  const total = Number(order.total) || 0;
+  const items = Array.isArray(order.items) ? order.items : [];
+  const agreement = order.paymentAgreement || null;
+  const pending = (Array.isArray(order.payments) ? (total - order.payments.reduce((sum, p) => sum + (Number(p.amount)||0), 0)) : total);
+  const formattedTotal = total.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+
+  // Lista de itens
+  const itemsList = items.map(item => `- ${item.name || 'Produto'} x${item.quantity} (R$ ${(Number(item.price)||0).toLocaleString('pt-BR',{minimumFractionDigits:2})})`).join('\n');
+
+  // Modelo 1: Agradecimento
+  let msg1 = `Olá ${customerName}!\n\nSeu pedido #${orderNumber} foi entregue com sucesso.\n\nItens:\n${itemsList}\n\nValor total: R$ ${formattedTotal}\nForma de pagamento: ${paymentLabel}`;
+  if (customerEmail) msg1 += `\nE-mail: ${customerEmail}`;
+  msg1 += `\n\nMuito obrigado pela preferência! Qualquer dúvida, estamos à disposição.`;
+
+  // Modelo 2: Cobrança/lembrança de pagamento
+  let msg2 = `Olá ${customerName}!\n\nLembrando sobre o pagamento do pedido #${orderNumber}.`;
+  if (agreement && agreement.installments > 1) {
+    msg2 += `\n\nAcordo: ${agreement.installments}x parcelas.\nPróximos vencimentos:`;
+    (agreement.dates||[]).forEach((date, idx) => {
+      // Formatar data para DD/MM/AAAA
+      const [ano, mes, dia] = date.split('-');
+      const dataFormatada = `${dia}/${mes}/${ano}`;
+      // Calcular valor da parcela
+      const valorParcela = Math.round((total / agreement.installments) * 100) / 100;
+      // Pagamentos vinculados à parcela
+      const parcelaPagamentos = (order.payments || []).filter(p => p.installmentIndex === idx);
+      const totalPagoParcela = parcelaPagamentos.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+      const statusParcela = totalPagoParcela >= valorParcela ? 'Pago' : 'Pendente';
+      msg2 += `\n${idx+1}ª parcela: ${dataFormatada} (${statusParcela})`;
+    });
+    msg2 += `\nValor total: R$ ${formattedTotal}`;
+  } else {
+    msg2 += `\nValor: R$ ${formattedTotal}`;
   }
-  
-  // Remove caracteres não numéricos
-  phoneNumber = phoneNumber.replace(/\D/g, '');
-  
-  // Verifica se o número tem o DDD (mínimo 10 dígitos com DDD)
+  msg2 += `\nForma de pagamento: ${paymentLabel}`;
+  if (pending > 0) msg2 += `\nValor em aberto: R$ ${pending.toLocaleString('pt-BR',{minimumFractionDigits:2})}`;
+  msg2 += `\n\nSe já realizou o pagamento, por favor desconsidere. Em caso de dúvida, estamos à disposição.`;
+
+  // SweetAlert2 Modal
+  const { value: selectedMsg } = await Swal.fire({
+    title: 'Enviar mensagem por WhatsApp',
+    html: `<div style='text-align:left;font-size:1em;'>
+      <b>Escolha o modelo de mensagem:</b><br><br>
+      <label style='display:block;margin-bottom:10px;'>
+        <input type='radio' name='waMsg' value='msg1' checked>
+        <span style='margin-left:8px;'>Agradecimento/Confirmação de entrega</span>
+        <pre style='background:#f8f9fa;padding:8px;border-radius:5px;margin-top:4px;white-space:pre-wrap;font-size:0.95em;'>${msg1}</pre>
+      </label>
+      <label style='display:block;'>
+        <input type='radio' name='waMsg' value='msg2'>
+        <span style='margin-left:8px;'>Cobrança/Lembrete de pagamento</span>
+        <pre style='background:#f8f9fa;padding:8px;border-radius:5px;margin-top:4px;white-space:pre-wrap;font-size:0.95em;'>${msg2}</pre>
+      </label>
+    </div>`,
+    showCancelButton: true,
+    confirmButtonText: 'Abrir WhatsApp',
+    cancelButtonText: 'Cancelar',
+    focusConfirm: false,
+    preConfirm: () => {
+      const selected = document.querySelector('input[name=waMsg]:checked');
+      return selected ? selected.value : null;
+    },
+    width: 600
+  });
+
+  if (!selectedMsg) return;
+
+  // Formatar telefone
+  let phoneNumber = customerPhone.replace(/\D/g, '');
   if (phoneNumber.length < 10) {
-    alert('Número de telefone inválido.');
+    Swal.fire('Erro', 'Número de telefone inválido.', 'error');
     return;
   }
-  
-  // Adiciona o 9º dígito se necessário (para celulares com 8 dígitos)
   if (phoneNumber.length === 10) {
     phoneNumber = phoneNumber.substring(0, 2) + '9' + phoneNumber.substring(2);
   }
-  
-  // Mensagem padrão
-  const message = `Olá! Gostaria de falar sobre o pedido #${orderId}.`;
-  
-  // Formata a URL do WhatsApp
+
+  // Mensagem escolhida
+  const message = selectedMsg === 'msg1' ? msg1 : msg2;
   const whatsappUrl = `https://wa.me/55${phoneNumber}?text=${encodeURIComponent(message)}`;
-  
-  // Abre em uma nova aba
   window.open(whatsappUrl, '_blank');
 };
+
 
 // Função para abrir o modal de pagamento
 function openPaymentModal(orderId, orderTotal, pendingAmount) {

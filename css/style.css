@@ -283,6 +283,36 @@ body {
     .checkout-form input {
         font-size: 16px; /* Evita zoom em iOS */
     }
+    
+    /* Botão X limpar cupom */
+    .btn-clear-coupon {
+  margin-left: -32px;
+  margin-right: 0.5rem;
+
+      position: relative;
+      right: 0;
+      top: 0;
+      background: transparent;
+      border: none;
+      color: #888;
+      font-size: 1.2rem;
+      cursor: pointer;
+      padding: 0 0.4rem;
+      transition: color 0.2s, background 0.2s;
+      border-radius: 50%;
+      line-height: 1;
+      height: 2.2rem;
+      width: 2.2rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .btn-clear-coupon:hover,
+    .btn-clear-coupon:focus {
+      color: #ff1493;
+      background: #ffe6f3;
+      outline: none;
+    }
 }
 
 @media (max-width: 480px) {
@@ -1597,6 +1627,111 @@ body {
     margin: 5px 0;
 }
 
+/* Cupom no carrinho */
+.cart-coupon-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  position: relative;
+}
+.cart-coupon-row .coupon-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 170px;
+}
+.cart-coupon-row .btn-clear-coupon {
+  margin-left: -32px;
+  margin-right: 0.5rem;
+  position: relative;
+  z-index: 2;
+}
+.cart-coupon-row .btn.btn-secondary {
+  margin-left: auto;
+  flex-shrink: 0;
+  z-index: 1;
+}
+
+.coupon-input {
+    flex: 1;
+    max-width: 170px;
+    padding: 0.7rem 1rem;
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius);
+    font-size: 1rem;
+    background: #fff;
+    color: var(--color-text);
+    outline: none;
+    transition: border-color 0.2s;
+}
+.coupon-input:focus {
+    border-color: var(--color-primary);
+}
+.coupon-feedback {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  font-size: 1rem;
+  margin-top: 0.3rem;
+  margin-bottom: 1rem;
+  min-height: 1.7em;
+  padding: 0.45em 1em 0.45em 0.8em;
+  border-radius: 0.7em;
+  background: #f8f8fa;
+  box-shadow: 0 1px 6px 0 rgba(0,0,0,0.04);
+  border: 1.5px solid transparent;
+  transition: color 0.2s, background 0.2s, border-color 0.2s;
+  font-weight: 500;
+  line-height: 1.3;
+  position: relative;
+}
+.feedback-success {
+  color: #219150;
+  background: #e8f9f0;
+  border-color: #4CAF50;
+}
+.feedback-success::before {
+  content: '✔️';
+  margin-right: 0.5em;
+  font-size: 1.1em;
+}
+.feedback-error {
+  color: #d81b60;
+  background: #fff0fa;
+  border-color: #ff1493;
+}
+.feedback-error::before {
+  content: '❌';
+  margin-right: 0.5em;
+  font-size: 1.1em;
+}
+.feedback-info {
+  color: #888;
+  background: #f5f5f5;
+  border-color: #ddd;
+}
+.feedback-info::before {
+  content: 'ℹ️';
+  margin-right: 0.5em;
+  font-size: 1.1em;
+}
+
+#applyCouponBtn {
+    background: var(--color-primary);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius);
+    padding: 0.7rem 1.1rem;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s;
+    box-shadow: var(--shadow-sm);
+}
+#applyCouponBtn:hover {
+    background: var(--color-accent);
+}
+
 /* Cart Total */
 .cart-total {
     margin-top: 2rem;
@@ -1616,6 +1751,61 @@ body {
     gap: 0.5rem;
     margin-bottom: 1rem;
     width: 100%;
+    justify-content: space-between;
+}
+.payment-method-options .payment-option {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: 50%;
+    transition: max-width 0.2s;
+}
+.payment-method-options:has(.payment-option:nth-child(3):not([style*='display: none'])) .payment-option {
+    max-width: 33.33%;
+}
+@media (max-width: 600px) {
+    .payment-method-options {
+        flex-wrap: wrap;
+        gap: 0.4rem;
+    }
+    .payment-method-options .payment-option {
+        max-width: 100%;
+    }
+}
+
+
+.payment-option {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: 33%;
+}
+
+.payment-option-content {
+    padding: 0.7rem 0.5rem;
+    font-size: 0.97rem;
+}
+
+.payment-option-content i {
+    font-size: 1.3rem;
+    margin-bottom: 0.4rem;
+}
+
+@media (max-width: 600px) {
+    .payment-method-options {
+        flex-wrap: wrap;
+        gap: 0.4rem;
+    }
+    .payment-option {
+        flex: 1 1 100%;
+        max-width: 100%;
+        margin-bottom: 0.5rem;
+    }
+    .payment-option-content {
+        padding: 0.5rem 0.2rem;
+        font-size: 0.93rem;
+    }
+    .payment-option-content i {
+        font-size: 1.1rem;
+    }
 }
 
 .payment-option {
