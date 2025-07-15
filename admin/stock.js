@@ -1,5 +1,30 @@
 // Gerenciamento de estoque
 
+// Delegated event handler for Remove Gift buttons
+if (!window._removeGiftBtnDelegationAttached) {
+  document.addEventListener("click", async function (e) {
+    const btn = e.target.closest(".btn-remove-gift");
+    if (!btn) return;
+    e.preventDefault();
+    const orderId = btn.getAttribute("data-order-id");
+    const itemId = btn.getAttribute("data-item-id");
+    if (!orderId || !itemId) return;
+    if (typeof window.StockModule?.removeGiftItem === "function") {
+      await window.StockModule.removeGiftItem(orderId, itemId);
+    } else {
+      console.error(
+        "removeGiftItem não está disponível em window.StockModule",
+      );
+      Swal.fire(
+        "Erro",
+        "Não foi possível remover o brinde: função não disponível.",
+        "error",
+      );
+    }
+  });
+  window._removeGiftBtnDelegationAttached = true;
+}
+
 /**
  * Formata a descrição do produto, aplicando:
  * - Título: linha terminada com * (negrito, sublinhado colorido)
@@ -8,15 +33,18 @@
  * @param {string} underlineColor Classe CSS do sublinhado (ex: 'underline-red')
  * @returns {string} HTML formatado
  */
-function formatProductDescription(description, underlineColor = 'underline-primary') {
-  if (!description) return '';
+function formatProductDescription(
+  description,
+  underlineColor = "underline-primary",
+) {
+  if (!description) return "";
   // Quebra em linhas
   const lines = description.split(/\r?\n/);
-  let html = '';
+  let html = "";
   lines.forEach((line, idx) => {
-    const isTitle = line.trim().endsWith('*');
+    const isTitle = line.trim().endsWith("*");
     if (isTitle) {
-      const cleanTitle = line.trim().replace(/\*+$/, '').trim();
+      const cleanTitle = line.trim().replace(/\*+$/, "").trim();
       html += `<span class="desc-title ${underlineColor}"><b>${escapeHtml(cleanTitle)}</b></span>`;
     } else if (line.trim()) {
       html += `<p class="desc-text">${escapeHtml(line.trim())}</p>`;
@@ -40,49 +68,49 @@ import {
   setDoc,
   onSnapshot,
 } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-firestore.js";
-import './print.js';
+import "./print.js";
 
 // Função para formatar número de telefone
 function formatPhoneNumber(phoneNumber) {
-  if (!phoneNumber) return '';
-  
+  if (!phoneNumber) return "";
+
   // Remove todos os caracteres que não são dígitos
-  const cleaned = ('' + phoneNumber).replace(/\D/g, '');
-  
+  const cleaned = ("" + phoneNumber).replace(/\D/g, "");
+
   // Verifica se é um número válido (10 ou 11 dígitos)
   const match = cleaned.match(/^(\d{2})(\d{4,5})(\d{4})$/);
-  
+
   if (match) {
     return `(${match[1]}) ${match[2]}-${match[3]}`;
   }
-  
+
   // Retorna o número original se não for possível formatar
   return phoneNumber;
 }
 
 // Função para escapar caracteres HTML
 function escapeHtml(unsafe) {
-  if (!unsafe) return '';
+  if (!unsafe) return "";
   return unsafe
     .toString()
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
 // Função auxiliar para formatar o método de pagamento
 function getPaymentMethodLabel(method) {
   const methods = {
-    'credit': 'Cartão de Crédito',
-    'debit': 'Cartão de Débito',
-    'pix': 'PIX',
-    'boleto': 'Boleto Bancário',
-    'cash': 'Dinheiro',
-    'bank_transfer': 'Transferência Bancária'
+    credit: "Cartão de Crédito",
+    debit: "Cartão de Débito",
+    pix: "PIX",
+    boleto: "Boleto Bancário",
+    cash: "Dinheiro",
+    bank_transfer: "Transferência Bancária",
   };
-  return methods[method] || method || 'Não informado';
+  return methods[method] || method || "Não informado";
 }
 
 // Tornar a função disponível globalmente
@@ -91,23 +119,23 @@ window.getPaymentMethodLabel = getPaymentMethodLabel;
 // Função para alternar a visibilidade dos detalhes financeiros
 function toggleFinancialDetails(button) {
   const content = button.nextElementSibling;
-  const icon = button.querySelector('i');
-  const labelSpan = button.querySelector('span');
+  const icon = button.querySelector("i");
+  const labelSpan = button.querySelector("span");
 
   if (!content) return;
   if (!icon) return;
   if (!labelSpan) return;
 
-  if (content.style.display === 'none' || !content.style.display) {
-    content.style.display = 'block';
-    icon.classList.remove('fa-chevron-down');
-    icon.classList.add('fa-chevron-up');
-    labelSpan.textContent = 'Ocultar detalhes financeiros';
+  if (content.style.display === "none" || !content.style.display) {
+    content.style.display = "block";
+    icon.classList.remove("fa-chevron-down");
+    icon.classList.add("fa-chevron-up");
+    labelSpan.textContent = "Ocultar detalhes financeiros";
   } else {
-    content.style.display = 'none';
-    icon.classList.remove('fa-chevron-up');
-    icon.classList.add('fa-chevron-down');
-    labelSpan.textContent = 'Ver detalhes financeiros';
+    content.style.display = "none";
+    icon.classList.remove("fa-chevron-up");
+    icon.classList.add("fa-chevron-down");
+    labelSpan.textContent = "Ver detalhes financeiros";
   }
 }
 
@@ -116,179 +144,205 @@ window.toggleFinancialDetails = toggleFinancialDetails;
 
 // Função para normalizar textos para busca (remove acentos e caracteres especiais)
 function normalizeSearchText(text) {
-  if (!text) return '';
+  if (!text) return "";
   return text
     .toString()
     .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '') // Remove acentos
-    .replace(/[^a-z0-9\s]/g, '') // Remove caracteres especiais
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // Remove acentos
+    .replace(/[^a-z0-9\s]/g, "") // Remove caracteres especiais
     .trim();
 }
 
 // Função para normalizar os status (remove acentos e caracteres especiais)
 function normalizeStatus(status) {
-  if (!status) return '';
+  if (!status) return "";
   return status
     .toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Remove acentos
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // Remove acentos
     .trim();
 }
 
 // Função para normalizar texto para comparação (remover acentos, converter para minúsculas e remover espaços)
 const normalizeForComparison = (str) => {
-  return String(str || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+  return String(str || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
 };
 
 // Função para mapear status para valores consistentes
 function getNormalizedStatus(status) {
-  if (!status || status.trim() === '') return 'Pendente';
-  
+  if (!status || status.trim() === "") return "Pendente";
+
   const normalizedInput = normalizeForComparison(status);
-  
+
   // Mapa de status normalizados
   const statusMap = {
-    'concluido': 'Concluído',
-    'concluir': 'Concluído',
-    'finalizado': 'Concluído',
-    'completo': 'Concluído',
-    'entregue': 'Concluído',
-    'cancelado': 'Cancelado',
-    'cancelar': 'Cancelado',
-    'pago': 'Pago',
-    'pendente': 'Pendente',
-    'processando': 'Pendente',
-    'em andamento': 'Pendente',
-    'aguardando': 'Pendente',
-    'pendente de pagamento': 'Pendente',
-    'pendente pagamento': 'Pendente',
-    'pendente de pag': 'Pendente',
-    'pendente pag': 'Pendente',
-    'novo': 'Pendente',
-    'recebido': 'Pendente'
+    concluido: "Concluído",
+    concluir: "Concluído",
+    finalizado: "Concluído",
+    completo: "Concluído",
+    entregue: "Concluído",
+    cancelado: "Cancelado",
+    cancelar: "Cancelado",
+    pago: "Pago",
+    pendente: "Pendente",
+    processando: "Pendente",
+    "em andamento": "Pendente",
+    aguardando: "Pendente",
+    "pendente de pagamento": "Pendente",
+    "pendente pagamento": "Pendente",
+    "pendente de pag": "Pendente",
+    "pendente pag": "Pendente",
+    novo: "Pendente",
+    recebido: "Pendente",
   };
-  
+
   // Verifica se o status normalizado está no mapa
   for (const [key, value] of Object.entries(statusMap)) {
     if (normalizeForComparison(key) === normalizedInput) {
       return value;
     }
   }
-  
+
   // Se não encontrou no mapa, tenta encontrar por similaridade
   for (const [key, value] of Object.entries(statusMap)) {
     const normalizedKey = normalizeForComparison(key);
-    if (normalizedInput.includes(normalizedKey) || normalizedKey.includes(normalizedInput)) {
+    if (
+      normalizedInput.includes(normalizedKey) ||
+      normalizedKey.includes(normalizedInput)
+    ) {
       return value;
     }
   }
-  
+
   // Retorna o status original com a primeira letra maiúscula
   return status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
 }
 
 // Função para formatar data no formato YYYY-MM-DD
 function formatDateForInput(date) {
-  if (!date) return '';
+  if (!date) return "";
   const d = date instanceof Date ? date : new Date(date);
-  return d.toISOString().split('T')[0];
+  return d.toISOString().split("T")[0];
 }
-
 
 // Função para aplicar os filtros
 export function applyFilters() {
-  console.log('=== APLICANDO FILTROS ===');
-  
-  const searchTerm = document.getElementById('searchTerm')?.value?.trim().toLowerCase() || '';
-  const filterDate = document.getElementById('filterDate')?.value || '';
-  const filterStatus = document.getElementById('filterStatus')?.value || '';
-  
-  console.log('Termo de busca:', searchTerm);
-  console.log('Data:', filterDate);
-  console.log('Status:', filterStatus);
-  
+  console.log("=== APLICANDO FILTROS ===");
+
+  const searchTerm =
+    document.getElementById("searchTerm")?.value?.trim().toLowerCase() || "";
+  const filterDate = document.getElementById("filterDate")?.value || "";
+  const filterStatus = document.getElementById("filterStatus")?.value || "";
+
+  console.log("Termo de busca:", searchTerm);
+  console.log("Data:", filterDate);
+  console.log("Status:", filterStatus);
+
   // Atualizar a URL com os parâmetros de filtro
   const urlParams = new URLSearchParams();
-  if (filterStatus) urlParams.set('status', filterStatus);
-  if (searchTerm) urlParams.set('search', encodeURIComponent(searchTerm));
-  if (filterDate) urlParams.set('date', filterDate);
-  
-  const newUrl = `${window.location.pathname}?${urlParams.toString()}`;
-  window.history.pushState({}, '', newUrl);
-  
-  console.log('Termo de busca:', searchTerm);
-  console.log('Data:', filterDate);
-  console.log('Status:', filterStatus);
+  if (filterStatus) urlParams.set("status", filterStatus);
+  if (searchTerm) urlParams.set("search", encodeURIComponent(searchTerm));
+  if (filterDate) urlParams.set("date", filterDate);
 
-  const orderCards = document.querySelectorAll('.order-card');
-  console.log('Total de cards encontrados:', orderCards.length);
+  const newUrl = `${window.location.pathname}?${urlParams.toString()}`;
+  window.history.pushState({}, "", newUrl);
+
+  console.log("Termo de busca:", searchTerm);
+  console.log("Data:", filterDate);
+  console.log("Status:", filterStatus);
+
+  const orderCards = document.querySelectorAll(".order-card");
+  console.log("Total de cards encontrados:", orderCards.length);
 
   // Verificar se existem cards
   if (orderCards.length === 0) {
-    console.warn('Nenhum card de pedido encontrado na página!');
-    const ordersList = document.getElementById('ordersList');
+    console.warn("Nenhum card de pedido encontrado na página!");
+    const ordersList = document.getElementById("ordersList");
     if (ordersList) {
-      console.log('Conteúdo de ordersList:', ordersList.innerHTML.substring(0, 200) + '...');
+      console.log(
+        "Conteúdo de ordersList:",
+        ordersList.innerHTML.substring(0, 200) + "...",
+      );
     } else {
-      console.error('Elemento ordersList não encontrado!');
+      console.error("Elemento ordersList não encontrado!");
     }
   }
 
   let visibleCount = 0;
   let anyFilterActive = searchTerm || filterDate || filterStatus;
-  
+
   // Log dos dados do primeiro pedido para debug
   if (orderCards.length > 0) {
     const firstCard = orderCards[0];
-    console.log('=== DADOS DO PRIMEIRO PEDIDO ===');
-    console.log('HTML do card:', firstCard.outerHTML);
-    console.log('Dataset:', firstCard.dataset);
-    console.log('Status no dataset:', firstCard.dataset.status);
+    console.log("=== DADOS DO PRIMEIRO PEDIDO ===");
+    console.log("HTML do card:", firstCard.outerHTML);
+    console.log("Dataset:", firstCard.dataset);
+    console.log("Status no dataset:", firstCard.dataset.status);
   }
 
-  orderCards.forEach(card => {
-    const cardNumber = card.querySelector('.order-number')?.textContent?.trim() || '';
+  orderCards.forEach((card) => {
+    const cardNumber =
+      card.querySelector(".order-number")?.textContent?.trim() || "";
     // Busca pelo nome do cliente considerando múltiplas possibilidades
-    let customerName = card.querySelector('.customer-name')?.textContent?.trim() || '';
+    let customerName =
+      card.querySelector(".customer-name")?.textContent?.trim() || "";
     if (!customerName) {
       // Tenta buscar por outros campos se necessário (fallback)
-      customerName = card.dataset.customerName || card.dataset.customer || '';
+      customerName = card.dataset.customerName || card.dataset.customer || "";
     }
-    const orderDate = card.querySelector('.order-date')?.getAttribute('data-date')?.trim() || '';
-    const cardStatus = (card.dataset.status || '').trim();
+    const orderDate =
+      card.querySelector(".order-date")?.getAttribute("data-date")?.trim() ||
+      "";
+    const cardStatus = (card.dataset.status || "").trim();
 
-    console.log('---');
-    console.log('Card ID:', card.dataset.orderId);
-    console.log('Número:', cardNumber);
-    console.log('Cliente:', customerName);
-    console.log('Data:', orderDate);
-    console.log('Status no card:', cardStatus);
+    console.log("---");
+    console.log("Card ID:", card.dataset.orderId);
+    console.log("Número:", cardNumber);
+    console.log("Cliente:", customerName);
+    console.log("Data:", orderDate);
+    console.log("Status no card:", cardStatus);
 
     // 1. Normalizar status para comparação consistente
-    const normalizedCardStatus = getNormalizedStatus(cardStatus || 'Pendente');
-    const normalizedFilterStatus = filterStatus ? getNormalizedStatus(filterStatus) : null;
-    
+    const normalizedCardStatus = getNormalizedStatus(cardStatus || "Pendente");
+    const normalizedFilterStatus = filterStatus
+      ? getNormalizedStatus(filterStatus)
+      : null;
+
     // 2. Verificar se o pedido corresponde ao filtro de status
     let statusMatches = !filterStatus; // Se não houver filtro de status, mostra todos
-    
+
     if (filterStatus) {
       // Normalizar os status para comparação
       const cardStatusNormalized = normalizeForComparison(normalizedCardStatus);
-      const filterStatusNormalized = normalizeForComparison(normalizedFilterStatus);
-      
+      const filterStatusNormalized = normalizeForComparison(
+        normalizedFilterStatus,
+      );
+
       // Verificar se o status do card corresponde ao filtro
-      statusMatches = cardStatusNormalized === filterStatusNormalized || 
-                     cardStatusNormalized.includes(filterStatusNormalized) || 
-                     filterStatusNormalized.includes(cardStatusNormalized);
-      
+      statusMatches =
+        cardStatusNormalized === filterStatusNormalized ||
+        cardStatusNormalized.includes(filterStatusNormalized) ||
+        filterStatusNormalized.includes(cardStatusNormalized);
+
       // Caso especial: se o filtro for 'Pendente', mostrar também pedidos sem status definido
-      if (!statusMatches && filterStatusNormalized === 'pendente' && (!cardStatus || cardStatus.trim() === '')) {
-        console.log('Mostrando pedido sem status definido (considerado Pendente)');
+      if (
+        !statusMatches &&
+        filterStatusNormalized === "pendente" &&
+        (!cardStatus || cardStatus.trim() === "")
+      ) {
+        console.log(
+          "Mostrando pedido sem status definido (considerado Pendente)",
+        );
         statusMatches = true;
       }
-      
+
       // Log para debug
-      console.log('Comparação de status:', {
+      console.log("Comparação de status:", {
         cardId: card.dataset.orderId,
         cardStatus,
         normalizedCardStatus,
@@ -296,10 +350,10 @@ export function applyFilters() {
         normalizedFilterStatus,
         cardStatusNormalized,
         filterStatusNormalized,
-        statusMatches
+        statusMatches,
       });
     }
-    
+
     // 3. Verificar se o pedido corresponde ao filtro de data
     let dateMatches = !filterDate;
     if (filterDate && orderDate) {
@@ -308,11 +362,11 @@ export function applyFilters() {
         const filterDateObj = new Date(filterDate);
         dateMatches = cardDate.toDateString() === filterDateObj.toDateString();
       } catch (e) {
-        console.error('Erro ao processar datas:', e);
+        console.error("Erro ao processar datas:", e);
         dateMatches = true; // Em caso de erro, considera como se a data correspondesse
       }
     }
-    
+
     // 4. Verificar se o pedido corresponde ao termo de busca
     let searchMatches = !searchTerm;
     if (searchTerm) {
@@ -320,104 +374,110 @@ export function applyFilters() {
         const normalizedSearch = normalizeSearchText(searchTerm);
         // Busca no número do pedido e nome do cliente
         // Busca tanto pelo número do pedido quanto por possíveis campos de nome do cliente
-        searchMatches = 
+        searchMatches =
           normalizeSearchText(cardNumber).includes(normalizedSearch) ||
           normalizeSearchText(customerName).includes(normalizedSearch);
-        
+
         // Se não encontrou no número ou nome, tenta encontrar nos itens do pedido
         if (!searchMatches) {
-          const items = card.querySelectorAll('.order-item');
-          searchMatches = Array.from(items).some(item => {
-            const itemName = item.querySelector('.product-name')?.textContent?.trim() || '';
+          const items = card.querySelectorAll(".order-item");
+          searchMatches = Array.from(items).some((item) => {
+            const itemName =
+              item.querySelector(".product-name")?.textContent?.trim() || "";
             return normalizeSearchText(itemName).includes(normalizedSearch);
           });
         }
       } catch (e) {
-        console.error('Erro na busca:', e);
+        console.error("Erro na busca:", e);
         searchMatches = true; // Em caso de erro, considera como se a busca correspondesse
       }
     }
-    
+
     // Log detalhado para debug
-    console.log('Filtros aplicados:', {
+    console.log("Filtros aplicados:", {
       cardId: card.dataset.orderId,
       cardNumber,
       customerName,
       cardStatus,
       filterStatus,
       normalizedCardStatus,
-      normalizedFilterStatus: normalizedFilterStatus || 'Nenhum filtro',
+      normalizedFilterStatus: normalizedFilterStatus || "Nenhum filtro",
       statusMatches,
       dateMatches,
-      searchTerm: searchTerm || 'Nenhum termo',
+      searchTerm: searchTerm || "Nenhum termo",
       searchMatches,
-      orderDate: orderDate ? formatDateForInput(orderDate) : 'N/A',
-      filterDate: filterDate || 'Nenhuma data'
+      orderDate: orderDate ? formatDateForInput(orderDate) : "N/A",
+      filterDate: filterDate || "Nenhuma data",
     });
 
     // Lógica de decisão:
     // 1. Primeiro verifica se os filtros básicos estão atendidos (status e data)
     const basicFiltersMatch = statusMatches && dateMatches;
-    
+
     // 2. Se houver termo de busca, deve corresponder à busca E aos filtros básicos
     // 3. Se não houver termo de busca, basta que os filtros básicos sejam atendidos
-    const shouldShow = searchTerm 
-      ? searchMatches && basicFiltersMatch  // Busca + Filtros
-      : basicFiltersMatch;                  // Apenas Filtros
-      
-    console.log('Resultado final - Mostrar?', shouldShow, {
-      statusMatches, 
-      dateMatches, 
+    const shouldShow = searchTerm
+      ? searchMatches && basicFiltersMatch // Busca + Filtros
+      : basicFiltersMatch; // Apenas Filtros
+
+    console.log("Resultado final - Mostrar?", shouldShow, {
+      statusMatches,
+      dateMatches,
       searchMatches,
       hasSearchTerm: !!searchTerm,
     });
 
     // 4. Aplicar a decisão final de exibição
     if (shouldShow) {
-      card.style.display = ''; // Remove qualquer display: none
-      card.style.removeProperty('display'); // Garante que não há estilos inline sobrescrevendo
+      card.style.display = ""; // Remove qualquer display: none
+      card.style.removeProperty("display"); // Garante que não há estilos inline sobrescrevendo
       visibleCount++;
-      console.log(`Mostrando card ${card.dataset.orderId} - Status: ${cardStatus}`);
+      console.log(
+        `Mostrando card ${card.dataset.orderId} - Status: ${cardStatus}`,
+      );
     } else {
-      card.style.display = 'none';
-      console.log(`Ocultando card ${card.dataset.orderId} - Status: ${cardStatus}`);
+      card.style.display = "none";
+      console.log(
+        `Ocultando card ${card.dataset.orderId} - Status: ${cardStatus}`,
+      );
     }
   });
 
-  console.log('Total de pedidos visíveis após filtro:', visibleCount);
-  
+  console.log("Total de pedidos visíveis após filtro:", visibleCount);
+
   // Mostrar mensagem quando não houver resultados
-  const noResultsMessage = document.getElementById('noResultsMessage');
+  const noResultsMessage = document.getElementById("noResultsMessage");
   if (noResultsMessage) {
-    noResultsMessage.style.display = visibleCount > 0 ? 'none' : 'block';
+    noResultsMessage.style.display = visibleCount > 0 ? "none" : "block";
   }
-  
-  console.log('Total de pedidos visíveis após filtro:', visibleCount);
-  
+
+  console.log("Total de pedidos visíveis após filtro:", visibleCount);
+
   // Mostrar mensagem se não houver resultados
-  const ordersList = document.getElementById('ordersList');
-  const noResults = document.getElementById('noResultsMessage');
-  
+  const ordersList = document.getElementById("ordersList");
+  const noResults = document.getElementById("noResultsMessage");
+
   if (visibleCount === 0) {
     if (!noResults) {
-      const message = document.createElement('div');
-      message.id = 'noResultsMessage';
-      message.style.textAlign = 'center';
-      message.style.padding = '40px 20px';
-      message.style.color = '#666';
-      message.style.fontSize = '1.1em';
-      
-      let messageText = 'Nenhum pedido encontrado';
+      const message = document.createElement("div");
+      message.id = "noResultsMessage";
+      message.style.textAlign = "center";
+      message.style.padding = "40px 20px";
+      message.style.color = "#666";
+      message.style.fontSize = "1.1em";
+
+      let messageText = "Nenhum pedido encontrado";
       const activeFilters = [];
-      
+
       if (filterStatus) activeFilters.push(`status "${filterStatus}"`);
-      if (filterDate) activeFilters.push(`data "${formatISODateToBR(filterDate)}"`);
+      if (filterDate)
+        activeFilters.push(`data "${formatISODateToBR(filterDate)}"`);
       if (searchTerm) activeFilters.push(`termo de busca "${searchTerm}"`);
-      
+
       if (activeFilters.length > 0) {
-        messageText += ` com ${activeFilters.join(', ')}`;
+        messageText += ` com ${activeFilters.join(", ")}`;
       }
-      
+
       message.innerHTML = `
         <i class="fas fa-inbox" style="font-size: 3em; opacity: 0.3; margin-bottom: 15px;"></i>
         <p>${messageText}</p>
@@ -436,15 +496,15 @@ export function applyFilters() {
 
 // Função para limpar todos os filtros
 export function clearFilters() {
-  document.getElementById('searchTerm').value = '';
-  document.getElementById('filterDate').value = '';
-  document.getElementById('filterStatus').value = '';
+  document.getElementById("searchTerm").value = "";
+  document.getElementById("filterDate").value = "";
+  document.getElementById("filterStatus").value = "";
   applyFilters();
 }
 
 // Mantendo a função antiga para compatibilidade, mas redirecionando para a nova função
 function filterOrdersByStatus(status) {
-  document.getElementById('filterStatus').value = status || '';
+  document.getElementById("filterStatus").value = status || "";
   applyFilters();
 }
 
@@ -455,15 +515,20 @@ window.clearFilters = clearFilters;
 
 // Função para renderizar pedidos
 export async function renderOrdersList() {
-  console.log('Iniciando renderOrdersList...');
-  const ordersList = document.getElementById('ordersList');
-  const ordersSummary = document.getElementById('ordersSummary');
-  
+  console.log("Iniciando renderOrdersList...");
+  console.log(
+    "[DEBUG] typeof window.StockModule.removeGiftItem:",
+    typeof window.StockModule?.removeGiftItem,
+  );
+
+  const ordersList = document.getElementById("ordersList");
+  const ordersSummary = document.getElementById("ordersSummary");
+
   if (!ordersList) {
-    console.error('Elemento ordersList não encontrado!');
+    console.error("Elemento ordersList não encontrado!");
     return;
   }
-  
+
   // Mostrar indicador de carregamento
   ordersList.innerHTML = `
     <div class="loading-container" style="text-align: center; padding: 2rem;">
@@ -471,23 +536,23 @@ export async function renderOrdersList() {
       <p>Carregando pedidos...</p>
       <style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
     </div>`;
-  
+
   if (ordersSummary) {
-    ordersSummary.style.display = 'none';
+    ordersSummary.style.display = "none";
   }
-  
-  console.log('Buscando pedidos no Firestore...');
+
+  console.log("Buscando pedidos no Firestore...");
 
   try {
     // Buscar pedidos
-    const ordersRef = collection(window.db, 'orders');
-    console.log('Referência da coleção orders:', ordersRef);
-    
+    const ordersRef = collection(window.db, "orders");
+    console.log("Referência da coleção orders:", ordersRef);
+
     const ordersSnapshot = await getDocs(ordersRef);
-    console.log('Total de pedidos encontrados:', ordersSnapshot.size);
-    
+    console.log("Total de pedidos encontrados:", ordersSnapshot.size);
+
     if (ordersSnapshot.empty) {
-      console.log('Nenhum pedido encontrado no Firestore');
+      console.log("Nenhum pedido encontrado no Firestore");
       ordersList.innerHTML = `
         <div class="no-orders" style="text-align: center; padding: 2rem; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
           <i class="fas fa-box-open" style="font-size: 3rem; color: #ccc; margin-bottom: 1rem;"></i>
@@ -496,8 +561,8 @@ export async function renderOrdersList() {
         </div>`;
       return;
     }
-    
-    let html = '';
+
+    let html = "";
     let totalPedidos = 0;
     let totalVendido = 0;
     let totalCompra = 0;
@@ -505,21 +570,21 @@ export async function renderOrdersList() {
     const orders = [];
 
     // Processar cada pedido
-    ordersSnapshot.forEach(doc => {
+    ordersSnapshot.forEach((doc) => {
       try {
-        console.log('Processando pedido:', doc.id);
+        console.log("Processando pedido:", doc.id);
         const order = { ...doc.data(), _id: doc.id };
-        
+
         // Garantir que os itens sejam um array
         if (!Array.isArray(order.items)) {
           order.items = [];
         }
-        
+
         // Garantir que os pagamentos sejam um array
         if (!Array.isArray(order.payments)) {
           order.payments = [];
         }
-        
+
         orders.push(order);
         totalPedidos++;
       } catch (error) {
@@ -529,108 +594,165 @@ export async function renderOrdersList() {
 
     // Ordenar pedidos por data (mais recentes primeiro)
     orders.sort((a, b) => {
-      const dateA = a.createdAt ? (a.createdAt.toDate ? a.createdAt.toDate() : new Date(a.createdAt)) : new Date(0);
-      const dateB = b.createdAt ? (b.createdAt.toDate ? b.createdAt.toDate() : new Date(b.createdAt)) : new Date(0);
+      const dateA = a.createdAt
+        ? a.createdAt.toDate
+          ? a.createdAt.toDate()
+          : new Date(a.createdAt)
+        : new Date(0);
+      const dateB = b.createdAt
+        ? b.createdAt.toDate
+          ? b.createdAt.toDate()
+          : new Date(b.createdAt)
+        : new Date(0);
       return dateB - dateA; // Ordem decrescente (mais recente primeiro)
     });
 
     // Atualiza cache global para handlers dos botões de acordo
     window.ordersCache = orders;
-    console.log('[DEBUG] window.ordersCache atualizado:', window.ordersCache.length, 'pedidos');
+    console.log(
+      "[DEBUG] window.ordersCache atualizado:",
+      window.ordersCache.length,
+      "pedidos",
+    );
 
     // Gerar HTML dos cards
-    html = orders.map(order => {
-      // Normalizar o status para garantir consistência
-      const normalizedStatus = getNormalizedStatus(order.status || 'Pendente');
-      
-      const statusClass = normalizedStatus === 'Concluído' ? 'completed' : 
-                        normalizedStatus === 'Cancelado' ? 'cancelled' : '';
-      const statusLabel = normalizedStatus;
+    html = orders
+      .map((order) => {
+        // Normalizar o status para garantir consistência
+        const normalizedStatus = getNormalizedStatus(
+          order.status || "Pendente",
+        );
 
-      // Formatar data do pedido
-      let dataPedido = 'Data não disponível';
-      try {
-        if (order.createdAt) {
-          const dateObj = order.createdAt.toDate ? 
-                         order.createdAt.toDate() : 
-                         new Date(order.createdAt);
-          dataPedido = dateObj.toLocaleString('pt-BR');
+        const statusClass =
+          normalizedStatus === "Concluído"
+            ? "completed"
+            : normalizedStatus === "Cancelado"
+              ? "cancelled"
+              : "";
+        const statusLabel = normalizedStatus;
+
+        // Formatar data do pedido
+        let dataPedido = "Data não disponível";
+        try {
+          if (order.createdAt) {
+            const dateObj = order.createdAt.toDate
+              ? order.createdAt.toDate()
+              : new Date(order.createdAt);
+            dataPedido = dateObj.toLocaleString("pt-BR");
+          }
+        } catch (e) {
+          console.error("Erro ao formatar data do pedido:", e);
         }
-      } catch (e) {
-        console.error('Erro ao formatar data do pedido:', e);
-      }
 
-      // Calcular custo de compra
-      let purchaseCost = 0;
-      (order.items || []).forEach(item => {
-        const produto = Array.isArray(window.products) ? 
-                       window.products.find(p => String(p.id) === String(item.productId)) : 
-                       null;
-        if (produto && produto.purchasePrice) {
-          purchaseCost += Number(produto.purchasePrice || 0) * Number(item.quantity || 1);
+        // Calcular custo de compra
+        let purchaseCost = 0;
+        (order.items || []).forEach((item) => {
+          const produto = Array.isArray(window.products)
+            ? window.products.find(
+                (p) => String(p.id) === String(item.productId),
+              )
+            : null;
+          if (produto && produto.purchasePrice) {
+            purchaseCost +=
+              Number(produto.purchasePrice || 0) * Number(item.quantity || 1);
+          }
+        });
+
+        order._purchaseCost = purchaseCost;
+
+        // Calcular totais de pagamentos
+        const payments = Array.isArray(order.payments) ? order.payments : [];
+        const totalPago = payments.reduce((sum, payment) => {
+          return sum + (Number(payment.amount) || 0);
+        }, 0);
+
+        const valorTotal = Number(order.total) || 0;
+        const valorPendente = Math.max(0, valorTotal - totalPago);
+
+        // Determinar status do pagamento
+        let paymentStatus = order.paymentStatus || "Pendente";
+        if (totalPago >= valorTotal) {
+          paymentStatus = "Pago";
+        } else if (totalPago > 0) {
+          paymentStatus = "Parcial";
         }
-      });
-      
-      order._purchaseCost = purchaseCost;
-      
-      // Calcular totais de pagamentos
-      const payments = Array.isArray(order.payments) ? order.payments : [];
-      const totalPago = payments.reduce((sum, payment) => {
-        return sum + (Number(payment.amount) || 0);
-      }, 0);
-      
-      const valorTotal = Number(order.total) || 0;
-      const valorPendente = Math.max(0, valorTotal - totalPago);
-      
-      // Determinar status do pagamento
-      let paymentStatus = order.paymentStatus || 'Pendente';
-      if (totalPago >= valorTotal) {
-        paymentStatus = 'Pago';
-      } else if (totalPago > 0) {
-        paymentStatus = 'Parcial';
-      }
 
-      try {
-        const orderNumber = order.orderNumber || order._id.substring(0, 8).toUpperCase();
-        const customerName = order.customerName || order.customer?.name || 'Cliente não identificado';
-        let paymentMethodLabel = getPaymentMethodLabel(order.paymentMethod || 'credit');
-        if (order.paymentMethod === 'agreement') {
-          paymentMethodLabel = 'Acordo';
-        } else if (order.paymentMethod === 'credit' && order.installments > 1) {
-          paymentMethodLabel = `Cartão de Crédito (${order.installments}x)`;
-        } else if (order.paymentMethod === 'pix') {
-          paymentMethodLabel = 'PIX';
-        }
-        const totalPedido = Number(order.total) || 0;
-        const lucroEstimado = Math.max(0, totalPedido - purchaseCost);
+        try {
+          const orderNumber =
+            order.orderNumber || order._id.substring(0, 8).toUpperCase();
+          const customerName =
+            order.customerName ||
+            order.customer?.name ||
+            "Cliente não identificado";
+          let paymentMethodLabel = getPaymentMethodLabel(
+            order.paymentMethod || "credit",
+          );
+          if (order.paymentMethod === "agreement") {
+            paymentMethodLabel = "Acordo";
+          } else if (
+            order.paymentMethod === "credit" &&
+            order.installments > 1
+          ) {
+            paymentMethodLabel = `Cartão de Crédito (${order.installments}x)`;
+          } else if (order.paymentMethod === "pix") {
+            paymentMethodLabel = "PIX";
+          }
+          const totalPedido = Number(order.total) || 0;
+          const lucroEstimado = Math.max(0, totalPedido - purchaseCost);
 
-        // Gerar HTML dos itens do pedido
-        const itemsHtml = (order.items || []).map(item => {
-          const precoUnitario = Number(item.price) || 0;
-          const quantidade = Number(item.quantity) || 1;
-          const subtotal = precoUnitario * quantidade;
-          
-          return `
+          // Gerar HTML dos itens do pedido
+          const itemsHtml = (order.items || [])
+            .map((item, index) => {
+              const precoUnitario = Number(item.price) || 0;
+              const quantidade = Number(item.quantity) || 1;
+              const subtotal = precoUnitario * quantidade;
+              const isGift = item.isGift === true;
+
+              return `
             <tr style="border-bottom: 1px solid #eee;">
               <td style="padding: 12px 8px;">
-                <div class="product-name">${item.name || 'Produto sem nome'}</div>
-                ${item.variant ? `<div class="product-variant" style="font-size: 0.85em; color: #666; margin-top: 4px;">
+                <div class="product-name" style="display: flex; justify-content: space-between; align-items: center;">
+                  <span>
+                    ${item.name || "Produto sem nome"}
+                    ${isGift ? '<span style="margin-left: 8px; background: #e3f7e9; color: #0d6832; padding: 2px 6px; border-radius: 4px; font-size: 0.8em;">Brinde</span>' : ""}
+                  </span>
+                  ${
+                    isGift
+                      ? `
+                    <button class="btn-remove-gift" data-order-id="${order._id}" data-item-id="${item.id || index}"
+        style="background: #ff3860; color: white; border: none; border-radius: 4px; padding: 2px 8px; cursor: pointer; font-size: 0.8em; display: flex; align-items: center; gap: 4px;"
+        title="Remover brinde">
+  <i class="fas fa-trash"></i>
+  <span>Remover</span>
+</button>
+                  `
+                      : ""
+                  }
+                </div>
+                ${
+                  item.variant
+                    ? `<div class="product-variant" style="font-size: 0.85em; color: #666; margin-top: 4px;">
                   ${item.variant}
-                </div>` : ''}
+                </div>`
+                    : ""
+                }
               </td>
               <td style="text-align: center; padding: 12px 8px; vertical-align: top;">${quantidade}</td>
               <td style="text-align: right; padding: 12px 8px; vertical-align: top; white-space: nowrap;">
-                R$ ${precoUnitario.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                R$ ${precoUnitario.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </td>
               <td style="text-align: right; padding: 12px 8px; vertical-align: top; white-space: nowrap; font-weight: 500;">
-                R$ ${subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                R$ ${subtotal.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </td>
             </tr>
           `;
-        }).join('');
+            })
+            .join("");
 
-        // Gerar HTML dos pagamentos realizados
-        const paymentsHtml = payments.length > 0 ? `
+          // Gerar HTML dos pagamentos realizados
+          const paymentsHtml =
+            payments.length > 0
+              ? `
           <div class="payment-history" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee;">
             <h4 style="font-size: 0.95em; color: #555; margin: 0 0 10px 0; display: flex; align-items: center;">
               <i class="fas fa-history" style="margin-right: 8px;"></i>
@@ -647,113 +769,165 @@ export async function renderOrdersList() {
                   </tr>
                 </thead>
                 <tbody>
-                  ${payments.map((payment, idx) => {
-  const paymentDate = payment.date ? (payment.date.toDate ? payment.date.toDate() : new Date(payment.date)) : new Date();
-  const paymentStatus = payment.status || 'Aprovado';
-  const statusClass = paymentStatus.toLowerCase() === 'aprovado' ? 'status-approved' : 
-    paymentStatus.toLowerCase() === 'pendente' ? 'status-pending' : 'status-rejected';
+                  ${payments
+                    .map((payment, idx) => {
+                      const paymentDate = payment.date
+                        ? payment.date.toDate
+                          ? payment.date.toDate()
+                          : new Date(payment.date)
+                        : new Date();
+                      const paymentStatus = payment.status || "Aprovado";
+                      const statusClass =
+                        paymentStatus.toLowerCase() === "aprovado"
+                          ? "status-approved"
+                          : paymentStatus.toLowerCase() === "pendente"
+                            ? "status-pending"
+                            : "status-rejected";
 
-  return `
+                      return `
     <tr style="border-bottom: 1px solid #f1f1f1;">
       <td style="padding: 8px; border-bottom: 1px solid #f1f1f1; white-space:nowrap;">${(() => {
-  let dt = payment.createdAt ? new Date(payment.createdAt) : payment.date ? (payment.date.toDate ? payment.date.toDate() : new Date(payment.date)) : new Date();
-  const pad = n => String(n).padStart(2, '0');
-  return pad(dt.getDate()) + '/' + pad(dt.getMonth()+1) + '/' + dt.getFullYear() + ' ' + pad(dt.getHours()) + ':' + pad(dt.getMinutes());
-})()}</td>
+        let dt = payment.createdAt
+          ? new Date(payment.createdAt)
+          : payment.date
+            ? payment.date.toDate
+              ? payment.date.toDate()
+              : new Date(payment.date)
+            : new Date();
+        const pad = (n) => String(n).padStart(2, "0");
+        return (
+          pad(dt.getDate()) +
+          "/" +
+          pad(dt.getMonth() + 1) +
+          "/" +
+          dt.getFullYear() +
+          " " +
+          pad(dt.getHours()) +
+          ":" +
+          pad(dt.getMinutes())
+        );
+      })()}</td>
       <td style="text-align: right; padding: 8px; border-bottom: 1px solid #f1f1f1; font-weight: 500; white-space: nowrap;">
-        R$ ${Number(payment.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        R$ ${Number(payment.amount || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
       </td>
       <td style="padding: 8px; border-bottom: 1px solid #f1f1f1;">${getPaymentMethodLabel(payment.method)}</td>
       <td style="padding: 8px; border-bottom: 1px solid #f1f1f1;">
-        <span class="status-badge ${statusClass}" style="display: inline-block; padding: 3px 8px; border-radius: 12px; font-size: 0.8em; font-weight: 500;${statusClass === 'status-approved' ? 'background: #e3f7e9; color: #0d6832; border: 1px solid #a3e6b8;' : ''}${statusClass === 'status-pending' ? 'background: #fffbe8; color: #d97706; border: 1px solid #ffeeba;' : ''}${statusClass === 'status-rejected' ? 'background: #fde2e1; color: #b91c1c; border: 1px solid #fca5a5;' : ''}">
+        <span class="status-badge ${statusClass}" style="display: inline-block; padding: 3px 8px; border-radius: 12px; font-size: 0.8em; font-weight: 500;${statusClass === "status-approved" ? "background: #e3f7e9; color: #0d6832; border: 1px solid #a3e6b8;" : ""}${statusClass === "status-pending" ? "background: #fffbe8; color: #d97706; border: 1px solid #ffeeba;" : ""}${statusClass === "status-rejected" ? "background: #fde2e1; color: #b91c1c; border: 1px solid #fca5a5;" : ""}">
           ${paymentStatus}
         </span>
         <button class="delete-payment-btn" data-order-id="${order._id}" data-payment-idx="${idx}" title="Excluir pagamento" style="margin-left:8px; background:#ff1493; color:white; border:none; border-radius:4px; padding:3px 8px; cursor:pointer; font-size:0.9em;"><i class="fas fa-trash"></i></button>
       </td>
     </tr>
   `;
-}).join('')}
+                    })
+                    .join("")}
                 </tbody>
               </table>
             </div>
           </div>
-        ` : `
+        `
+              : `
           <div class="no-payments" style="margin-top: 15px; padding: 15px; background-color: #f8f9fa; border-radius: 6px; text-align: center; color: #6c757d;">
             <i class="fas fa-info-circle" style="margin-right: 5px;"></i>
             Nenhum pagamento registrado para este pedido.
           </div>
         `;
 
-        // --- Handler de exclusão de pagamento ---
-        setTimeout(() => {
-          document.querySelectorAll('.delete-payment-btn').forEach(btn => {
-            btn.onclick = async function(e) {
-              e.preventDefault();
-              const orderId = this.getAttribute('data-order-id');
-              const paymentIdx = parseInt(this.getAttribute('data-payment-idx'));
-              if (!orderId || isNaN(paymentIdx)) return;
-              const result = await Swal.fire({
-                title: 'Excluir pagamento?',
-                text: 'Tem certeza que deseja remover este pagamento? Esta ação não pode ser desfeita.',
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonColor: '#d33',
-                cancelButtonColor: '#3085d6',
-                confirmButtonText: 'Sim, excluir',
-                cancelButtonText: 'Cancelar'
-              });
-              if (result.isConfirmed) {
-                try {
-                  const orderRef = doc(window.db, 'orders', orderId);
-                  const orderSnap = await getDoc(orderRef);
-                  if (orderSnap.exists()) {
-                    const orderData = orderSnap.data();
-                    let paymentsArr = Array.isArray(orderData.payments) ? [...orderData.payments] : [];
-                    paymentsArr.splice(paymentIdx, 1);
-                    const valorTotal = Number(orderData.total) || 0;
-                    const totalPago = paymentsArr.reduce((sum, payment) => sum + (Number(payment.amount) || 0), 0);
-                    const valorPendente = Math.max(0, valorTotal - totalPago);
-                    let paymentStatus = 'Pendente';
-                    if (valorPendente === 0 && valorTotal > 0) {
-                      paymentStatus = 'Pago';
-                    } else if (totalPago > 0) {
-                      paymentStatus = 'Parcial';
+          // --- Handler de exclusão de pagamento ---
+          setTimeout(() => {
+            document.querySelectorAll(".delete-payment-btn").forEach((btn) => {
+              btn.onclick = async function (e) {
+                e.preventDefault();
+                const orderId = this.getAttribute("data-order-id");
+                const paymentIdx = parseInt(
+                  this.getAttribute("data-payment-idx"),
+                );
+                if (!orderId || isNaN(paymentIdx)) return;
+                const result = await Swal.fire({
+                  title: "Excluir pagamento?",
+                  text: "Tem certeza que deseja remover este pagamento? Esta ação não pode ser desfeita.",
+                  icon: "warning",
+                  showCancelButton: true,
+                  confirmButtonColor: "#d33",
+                  cancelButtonColor: "#3085d6",
+                  confirmButtonText: "Sim, excluir",
+                  cancelButtonText: "Cancelar",
+                });
+                if (result.isConfirmed) {
+                  try {
+                    const orderRef = doc(window.db, "orders", orderId);
+                    const orderSnap = await getDoc(orderRef);
+                    if (orderSnap.exists()) {
+                      const orderData = orderSnap.data();
+                      let paymentsArr = Array.isArray(orderData.payments)
+                        ? [...orderData.payments]
+                        : [];
+                      paymentsArr.splice(paymentIdx, 1);
+                      const valorTotal = Number(orderData.total) || 0;
+                      const totalPago = paymentsArr.reduce(
+                        (sum, payment) => sum + (Number(payment.amount) || 0),
+                        0,
+                      );
+                      const valorPendente = Math.max(0, valorTotal - totalPago);
+                      let paymentStatus = "Pendente";
+                      if (valorPendente === 0 && valorTotal > 0) {
+                        paymentStatus = "Pago";
+                      } else if (totalPago > 0) {
+                        paymentStatus = "Parcial";
+                      }
+                      await updateDoc(orderRef, {
+                        payments: paymentsArr,
+                        paymentStatus,
+                        valorPendente,
+                        updatedAt: new Date().toISOString(),
+                      });
+                      Swal.fire(
+                        "Excluído!",
+                        "O pagamento foi removido e o status financeiro foi atualizado.",
+                        "success",
+                      );
+                      renderOrdersList();
                     }
-                    await updateDoc(orderRef, {
-                      payments: paymentsArr,
-                      paymentStatus,
-                      valorPendente,
-                      updatedAt: new Date().toISOString()
-                    });
-                    Swal.fire('Excluído!', 'O pagamento foi removido e o status financeiro foi atualizado.', 'success');
-                    renderOrdersList();
+                  } catch (err) {
+                    Swal.fire(
+                      "Erro",
+                      "Não foi possível excluir o pagamento. Tente novamente.",
+                      "error",
+                    );
                   }
-                } catch (err) {
-                  Swal.fire('Erro', 'Não foi possível excluir o pagamento. Tente novamente.', 'error');
                 }
-              }
-            };
-          });
-        }, 100);
-        // Fim do handler de exclusão
+              };
+            });
+          }, 100);
+          // Fim do handler de exclusão
 
-        // Gerar HTML do card do pedido
-        // Utilitário para formatar data/hora no horário de Brasília (UTC-3)
-        function formatDateToBRT(dateInput) {
-          const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
-          // Converter para horário de Brasília (UTC-3)
-          const brtDate = new Date(date.getTime() - (date.getTimezoneOffset() * 60000) - (3 * 60 * 60 * 1000));
-          const day = String(brtDate.getDate()).padStart(2, '0');
-          const month = String(brtDate.getMonth() + 1).padStart(2, '0');
-          const year = brtDate.getFullYear();
-          const hours = String(brtDate.getHours()).padStart(2, '0');
-          const minutes = String(brtDate.getMinutes()).padStart(2, '0');
-          return `${day}/${month}/${year} ${hours}:${minutes}`;
-        }
-        const orderDate = order.createdAt ? (order.createdAt.toDate ? order.createdAt.toDate() : new Date(order.createdAt)) : new Date();
-        const formattedDate = formatDateToBRT(orderDate);
-        
-        return `
+          
+          // Gerar HTML do card do pedido
+          // Utilitário para formatar data/hora no horário de Brasília (UTC-3)
+          function formatDateToBRT(dateInput) {
+            const date =
+              typeof dateInput === "string" ? new Date(dateInput) : dateInput;
+            // Converter para horário de Brasília (UTC-3)
+            const brtDate = new Date(
+              date.getTime() -
+                date.getTimezoneOffset() * 60000 -
+                3 * 60 * 60 * 1000,
+            );
+            const day = String(brtDate.getDate()).padStart(2, "0");
+            const month = String(brtDate.getMonth() + 1).padStart(2, "0");
+            const year = brtDate.getFullYear();
+            const hours = String(brtDate.getHours()).padStart(2, "0");
+            const minutes = String(brtDate.getMinutes()).padStart(2, "0");
+            return `${day}/${month}/${year} ${hours}:${minutes}`;
+          }
+          const orderDate = order.createdAt
+            ? order.createdAt.toDate
+              ? order.createdAt.toDate()
+              : new Date(order.createdAt)
+            : new Date();
+          const formattedDate = formatDateToBRT(orderDate);
+
+          return `
           <div class="order-card" data-order-id="${order._id}" data-status="${normalizedStatus}" id="order-${order._id}" style="margin-bottom: 20px; background: #fff; border-radius: 10px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); overflow: hidden; transition: all 0.3s ease;">
             <!-- Cabeçalho do pedido -->
             <div class="order-header" style="padding: 15px 20px; background: #f8f9fa; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
@@ -761,15 +935,15 @@ export async function renderOrdersList() {
                 <span class="order-number" style="font-weight: 600; color: #2c3e50; font-size: 1.1em;">
   #${orderNumber}
 </span>
-<span class="status-badge ${statusClass}" style="margin-left: 12px; padding: 4px 12px; border-radius: 12px; font-size: 0.85em; font-weight: 500; background-color: ${statusClass === 'completed' ? '#e3f7e9' : statusClass === 'cancelled' ? '#fee2e2' : '#fff3cd'}; color: ${statusClass === 'completed' ? '#0d6832' : statusClass === 'cancelled' ? '#b91c1c' : '#856404'}; border: 1px solid ${statusClass === 'completed' ? '#a3e6b8' : statusClass === 'cancelled' ? '#fecaca' : '#ffeeba'};">
+<span class="status-badge ${statusClass}" style="margin-left: 12px; padding: 4px 12px; border-radius: 12px; font-size: 0.85em; font-weight: 500; background-color: ${statusClass === "completed" ? "#e3f7e9" : statusClass === "cancelled" ? "#fee2e2" : "#fff3cd"}; color: ${statusClass === "completed" ? "#0d6832" : statusClass === "cancelled" ? "#b91c1c" : "#856404"}; border: 1px solid ${statusClass === "completed" ? "#a3e6b8" : statusClass === "cancelled" ? "#fecaca" : "#ffeeba"};">
   ${statusLabel}
 </span>
-<span class="status-badge payment-status-badge ${paymentStatus.toLowerCase()}" style="margin-left: 10px; padding: 4px 12px; border-radius: 12px; font-size: 0.85em; font-weight: 500; background-color: ${paymentStatus === 'Pago' ? '#e3f7e9' : paymentStatus === 'Parcial' ? '#fff3cd' : '#fee2e2'}; color: ${paymentStatus === 'Pago' ? '#0d6832' : paymentStatus === 'Parcial' ? '#856404' : '#b91c1c'}; border: 1px solid ${paymentStatus === 'Pago' ? '#a3e6b8' : paymentStatus === 'Parcial' ? '#ffeeba' : '#fecaca'};">
-  ${paymentStatus === 'Pago' ? '<i class="fas fa-check-circle" style="margin-right: 4px;"></i>' : paymentStatus === 'Parcial' ? '<i class="fas fa-hourglass-half" style="margin-right: 4px;"></i>' : '<i class="fas fa-exclamation-circle" style="margin-right: 4px;"></i>'}
+<span class="status-badge payment-status-badge ${paymentStatus.toLowerCase()}" style="margin-left: 10px; padding: 4px 12px; border-radius: 12px; font-size: 0.85em; font-weight: 500; background-color: ${paymentStatus === "Pago" ? "#e3f7e9" : paymentStatus === "Parcial" ? "#fff3cd" : "#fee2e2"}; color: ${paymentStatus === "Pago" ? "#0d6832" : paymentStatus === "Parcial" ? "#856404" : "#b91c1c"}; border: 1px solid ${paymentStatus === "Pago" ? "#a3e6b8" : paymentStatus === "Parcial" ? "#ffeeba" : "#fecaca"};">
+  ${paymentStatus === "Pago" ? '<i class="fas fa-check-circle" style="margin-right: 4px;"></i>' : paymentStatus === "Parcial" ? '<i class="fas fa-hourglass-half" style="margin-right: 4px;"></i>' : '<i class="fas fa-exclamation-circle" style="margin-right: 4px;"></i>'}
   ${paymentStatus}
 </span>
               </div>
-              <div class="order-date" data-date="${orderDate.toISOString().split('T')[0]}" style="font-size: 0.9em; color: #666;">
+              <div class="order-date" data-date="${orderDate.toISOString().split("T")[0]}" style="font-size: 0.9em; color: #666;">
                 <i class="far fa-calendar-alt" style="margin-right: 5px; color: #6c757d;"></i>
                 ${formattedDate}
               </div>
@@ -787,48 +961,71 @@ export async function renderOrdersList() {
                   <i class="fas fa-user"></i>
                   <span class="customer-name" style="font-weight: 500; color: #2c3e50;">${escapeHtml(customerName)}</span>
                 </div>
-                ${order.customerEmail ? `
+                ${
+                  order.customerEmail
+                    ? `
                   <div style="margin-bottom: 8px;">
                     <i class="fas fa-envelope"></i>
                     <span style="color: #555;">${escapeHtml(order.customerEmail)}</span>
                   </div>
-                ` : ''}
-                ${order.customerPhone ? `
+                `
+                    : ""
+                }
+                ${
+                  order.customerPhone
+                    ? `
                   <div style="margin-bottom: 8px;">
                     <i class="fas fa-phone"></i>
                     <span style="color: #555;">${formatPhoneNumber(order.customerPhone)}</span>
                   </div>
-                ` : ''}
-                ${order.paymentMethod ? `
+                `
+                    : ""
+                }
+                ${
+                  order.paymentMethod
+                    ? `
   <div style="margin-bottom: 0;">
-    <i class="fas ${order.paymentMethod === 'pix' ? 'fa-bolt' : (order.paymentMethod === 'credit' || order.paymentMethod === 'debit') ? 'fa-credit-card' : order.paymentMethod === 'agreement' ? 'fa-handshake' : 'fa-credit-card'}"></i>
+    <i class="fas ${order.paymentMethod === "pix" ? "fa-bolt" : order.paymentMethod === "credit" || order.paymentMethod === "debit" ? "fa-credit-card" : order.paymentMethod === "agreement" ? "fa-handshake" : "fa-credit-card"}"></i>
     <span style="color: #555; font-weight: 500;">${paymentMethodLabel}</span>
   </div>
-` : ''}
-                ${(
-  (order.paymentMethod === 'credit' && order.installments > 1)
-  || (order.paymentMethod === 'agreement' && order.paymentAgreement && Number(order.paymentAgreement.installments) > 1)
-) ? `
+`
+                    : ""
+                }
+                ${
+                  (order.paymentMethod === "credit" &&
+                    order.installments > 1) ||
+                  (order.paymentMethod === "agreement" &&
+                    order.paymentAgreement &&
+                    Number(order.paymentAgreement.installments) > 1)
+                    ? `
   <div style="margin-bottom: 0;">
     <i class="fas fa-layer-group"></i>
-    <span style="color: #555;">Parcelamento: ${(order.paymentMethod === 'credit') ? order.installments : order.paymentAgreement.installments}x de R$ ${(
-      order.paymentMethod === 'credit'
-        ? (Number(order.total)/Number(order.installments))
-        : (
-            order.paymentAgreement.installmentValue
-              ? Number(order.paymentAgreement.installmentValue)
-              : (Number(order.total) / Number(order.paymentAgreement.installments))
-          )
-    ).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}</span>
+    <span style="color: #555;">Parcelamento: ${order.paymentMethod === "credit" ? order.installments : order.paymentAgreement.installments}x de R$ ${(order.paymentMethod ===
+    "credit"
+      ? Number(order.total) / Number(order.installments)
+      : order.paymentAgreement.installmentValue
+        ? Number(order.paymentAgreement.installmentValue)
+        : Number(order.total) / Number(order.paymentAgreement.installments)
+    ).toLocaleString("pt-BR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}</span>
   </div>
-` : (
-  (order.paymentMethod === 'pix') || (order.paymentMethod === 'credit' && order.installments === 1) || (order.paymentMethod === 'agreement' && order.paymentAgreement && Number(order.paymentAgreement.installments) === 1)
-) ? `
+`
+                    : order.paymentMethod === "pix" ||
+                        (order.paymentMethod === "credit" &&
+                          order.installments === 1) ||
+                        (order.paymentMethod === "agreement" &&
+                          order.paymentAgreement &&
+                          Number(order.paymentAgreement.installments) === 1)
+                      ? `
   <div style="margin-bottom: 0;">
     <i class="fas fa-money-bill-wave"></i>
-    <span style="color: #555;">Pagamento à vista: ${order.total ? `R$ ${Number(order.total).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}` : ''}</span>
+    <span style="color: #555;">Pagamento à vista: ${order.total ? `R$ ${Number(order.total).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ""}</span>
   </div>
-` : ''}
+`
+                      : ""
+                }
               </div>
 
               <!-- Itens do pedido -->
@@ -851,24 +1048,28 @@ export async function renderOrdersList() {
                       ${itemsHtml}
                     </tbody>
                     <tfoot>
-  ${order.coupon ? `
+  ${
+    order.coupon
+      ? `
     <tr style="background-color: #f8f9fa;">
       <td colspan="3" style="text-align: right; padding: 8px 10px; color: #888; font-size: 0.96em;">Subtotal:</td>
       <td style="text-align: right; padding: 8px 10px; color: #888; font-size: 0.96em;">
-        R$ ${(order.originalTotal || (order.coupon && order.coupon.type === 'percent' ? Math.round(order.total / (1 - order.coupon.value/100)) : order.total + (order.coupon?.value || 0)) ).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        R$ ${(order.originalTotal || (order.coupon && order.coupon.type === "percent" ? Math.round(order.total / (1 - order.coupon.value / 100)) : order.total + (order.coupon?.value || 0))).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
       </td>
     </tr>
     <tr style="background-color: #f8f9fa;">
-      <td colspan="3" style="text-align: right; padding: 8px 10px; color: #2196f3; font-size: 0.97em;">Cupom aplicado${order.coupon.code ? ` (${order.coupon.code})` : ''}:</td>
+      <td colspan="3" style="text-align: right; padding: 8px 10px; color: #2196f3; font-size: 0.97em;">Cupom aplicado${order.coupon.code ? ` (${order.coupon.code})` : ""}:</td>
       <td style="text-align: right; padding: 8px 10px; color: #2196f3; font-size: 0.97em;">
-        ${order.coupon.type === 'percent' ? `- ${order.coupon.value}%` : `- R$ ${(order.coupon.value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+        ${order.coupon.type === "percent" ? `- ${order.coupon.value}%` : `- R$ ${(order.coupon.value || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
       </td>
     </tr>
-  ` : ''}
+  `
+      : ""
+  }
   <tr style="background-color: #f8f9fa; font-weight: 600; border-top: 2px solid #dee2e6;">
     <td colspan="3" style="text-align: right; padding: 12px 10px;">Total do Pedido:</td>
     <td style="text-align: right; padding: 12px 10px; font-size: 1.1em; color: #2c3e50;">
-      R$ ${totalPedido.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+      R$ ${totalPedido.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
     </td>
   </tr>
 </tfoot>
@@ -888,35 +1089,41 @@ export async function renderOrdersList() {
   <div class="financial-item" style="padding: 12px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid #4caf50;">
     <div style="font-size: 0.85em; color: #555; margin-bottom: 5px;">Valor Total</div>
     <div style="font-size: 1.2em; font-weight: 600; color: #2c3e50;">
-      R$ ${totalPedido.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+      R$ ${totalPedido.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
     </div>
   </div>
   <div class="financial-item" style="padding: 12px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid #f59e0b;">
     <div style="font-size: 0.85em; color: #555; margin-bottom: 5px;">Valor Pendente</div>
     <div style="font-size: 1.2em; font-weight: 600; color: #dc2626;">
-      R$ ${valorPendente.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+      R$ ${valorPendente.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
     </div>
   </div>
   <div class="financial-item" style="padding: 12px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid #9c27b0;">
     <div style="font-size: 0.85em; color: #555; margin-bottom: 5px;">Status do Pagamento</div>
     <div>
-      <span class="status-badge ${paymentStatus.toLowerCase()}" style="display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 0.9em; font-weight: 500; background-color: ${paymentStatus === 'Pago' ? '#e3f7e9' : paymentStatus === 'Parcial' ? '#fff3cd' : '#fee2e2'}; color: ${paymentStatus === 'Pago' ? '#0d6832' : paymentStatus === 'Parcial' ? '#856404' : '#b91c1c'}; border: 1px solid ${paymentStatus === 'Pago' ? '#a3e6b8' : paymentStatus === 'Parcial' ? '#ffeeba' : '#fecaca'}">
+      <span class="status-badge ${paymentStatus.toLowerCase()}" style="display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 0.9em; font-weight: 500; background-color: ${paymentStatus === "Pago" ? "#e3f7e9" : paymentStatus === "Parcial" ? "#fff3cd" : "#fee2e2"}; color: ${paymentStatus === "Pago" ? "#0d6832" : paymentStatus === "Parcial" ? "#856404" : "#b91c1c"}; border: 1px solid ${paymentStatus === "Pago" ? "#a3e6b8" : paymentStatus === "Parcial" ? "#ffeeba" : "#fecaca"}">
         ${paymentStatus}
       </span>
     </div>
   </div>
-  ${order.coupon ? `<div class="financial-item" style="padding: 12px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid #2196f3;">
-    <div style="font-size: 0.85em; color: #2196f3; margin-bottom: 5px;">Cupom aplicado${order.coupon.code ? ` (${order.coupon.code})` : ''}</div>
+  ${
+    order.coupon
+      ? `<div class="financial-item" style="padding: 12px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid #2196f3;">
+    <div style="font-size: 0.85em; color: #2196f3; margin-bottom: 5px;">Cupom aplicado${order.coupon.code ? ` (${order.coupon.code})` : ""}</div>
     <div style="font-size: 1.1em; font-weight: 500; color: #2196f3;">
-      ${order.coupon.type === 'percent' ? `-${order.coupon.value}%` : `- R$ ${(order.coupon.value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+      ${order.coupon.type === "percent" ? `-${order.coupon.value}%` : `- R$ ${(order.coupon.value || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
     </div>
-  </div>` : ''}
+  </div>`
+      : ""
+  }
 </div>
 
 
 
                   <!-- Exibir acordo de pagamento, se existir -->
-  ${order.paymentAgreement ? `
+  ${
+    order.paymentAgreement
+      ? `
    <div class="agreement-info" style="grid-column: 1/-1; background: #e3f2fd; border-left: 3px solid #2196f3; border-radius: 6px; padding: 12px; margin-bottom: 10px;">
      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
        <i class="fas fa-file-contract" style="color: #2196f3;"></i>
@@ -937,57 +1144,100 @@ export async function renderOrdersList() {
            </tr>
          </thead>
          <tbody>
-           ${order.paymentAgreement.dates.map((date, idx) => {
-             const [ano, mes, dia] = date.split('-'); const dataFormatada = `${dia}/${mes}/${ano}`;
-             // Filtra pagamentos vinculados a esta parcela
-             const parcelaPagamentos = (order.payments || []).filter(p => p.installmentIndex === idx);
-             const valorParcela = Math.round((order.total || 0) / order.paymentAgreement.installments * 100) / 100;
-             const totalPagoParcela = parcelaPagamentos.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-             let status = 'Pendente', cor = '#fff3cd', txt = '#856404', borda = '#ffeeba';
-             if (totalPagoParcela >= valorParcela) {
-               status = 'Pago'; cor = '#e3f7e9'; txt = '#0d6832'; borda = '#a3e6b8';
-             } else if (totalPagoParcela > 0) {
-               status = 'Parcial'; cor = '#fffbe8'; txt = '#d97706'; borda = '#ffeeba';
-             }
-             return `
+           ${order.paymentAgreement.dates
+             .map((date, idx) => {
+               const [ano, mes, dia] = date.split("-");
+               const dataFormatada = `${dia}/${mes}/${ano}`;
+               // Filtra pagamentos vinculados a esta parcela
+               const parcelaPagamentos = (order.payments || []).filter(
+                 (p) => p.installmentIndex === idx,
+               );
+               const valorParcela =
+                 Math.round(
+                   ((order.total || 0) / order.paymentAgreement.installments) *
+                     100,
+                 ) / 100;
+               const totalPagoParcela = parcelaPagamentos.reduce(
+                 (sum, p) => sum + (Number(p.amount) || 0),
+                 0,
+               );
+               let status = "Pendente",
+                 cor = "#fff3cd",
+                 txt = "#856404",
+                 borda = "#ffeeba";
+               if (totalPagoParcela >= valorParcela) {
+                 status = "Pago";
+                 cor = "#e3f7e9";
+                 txt = "#0d6832";
+                 borda = "#a3e6b8";
+               } else if (totalPagoParcela > 0) {
+                 status = "Parcial";
+                 cor = "#fffbe8";
+                 txt = "#d97706";
+                 borda = "#ffeeba";
+               }
+               return `
                <tr>
-                 <td style="padding: 2px 6px;">${idx+1} / ${order.paymentAgreement.installments}</td>
-                 <td style="padding: 2px 6px; text-align:center;">${(() => { const [ano, mes, dia] = date.split('-'); return `${dia}/${mes}/${ano}`; })()}</td>
-                 <td style="padding: 2px 6px; text-align:right;">R$ ${valorParcela.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                 <td style="padding: 2px 6px; text-align:right;">R$ ${totalPagoParcela.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                 <td style="padding: 2px 6px;">${idx + 1} / ${order.paymentAgreement.installments}</td>
+                 <td style="padding: 2px 6px; text-align:center;">${(() => {
+                   const [ano, mes, dia] = date.split("-");
+                   return `${dia}/${mes}/${ano}`;
+                 })()}</td>
+                 <td style="padding: 2px 6px; text-align:right;">R$ ${valorParcela.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                 <td style="padding: 2px 6px; text-align:right;">R$ ${totalPagoParcela.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                  <td style="padding: 2px 6px; text-align:right;">
                    <span style="padding: 2px 10px; border-radius: 10px; font-size: 0.9em; background: ${cor}; color: ${txt}; border: 1px solid ${borda};">
                      ${status}
                    </span>
                  </td>
                  <td style="padding: 2px 6px; text-align:center;">
-                   <button class="btn-add-payment" onclick="window.openPaymentModal('${order._id}', ${valorParcela}, ${(valorParcela-totalPagoParcela).toFixed(2)}, ${idx})" style="background-color: #4caf50; color: white; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 0.85em; display: inline-flex; align-items: center; gap: 4px;">
+                   <button class="btn-add-payment" onclick="window.openPaymentModal('${order._id}', ${valorParcela}, ${(valorParcela - totalPagoParcela).toFixed(2)}, ${idx})" style="background-color: #4caf50; color: white; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 0.85em; display: inline-flex; align-items: center; gap: 4px;">
                      <i class='fas fa-plus'></i> Pagar Parcela
                    </button>
                  </td>
                </tr>
-               ${parcelaPagamentos.length > 0 ? `<tr><td colspan="6" style="padding: 0 0 8px 0; background: #f8f9fa; font-size: 0.92em; color: #555;">
-                 ${parcelaPagamentos.map(p => {
-                   const dt = p.createdAt ? new Date(p.createdAt) : p.date ? (p.date.toDate ? p.date.toDate() : new Date(p.date)) : new Date();
-                   const pad = n => String(n).padStart(2, '0');
-                   // Descobrir o índice global desse pagamento no array order.payments
-                   const globalIdx = (order.payments || []).findIndex(pay => pay === p);
-                   return `<span style='margin-right:10px;'>Pagamento: R$ ${Number(p.amount).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})} em ${pad(dt.getDate())}/${pad(dt.getMonth()+1)}/${dt.getFullYear()}
+               ${
+                 parcelaPagamentos.length > 0
+                   ? `<tr><td colspan="6" style="padding: 0 0 8px 0; background: #f8f9fa; font-size: 0.92em; color: #555;">
+                 ${parcelaPagamentos
+                   .map((p) => {
+                     const dt = p.createdAt
+                       ? new Date(p.createdAt)
+                       : p.date
+                         ? p.date.toDate
+                           ? p.date.toDate()
+                           : new Date(p.date)
+                         : new Date();
+                     const pad = (n) => String(n).padStart(2, "0");
+                     // Descobrir o índice global desse pagamento no array order.payments
+                     const globalIdx = (order.payments || []).findIndex(
+                       (pay) => pay === p,
+                     );
+                     return `<span style='margin-right:10px;'>Pagamento: R$ ${Number(p.amount).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} em ${pad(dt.getDate())}/${pad(dt.getMonth() + 1)}/${dt.getFullYear()}
                      <button class="delete-payment-btn" data-order-id="${order._id}" data-payment-idx="${globalIdx}" title="Excluir pagamento" style="margin-left:8px; background:#ff1493; color:white; border:none; border-radius:4px; padding:2px 7px; cursor:pointer; font-size:0.85em;"><i class="fas fa-trash"></i></button></span>`;
-                 }).join('<br>')}
-               </td></tr>` : ''}
+                   })
+                   .join("<br>")}
+               </td></tr>`
+                   : ""
+               }
              `;
-           }).join('')}
+             })
+             .join("")}
          </tbody>
        </table>
      </div>
    </div>
-   ` : ''}
+   `
+      : ""
+  }
                   <!-- Histórico de pagamentos -->
                   <!-- Pagamentos avulsos (sem vínculo de parcela) -->
 ${(() => {
-  const avulsos = (order.payments || []).filter(p => typeof p.installmentIndex === 'undefined' || p.installmentIndex === null);
-  if (!avulsos.length) return '';
+  const avulsos = (order.payments || []).filter(
+    (p) =>
+      typeof p.installmentIndex === "undefined" || p.installmentIndex === null,
+  );
+  if (!avulsos.length) return "";
   return `<div class='payment-history' style='margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee;'>
     <h4 style='font-size: 0.95em; color: #555; margin: 0 0 10px 0; display: flex; align-items: center;'>
       <i class="fas fa-history" style="margin-right: 8px;"></i>
@@ -1004,31 +1254,57 @@ ${(() => {
           </tr>
         </thead>
         <tbody>
-          ${avulsos.map((payment, idx) => {
-            const paymentDate = payment.date ? (payment.date.toDate ? payment.date.toDate() : new Date(payment.date)) : new Date();
-            const paymentStatus = payment.status || 'Aprovado';
-            const statusClass = paymentStatus.toLowerCase() === 'aprovado' ? 'status-approved' : 
-              paymentStatus.toLowerCase() === 'pendente' ? 'status-pending' : 'status-rejected';
-            return `
+          ${avulsos
+            .map((payment, idx) => {
+              const paymentDate = payment.date
+                ? payment.date.toDate
+                  ? payment.date.toDate()
+                  : new Date(payment.date)
+                : new Date();
+              const paymentStatus = payment.status || "Aprovado";
+              const statusClass =
+                paymentStatus.toLowerCase() === "aprovado"
+                  ? "status-approved"
+                  : paymentStatus.toLowerCase() === "pendente"
+                    ? "status-pending"
+                    : "status-rejected";
+              return `
               <tr style="border-bottom: 1px solid #f1f1f1;">
                 <td style="padding: 8px; border-bottom: 1px solid #f1f1f1; white-space:nowrap;">${(() => {
-                  let dt = payment.createdAt ? new Date(payment.createdAt) : payment.date ? (payment.date.toDate ? payment.date.toDate() : new Date(payment.date)) : new Date();
-                  const pad = n => String(n).padStart(2, '0');
-                  return pad(dt.getDate()) + '/' + pad(dt.getMonth()+1) + '/' + dt.getFullYear() + ' ' + pad(dt.getHours()) + ':' + pad(dt.getMinutes());
+                  let dt = payment.createdAt
+                    ? new Date(payment.createdAt)
+                    : payment.date
+                      ? payment.date.toDate
+                        ? payment.date.toDate()
+                        : new Date(payment.date)
+                      : new Date();
+                  const pad = (n) => String(n).padStart(2, "0");
+                  return (
+                    pad(dt.getDate()) +
+                    "/" +
+                    pad(dt.getMonth() + 1) +
+                    "/" +
+                    dt.getFullYear() +
+                    " " +
+                    pad(dt.getHours()) +
+                    ":" +
+                    pad(dt.getMinutes())
+                  );
                 })()}</td>
                 <td style="text-align: right; padding: 8px; border-bottom: 1px solid #f1f1f1; font-weight: 500; white-space: nowrap;">
-                  R$ ${Number(payment.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  R$ ${Number(payment.amount || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </td>
                 <td style="padding: 8px; border-bottom: 1px solid #f1f1f1;">${getPaymentMethodLabel(payment.method)}</td>
                 <td style="padding: 8px; border-bottom: 1px solid #f1f1f1;">
-                  <span class="status-badge ${statusClass}" style="display: inline-block; padding: 3px 8px; border-radius: 12px; font-size: 0.8em; font-weight: 500;${statusClass === 'status-approved' ? 'background: #e3f7e9; color: #0d6832; border: 1px solid #a3e6b8;' : ''}${statusClass === 'status-pending' ? 'background: #fffbe8; color: #d97706; border: 1px solid #ffeeba;' : ''}${statusClass === 'status-rejected' ? 'background: #fde2e1; color: #b91c1c; border: 1px solid #fca5a5;' : ''}">
+                  <span class="status-badge ${statusClass}" style="display: inline-block; padding: 3px 8px; border-radius: 12px; font-size: 0.8em; font-weight: 500;${statusClass === "status-approved" ? "background: #e3f7e9; color: #0d6832; border: 1px solid #a3e6b8;" : ""}${statusClass === "status-pending" ? "background: #fffbe8; color: #d97706; border: 1px solid #ffeeba;" : ""}${statusClass === "status-rejected" ? "background: #fde2e1; color: #b91c1c; border: 1px solid #fca5a5;" : ""}">
                     ${paymentStatus}
                   </span>
                   <button class="delete-payment-btn" data-order-id="${order._id}" data-payment-idx="${idx}" title="Excluir pagamento" style="margin-left:8px; background:#ff1493; color:white; border:none; border-radius:4px; padding:3px 8px; cursor:pointer; font-size:0.9em;"><i class="fas fa-trash"></i></button>
                 </td>
               </tr>
             `;
-          }).join('')}
+            })
+            .join("")}
         </tbody>
       </table>
     </div>
@@ -1042,10 +1318,14 @@ ${(() => {
                       <i class="fas fa-plus"></i>
                       Registrar Pagamento
                     </button>
-                    <button class="btn-add-agreement" onclick="console.log('Clicou em Criar Acordo:', '${order._id}'); window.openAgreementModal('${order._id}')" style="background-color: #2196f3; color: white; border: none; padding: 8px 16px; border-radius: 4px; font-size: 0.9em; display: inline-flex; align-items: center; gap: 5px; transition: background-color 0.2s;${order.paymentAgreement ? ' opacity: 0.6;' : ' cursor: pointer;'}" ${order.paymentAgreement ? 'disabled' : ''}>
-  <i class="fas fa-file-contract"></i>
-  ${order.paymentAgreement ? 'Acordo Criado' : 'Criar Acordo'}
-</button>
+                    <button class="btn-add-agreement" onclick="console.log('Clicou em Criar Acordo:', '${order._id}'); window.openAgreementModal('${order._id}')" style="background-color: #2196f3; color: white; border: none; padding: 8px 16px; border-radius: 4px; font-size: 0.9em; display: inline-flex; align-items: center; gap: 5px; transition: background-color 0.2s;${order.paymentAgreement ? " opacity: 0.6;" : " cursor: pointer;"}" ${order.paymentAgreement ? "disabled" : ""}>
+                      <i class="fas fa-file-contract"></i>
+                      ${order.paymentAgreement ? "Acordo Criado" : "Criar Acordo"}
+                    </button>
+                    <button class="btn-add-gift" onclick="window.openGiftModal('${order._id}')" style="background-color: #9c27b0; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 0.9em; display: inline-flex; align-items: center; gap: 5px; transition: background-color 0.2s;">
+                      <i class="fas fa-gift"></i>
+                      Brinde/Nota
+                    </button>
 
 
                     <button class="btn-print" onclick="window.printOrder('${order._id}')" style="background-color: #6c757d; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 0.9em; display: inline-flex; align-items: center; gap: 5px; transition: background-color 0.2s; margin-left: auto;">
@@ -1064,19 +1344,27 @@ ${(() => {
                 <span style="font-family: monospace;">${order._id}</span>
               </div>
               <div class="order-actions" style="display: flex; gap: 8px; flex-wrap: wrap;">
-                ${order.status !== 'Concluído' && order.status !== 'Cancelado' ? `
+                ${
+                  order.status !== "Concluído" && order.status !== "Cancelado"
+                    ? `
                   <button class="order-action-btn complete" data-action="complete" data-order-id="${order._id}" style="background-color: #4caf50; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.9em; display: inline-flex; align-items: center; gap: 5px; transition: background-color 0.2s;">
                     <i class="fas fa-check"></i>
                     Marcar como Concluído
                   </button>
-                ` : ''}
+                `
+                    : ""
+                }
                 
-                ${order.status !== 'Cancelado' ? `
-                  <button class="order-action-btn cancel" data-action="cancel" data-order-id="${order._id}" style="background-color: #f44336; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.9em; display: inline-flex; align-items: center; gap: 5px; transition: background-color 0.2s;" ${order.status === 'Concluído' || order.status === 'Cancelado' ? 'disabled style="opacity: 0.6; cursor: not-allowed;"' : ''}>
+                ${
+                  order.status !== "Cancelado"
+                    ? `
+                  <button class="order-action-btn cancel" data-action="cancel" data-order-id="${order._id}" style="background-color: #f44336; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.9em; display: inline-flex; align-items: center; gap: 5px; transition: background-color 0.2s;" ${order.status === "Concluído" || order.status === "Cancelado" ? 'disabled style="opacity: 0.6; cursor: not-allowed;"' : ""}>
                     <i class="fas fa-times"></i>
                     Cancelar Pedido
                   </button>
-                ` : ''}
+                `
+                    : ""
+                }
                 
                 <button class="order-action-btn delete" data-action="delete" data-order-id="${order._id}" style="background-color: #dc3545; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.9em; display: inline-flex; align-items: center; gap: 5px; transition: background-color 0.2s;">
                   <i class="fas fa-trash"></i>
@@ -1091,27 +1379,28 @@ ${(() => {
             </div>
           </div>
         `;
-      } catch (error) {
-        console.error('Erro ao gerar HTML do pedido:', error);
-        return `
+        } catch (error) {
+          console.error("Erro ao gerar HTML do pedido:", error);
+          return `
           <div class="order-card error" style="padding: 20px; background: #fff8f8; border: 1px solid #ffdddd; border-radius: 8px; margin-bottom: 20px; color: #721c24;">
             <h3 style="margin-top: 0; color: #721c24;">Erro ao carregar pedido</h3>
             <p>Ocorreu um erro ao carregar os dados deste pedido. Por favor, tente novamente mais tarde.</p>
             <p style="font-size: 0.9em; color: #856404; background-color: #fff3cd; padding: 10px; border-radius: 4px; margin-top: 10px;">
-              <i class="fas fa-exclamation-triangle"></i> ID do Pedido: ${order._id || 'Desconhecido'}
+              <i class="fas fa-exclamation-triangle"></i> ID do Pedido: ${order._id || "Desconhecido"}
             </p>
           </div>
         `;
-      }
-    }).join('');
+        }
+      })
+      .join("");
 
     // 2. Só depois, calcule os totalizadores:
     totalVendido = 0;
     totalCompra = 0;
     totalLucro = 0;
-    orders.forEach(order => {
+    orders.forEach((order) => {
       // Só adiciona ao total se o pedido não estiver cancelado
-      if (order.status !== 'Cancelado') {
+      if (order.status !== "Cancelado") {
         totalVendido += order.total ?? 0;
         totalCompra += order._purchaseCost || 0;
         totalLucro += (order.total ?? 0) - (order._purchaseCost || 0);
@@ -1120,7 +1409,7 @@ ${(() => {
 
     // Atualizar resumo
     if (ordersSummary) {
-      ordersSummary.style.display = 'block';
+      ordersSummary.style.display = "block";
       ordersSummary.innerHTML = `
         <div class="summary-card">
           <div class="summary-item">
@@ -1129,187 +1418,219 @@ ${(() => {
           </div>
           <div class="summary-item">
             <span class="summary-label">Total Vendido</span>
-            <span class="summary-value">R$ ${totalVendido.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            <span class="summary-value">R$ ${totalVendido.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
           <div class="summary-item">
             <span class="summary-label">Custo Total</span>
-            <span class="summary-value">R$ ${totalCompra.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            <span class="summary-value">R$ ${totalCompra.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
           <div class="summary-item highlight">
             <span class="summary-label">Lucro Estimado</span>
-            <span class="summary-value">R$ ${totalLucro.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            <span class="summary-value">R$ ${totalLucro.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
         </div>
       `;
     }
 
-
     // Atualiza o conteúdo da lista de pedidos
-    console.log('Atualizando HTML da lista de pedidos...');
-    console.log('Tamanho do HTML gerado:', html ? html.length : 0);
-    console.log('Elemento ordersList:', ordersList);
+    console.log("Atualizando HTML da lista de pedidos...");
+    console.log("Tamanho do HTML gerado:", html ? html.length : 0);
+    console.log("Elemento ordersList:", ordersList);
     // Garante que todos os cards são concatenados e inseridos de uma vez
-    ordersList.innerHTML = html && html.trim().length > 0 ? html : '<p>Nenhum pedido encontrado.</p>';
-    console.log('HTML atualizado no DOM');
+    ordersList.innerHTML =
+      html && html.trim().length > 0
+        ? html
+        : "<p>Nenhum pedido encontrado.</p>";
+    console.log("HTML atualizado no DOM");
 
     // Event delegation para editar/excluir acordo
     if (ordersList) {
-      ordersList.removeEventListener('click', window._agreementBtnDelegation, true);
-      window._agreementBtnDelegation = async function(event) {
-        const target = event.target.closest('.edit-agreement-btn, .delete-agreement-btn');
+      ordersList.removeEventListener(
+        "click",
+        window._agreementBtnDelegation,
+        true,
+      );
+      window._agreementBtnDelegation = async function (event) {
+        const target = event.target.closest(
+          ".edit-agreement-btn, .delete-agreement-btn",
+        );
         if (!target) return;
-        const orderId = target.getAttribute('data-order-id');
+        const orderId = target.getAttribute("data-order-id");
         if (!orderId) return;
-        if (target.classList.contains('delete-agreement-btn')) {
-          console.log('[DEBUG] Clique em .delete-agreement-btn para pedido', orderId);
+        if (target.classList.contains("delete-agreement-btn")) {
+          console.log(
+            "[DEBUG] Clique em .delete-agreement-btn para pedido",
+            orderId,
+          );
           const result = await Swal.fire({
-            title: 'Excluir acordo?',
-            text: 'Deseja realmente remover este acordo? Os pagamentos já registrados serão excluídos.',
-            icon: 'warning',
+            title: "Excluir acordo?",
+            text: "Deseja realmente remover este acordo? Os pagamentos já registrados serão excluídos.",
+            icon: "warning",
             showCancelButton: true,
-            confirmButtonColor: '#d33',
-            cancelButtonColor: '#3085d6',
-            confirmButtonText: 'Sim, excluir',
-            cancelButtonText: 'Cancelar'
+            confirmButtonColor: "#d33",
+            cancelButtonColor: "#3085d6",
+            confirmButtonText: "Sim, excluir",
+            cancelButtonText: "Cancelar",
           });
           if (result.isConfirmed) {
             try {
-              const orderRef = doc(window.db, 'orders', orderId);
+              const orderRef = doc(window.db, "orders", orderId);
               // Buscar o pedido atualizado para recalcular pagamentos
-               const orderSnap = await getDoc(orderRef);
-               let orderData = orderSnap.exists() ? orderSnap.data() : {};
-               let payments = Array.isArray(orderData.payments) ? orderData.payments : [];
-// Remove pagamentos vinculados ao acordo (com installmentIndex definido)
-payments = payments.filter(p => typeof p.installmentIndex === 'undefined' || p.installmentIndex === null);
-const valorTotal = Number(orderData.total) || 0;
-const totalPago = payments.reduce((sum, payment) => sum + (Number(payment.amount) || 0), 0);
-const valorPendente = Math.max(0, valorTotal - totalPago);
-let paymentStatus = 'Pendente';
-if (valorPendente === 0 && valorTotal > 0) {
-  paymentStatus = 'Pago';
-} else if (totalPago > 0) {
-  paymentStatus = 'Parcial';
-}
-await updateDoc(orderRef, {
-  paymentAgreement: null,
-  payments: payments,
-  paymentStatus,
-  valorPendente,
-  updatedAt: new Date().toISOString()
-});
-               Swal.fire('Acordo excluído!', 'O acordo de pagamento foi removido e o status financeiro foi atualizado.', 'success');
-               renderOrdersList();
+              const orderSnap = await getDoc(orderRef);
+              let orderData = orderSnap.exists() ? orderSnap.data() : {};
+              let payments = Array.isArray(orderData.payments)
+                ? orderData.payments
+                : [];
+              // Remove pagamentos vinculados ao acordo (com installmentIndex definido)
+              payments = payments.filter(
+                (p) =>
+                  typeof p.installmentIndex === "undefined" ||
+                  p.installmentIndex === null,
+              );
+              const valorTotal = Number(orderData.total) || 0;
+              const totalPago = payments.reduce(
+                (sum, payment) => sum + (Number(payment.amount) || 0),
+                0,
+              );
+              const valorPendente = Math.max(0, valorTotal - totalPago);
+              let paymentStatus = "Pendente";
+              if (valorPendente === 0 && valorTotal > 0) {
+                paymentStatus = "Pago";
+              } else if (totalPago > 0) {
+                paymentStatus = "Parcial";
+              }
+              await updateDoc(orderRef, {
+                paymentAgreement: null,
+                payments: payments,
+                paymentStatus,
+                valorPendente,
+                updatedAt: new Date().toISOString(),
+              });
+              Swal.fire(
+                "Acordo excluído!",
+                "O acordo de pagamento foi removido e o status financeiro foi atualizado.",
+                "success",
+              );
+              renderOrdersList();
             } catch (err) {
-              Swal.fire('Erro', 'Não foi possível excluir o acordo. Tente novamente.', 'error');
+              Swal.fire(
+                "Erro",
+                "Não foi possível excluir o acordo. Tente novamente.",
+                "error",
+              );
             }
           }
-        } else if (target.classList.contains('edit-agreement-btn')) {
-          console.log('[DEBUG] Clique em .edit-agreement-btn para pedido', orderId);
-          const order = (window.ordersCache || []).find(o => o._id === orderId);
+        } else if (target.classList.contains("edit-agreement-btn")) {
+          console.log(
+            "[DEBUG] Clique em .edit-agreement-btn para pedido",
+            orderId,
+          );
+          const order = (window.ordersCache || []).find(
+            (o) => o._id === orderId,
+          );
           if (!order || !order.paymentAgreement) return;
           Swal.fire({
-            title: 'Editar Acordo de Pagamento',
+            title: "Editar Acordo de Pagamento",
             html: (() => {
               let html = `<div class='form-group'><label for='swalEditInstallments'>Número de Parcelas</label><select id='swalEditInstallments' class='form-control' required>`;
-              for (let i = 1; i <= 12; i++) html += `<option value='${i}' ${order.paymentAgreement.installments === i ? 'selected' : ''}>${i}x</option>`;
+              for (let i = 1; i <= 12; i++)
+                html += `<option value='${i}' ${order.paymentAgreement.installments === i ? "selected" : ""}>${i}x</option>`;
               html += `</select></div><div class='form-group'><div id='swalEditPaymentSchedule' style='margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 4px;'><p><strong>Datas das Parcelas:</strong></p><div id='swalEditScheduleInputs' style='display: flex; flex-direction: column; gap: 10px;'></div></div></div>`;
               return html;
             })(),
             showCancelButton: true,
-            confirmButtonText: 'Salvar'
+            confirmButtonText: "Salvar",
           });
         }
       };
-      ordersList.addEventListener('click', window._agreementBtnDelegation, true);
-      console.log('[DEBUG] Event delegation para acordo ativado em #ordersList');
+      ordersList.addEventListener(
+        "click",
+        window._agreementBtnDelegation,
+        true,
+      );
+      console.log(
+        "[DEBUG] Event delegation para acordo ativado em #ordersList",
+      );
     }
-    
+
     // Aplica os filtros após carregar os pedidos
     setTimeout(() => {
-      console.log('Aplicando filtros após carregar os pedidos...');
+      console.log("Aplicando filtros após carregar os pedidos...");
       applyFilters();
     }, 0);
-    
-    // Atualiza totalizadores
+
+    // Atualiza totalizadores (resumo limpo para implementação futura)
     if (ordersSummary) {
       ordersSummary.innerHTML = `
-        <div class="summary-item">
-          <span class="summary-label">Total de Pedidos</span>
-          <span class="summary-value">${totalPedidos}</span>
-        </div>
-        <div class="summary-item">
-          <span class="summary-label">Valor Vendido</span>
-          <span class="summary-value">R$ ${totalVendido.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-        </div>
-        <div class="summary-item">
-          <span class="summary-label">Valor de Compra</span>
-          <span class="summary-value">R$ ${totalCompra.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-        </div>
-        <div class="summary-item highlight">
-          <span class="summary-label">Lucro Estimado</span>
-          <span class="summary-value">R$ ${totalLucro.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        <div class="summary-notice">
+          <p>Resumo de pedidos em desenvolvimento</p>
+          <small>Novo resumo com mais detalhes em breve</small>
         </div>
       `;
-      
+
       // Configura o toggle do resumo
       setTimeout(() => {
-        const summaryHeader = document.getElementById('summaryHeader');
+        const summaryHeader = document.getElementById("summaryHeader");
         const summaryCollapsible = summaryHeader?.parentElement;
-        
+
         if (summaryHeader && summaryCollapsible) {
           // Remove event listener antigo se existir
           const newHeader = summaryHeader.cloneNode(true);
           summaryHeader.parentNode.replaceChild(newHeader, summaryHeader);
-          
+
           // Inicia recolhido
-          summaryCollapsible.classList.add('collapsed');
-          
+          summaryCollapsible.classList.add("collapsed");
+
           // Adiciona o evento de clique
-          newHeader.addEventListener('click', (e) => {
+          newHeader.addEventListener("click", (e) => {
             e.stopPropagation();
-            summaryCollapsible.classList.toggle('collapsed');
-            const icon = newHeader.querySelector('.toggle-icon');
+            summaryCollapsible.classList.toggle("collapsed");
+            const icon = newHeader.querySelector(".toggle-icon");
             if (icon) {
-              icon.textContent = summaryCollapsible.classList.contains('collapsed') ? '+' : '-';
+              icon.textContent = summaryCollapsible.classList.contains(
+                "collapsed",
+              )
+                ? "+"
+                : "-";
             }
           });
         }
-        
+
         // Configura os filtros
-        const filterStatus = document.getElementById('filterStatus');
-        const searchInput = document.getElementById('searchTerm');
-        const filterDate = document.getElementById('filterDate');
-        const applyFiltersBtn = document.getElementById('applyFilters');
-        const clearFiltersBtn = document.getElementById('clearFilters');
-        
+        const filterStatus = document.getElementById("filterStatus");
+        const searchInput = document.getElementById("searchTerm");
+        const filterDate = document.getElementById("filterDate");
+        const applyFiltersBtn = document.getElementById("applyFilters");
+        const clearFiltersBtn = document.getElementById("clearFilters");
+
         // Função para aplicar os filtros
         const applyFilter = (e) => {
           if (e) e.preventDefault();
           applyFilters();
         };
-        
+
         if (filterStatus && applyFiltersBtn && clearFiltersBtn) {
           // Adiciona os event listeners
-          applyFiltersBtn.addEventListener('click', applyFilter);
-          clearFiltersBtn.addEventListener('click', clearFilters);
-          
+          applyFiltersBtn.addEventListener("click", applyFilter);
+          clearFiltersBtn.addEventListener("click", clearFilters);
+
           // Aplica o filtro ao pressionar Enter no campo de busca
-          searchInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
+          searchInput.addEventListener("keypress", (e) => {
+            if (e.key === "Enter") {
               applyFilter(e);
             }
           });
-          
+
           // Aplica o filtro ao mudar a seleção de status ou data
-          filterStatus.addEventListener('change', applyFilter);
-          filterDate.addEventListener('change', applyFilter);
-          
+          filterStatus.addEventListener("change", applyFilter);
+          filterDate.addEventListener("change", applyFilter);
+
           // Aplica o filtro inicial se houver parâmetros na URL
           const urlParams = new URLSearchParams(window.location.search);
-          const statusParam = urlParams.get('status');
-          const searchParam = urlParams.get('search');
-          const dateParam = urlParams.get('date');
-          
+          const statusParam = urlParams.get("status");
+          const searchParam = urlParams.get("search");
+          const dateParam = urlParams.get("date");
+
           if (statusParam || searchParam || dateParam) {
             // Pequeno atraso para garantir que o DOM esteja pronto
             setTimeout(() => {
@@ -1329,23 +1650,27 @@ await updateDoc(orderRef, {
       }); // Fecha o setTimeout
     }
   } catch (err) {
-    ordersList.innerHTML = '<p>Erro ao carregar pedidos.</p>';
-    if (ordersSummary) ordersSummary.style.display = 'none';
-    console.error('Erro ao carregar pedidos:', err);
+    ordersList.innerHTML = "<p>Erro ao carregar pedidos.</p>";
+    if (ordersSummary) ordersSummary.style.display = "none";
+    console.error("Erro ao carregar pedidos:", err);
   }
 }
 
 // Função para criar um acordo de pagamento
-window.createPaymentAgreement = async function(orderId, installments, datesOrFirstPaymentDate) {
+window.createPaymentAgreement = async function (
+  orderId,
+  installments,
+  datesOrFirstPaymentDate,
+) {
   try {
     if (!orderId || !installments || !datesOrFirstPaymentDate) {
-      throw new Error('Dados do acordo de pagamento inválidos');
+      throw new Error("Dados do acordo de pagamento inválidos");
     }
 
     let paymentDates = [];
     // Se receber um array, usa as datas fornecidas (novo fluxo SweetAlert2)
     if (Array.isArray(datesOrFirstPaymentDate)) {
-      paymentDates = datesOrFirstPaymentDate.map(d => d);
+      paymentDates = datesOrFirstPaymentDate.map((d) => d);
     } else {
       // Compatibilidade: gera as datas automaticamente a partir da primeira data
       const date = new Date(datesOrFirstPaymentDate);
@@ -1353,151 +1678,486 @@ window.createPaymentAgreement = async function(orderId, installments, datesOrFir
         if (i > 0) {
           date.setMonth(date.getMonth() + 1);
         }
-        paymentDates.push(date.toISOString().split('T')[0]);
+        paymentDates.push(date.toISOString().split("T")[0]);
       }
     }
 
-    const orderRef = doc(db, 'orders', orderId);
+    const orderRef = doc(db, "orders", orderId);
     await updateDoc(orderRef, {
       paymentAgreement: {
         installments: parseInt(installments),
-        dates: paymentDates
+        dates: paymentDates,
       },
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     });
 
     // Recarregar a lista de pedidos
     await renderOrdersList();
     return true;
   } catch (error) {
-    console.error('Erro ao criar acordo de pagamento:', error);
+    console.error("Erro ao criar acordo de pagamento:", error);
     throw error;
   }
 };
 
 // Função para excluir um pedido
-window.deleteOrder = async function(orderId) {
+window.deleteOrder = async function (orderId) {
   try {
     const result = await Swal.fire({
-      title: 'Tem certeza?',
+      title: "Tem certeza?",
       text: "Esta ação não pode ser desfeita! O pedido será removido permanentemente.",
-      icon: 'warning',
+      icon: "warning",
       showCancelButton: true,
-      confirmButtonColor: '#3085d6',
-      cancelButtonColor: '#d33',
-      confirmButtonText: 'Sim, excluir!',
-      cancelButtonText: 'Cancelar'
+      confirmButtonColor: "#3085d6",
+      cancelButtonColor: "#d33",
+      confirmButtonText: "Sim, excluir!",
+      cancelButtonText: "Cancelar",
     });
 
     if (result.isConfirmed) {
       // Obter o pedido antes de excluir para devolver ao estoque
-      const orderRef = doc(db, 'orders', orderId);
+      const orderRef = doc(db, "orders", orderId);
       const orderSnap = await getDoc(orderRef);
-      
+
       if (orderSnap.exists()) {
         const order = orderSnap.data();
-        
+
         // Devolver itens ao estoque se o pedido não estiver cancelado
-        if (order.status !== 'Cancelado') {
+        if (order.status !== "Cancelado") {
           const batch = writeBatch(db);
-          
-          for (const item of (order.items || [])) {
-            const productRef = doc(db, 'products', item.productId);
+
+          for (const item of order.items || []) {
+            const productRef = doc(db, "products", item.productId);
             const productSnap = await getDoc(productRef);
-            
+
             if (productSnap.exists()) {
               const currentStock = productSnap.data().stock || 0;
               batch.update(productRef, {
-                stock: currentStock + (item.quantity || 1)
+                stock: currentStock + (item.quantity || 1),
               });
             }
           }
-          
+
           await batch.commit();
         }
-        
+
         // Excluir o pedido
         await deleteDoc(orderRef);
-        
+
         // Recarregar a lista de pedidos
         await renderOrdersList();
-        
-        Swal.fire(
-          'Excluído!',
-          'O pedido foi excluído com sucesso.',
-          'success'
-        );
+
+        Swal.fire("Excluído!", "O pedido foi excluído com sucesso.", "success");
       }
     }
   } catch (error) {
-    console.error('Erro ao excluir pedido:', error);
-    Swal.fire(
-      'Erro!',
-      'Ocorreu um erro ao excluir o pedido.',
-      'error'
-    );
+    console.error("Erro ao excluir pedido:", error);
+    Swal.fire("Erro!", "Ocorreu um erro ao excluir o pedido.", "error");
   }
 };
 
-// Funções globais para ações dos pedidos
-window.StockModule = window.StockModule || {};
+// Garante que StockModule existe sem sobrescrever funções existentes
+if (!window.StockModule) {
+  window.StockModule = {};
+}
 
 // Função para abrir o WhatsApp com mensagem pré-definida
-window.openWhatsApp = function(phone, orderId) {
+window.openWhatsApp = function (phone, orderId) {
   // (Função original mantida para compatibilidade)
   // Recomenda-se usar window.openWhatsAppModal para mensagens personalizadas.
 };
 
+// Função para abrir o modal de brinde/nota
+window.openGiftModal = async function (orderId) {
+  try {
+    // Busca o pedido diretamente do Firestore
+    const orderRef = doc(db, "orders", orderId);
+    const orderDoc = await getDoc(orderRef);
+
+    if (!orderDoc.exists()) {
+      console.error("Pedido não encontrado");
+      Swal.fire("Erro", "Pedido não encontrado.", "error");
+      return null;
+    }
+
+    const order = { id: orderDoc.id, ...orderDoc.data() };
+
+    // Carrega os produtos do estoque se ainda não estiverem carregados
+    if (!window.stockProducts) {
+      try {
+        const productsSnapshot = await getDocs(collection(db, "products"));
+        window.stockProducts = productsSnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+      } catch (error) {
+        console.error("Erro ao carregar produtos:", error);
+        Swal.fire(
+          "Erro",
+          "Não foi possível carregar a lista de produtos.",
+          "error",
+        );
+        return null;
+      }
+    }
+
+    // Cria o HTML do modal
+    const modalHtml = `
+      <div style="text-align: left;">
+        <h4 style="margin-top: 0; margin-bottom: 15px; color: #333;">Adicionar Brinde/Nota</h4>
+        
+        <div style="margin-bottom: 15px;">
+          <label style="display: block; margin-bottom: 5px; font-weight: 500;">Selecione um produto do estoque (opcional):</label>
+          <select id="giftProductSelect" class="form-control" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ddd; margin-bottom: 10px;">
+            <option value="">Selecione um produto...</option>
+            ${window.stockProducts
+              .filter((p) => (p.quantity || p.stock || 0) > 0)
+              .map(
+                (p) =>
+                  `<option value="${p.id}">${p.name} (${p.quantity || p.stock || 0} em estoque)</option>`,
+              )
+              .join("")}
+          </select>
+          <div style="display: flex; gap: 10px; margin-top: 5px;">
+            <input type="number" id="giftQuantity" min="1" value="1" style="width: 80px; padding: 5px; border: 1px solid #ddd; border-radius: 4px;">
+            <span style="line-height: 30px;">quantidade</span>
+          </div>
+        </div>
+
+        <div style="margin-bottom: 15px;">
+          <label style="display: block; margin-bottom: 5px; font-weight: 500;">Ou adicione uma nota (opcional):</label>
+          <textarea id="giftNote" class="form-control" rows="3" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; resize: vertical;" placeholder="Ex: Brinde de cortesia"></textarea>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+          <button id="cancelGiftBtn" class="btn btn-secondary" style="padding: 8px 16px;">Cancelar</button>
+          <button id="saveGiftBtn" class="btn btn-primary" style="padding: 8px 16px; background-color: #9c27b0; border-color: #9c27b0;">
+            <i class="fas fa-gift"></i> Adicionar
+          </button>
+        </div>
+      </div>
+    `;
+
+    // Mostra o modal
+    const modal = Swal.fire({
+      html: modalHtml,
+      showConfirmButton: false,
+      width: "500px",
+      padding: "20px",
+      didOpen: () => {
+        // Adiciona os event listeners após o modal ser aberto
+        document
+          .getElementById("saveGiftBtn")
+          .addEventListener("click", async () => {
+            const productSelect = document.getElementById("giftProductSelect");
+            const quantityInput = document.getElementById("giftQuantity");
+            const noteInput = document.getElementById("giftNote");
+
+            const giftData = {
+              productId: productSelect.value,
+              quantity: parseInt(quantityInput.value, 10) || 1,
+              note: noteInput.value.trim(),
+              date: new Date().toISOString(),
+            };
+
+            // Validação básica
+            if (
+              (productSelect.value && isNaN(giftData.quantity)) ||
+              giftData.quantity < 1
+            ) {
+              Swal.fire(
+                "Atenção",
+                "Por favor, insira uma quantidade válida maior que zero.",
+                "warning",
+              );
+              return;
+            }
+
+            // Validação
+            if (!giftData.productId && !giftData.note) {
+              Swal.fire(
+                "Atenção",
+                "Selecione um produto ou adicione uma nota.",
+                "warning",
+              );
+              return;
+            }
+
+            try {
+              // Cria o batch fora do bloco condicional
+              const batch = writeBatch(db);
+
+              // Atualiza o pedido com o brinde/nota
+              if (!order.gifts) {
+                order.gifts = [];
+              }
+
+              // Se for um produto, verifica o estoque
+              if (giftData.productId) {
+                const product = window.stockProducts.find(
+                  (p) =>
+                    p.id === giftData.productId ||
+                    p.id.toString() === giftData.productId.toString(),
+                );
+                if (!product) {
+                  Swal.fire(
+                    "Erro",
+                    "Produto não encontrado no estoque.",
+                    "error",
+                  );
+                  return;
+                }
+
+                const availableQuantity = Number(
+                  product.quantity || product.stock || 0,
+                );
+                const requestedQuantity = Number(giftData.quantity) || 1;
+
+                if (availableQuantity < requestedQuantity) {
+                  Swal.fire(
+                    "Erro",
+                    `Quantidade em estoque insuficiente para este produto. Disponível: ${availableQuantity}`,
+                    "error",
+                  );
+                  return;
+                }
+
+                // Adiciona o produto como brinde (preço zero)
+                const giftItem = {
+                  ...product,
+                  price: 0,
+                  originalPrice: product.price, // Mantém o preço original para referência
+                  quantity: giftData.quantity,
+                  isGift: true,
+                  note: giftData.note || "Brinde de cortesia",
+                  productId: product.id, // Garante que o productId está definido
+                };
+
+                // Adiciona o item ao pedido
+                if (!order.items) order.items = [];
+                order.items.push(giftItem);
+
+                // Atualiza o estoque usando o batch já criado
+                const productRef = doc(db, "products", product.id.toString());
+                const productSnap = await getDoc(productRef);
+
+                if (productSnap.exists()) {
+                  const productData = productSnap.data();
+                  const currentQuantity = Number(
+                    productData.quantity || productData.stock || 0,
+                  );
+                  const newQuantity = Math.max(
+                    0,
+                    currentQuantity - giftData.quantity,
+                  );
+
+                  batch.update(productRef, {
+                    quantity: newQuantity,
+                    stock: newQuantity,
+                    updatedAt: new Date().toISOString(),
+                  });
+
+                  // Atualiza o produto na lista local
+                  const productIndex = window.stockProducts.findIndex(
+                    (p) =>
+                      p.id === product.id ||
+                      p.id.toString() === product.id.toString(),
+                  );
+
+                  if (productIndex !== -1) {
+                    window.stockProducts[productIndex].quantity = newQuantity;
+                    window.stockProducts[productIndex].stock = newQuantity;
+                  }
+                }
+              }
+
+              // Adiciona a nota se existir
+              if (giftData.note) {
+                order.gifts.push({
+                  type: "note",
+                  note: giftData.note,
+                  date: new Date().toISOString(),
+                });
+              }
+
+              // Atualiza o pedido no banco de dados
+              const orderRef = doc(db, "orders", orderId.toString());
+
+              // Se for um produto, já temos um batch iniciado
+              if (giftData.productId) {
+                // Adiciona a atualização do pedido ao batch existente
+                batch.update(orderRef, {
+                  items: order.items || [],
+                  gifts: order.gifts || [],
+                  updatedAt: new Date().toISOString(),
+                });
+
+                // Executa todas as operações em lote
+                await batch.commit();
+              } else {
+                // Se for apenas uma nota, cria um novo batch
+                const noteBatch = writeBatch(db);
+                noteBatch.update(orderRef, {
+                  gifts: order.gifts || [],
+                  updatedAt: new Date().toISOString(),
+                });
+                await noteBatch.commit();
+              }
+
+              // Fecha o modal e mostra mensagem de sucesso
+              Swal.close();
+              Swal.fire(
+                "Sucesso!",
+                "Brinde/nota adicionado com sucesso!",
+                "success",
+              );
+
+              // Atualiza a lista de pedidos
+              await renderOrdersList();
+            } catch (error) {
+              console.error("Erro ao adicionar brinde/nota:", error);
+              Swal.fire(
+                "Erro",
+                "Ocorreu um erro ao adicionar o brinde/nota.",
+                "error",
+              );
+            }
+          });
+
+        // Fecha o modal ao clicar em cancelar
+        document
+          .getElementById("cancelGiftBtn")
+          .addEventListener("click", () => {
+            Swal.close();
+          });
+      },
+    });
+
+    return modal;
+  } catch (error) {
+    console.error("Erro ao abrir o modal de brinde:", error);
+    Swal.fire("Erro", "Não foi possível carregar os dados do pedido.", "error");
+    return null;
+  }
+};
+
 // Função para abrir o modal SweetAlert2 com modelos de mensagem WhatsApp
-window.openWhatsAppModal = async function(order) {
+window.openWhatsAppModal = async function (order) {
   // Extrai dados do pedido
-  const orderNumber = order.orderNumber || order._id?.substring(0, 8).toUpperCase();
-  const customerName = order.customerName || order.customer?.name || 'Cliente';
-  const customerPhone = order.customerPhone || order.customer?.phone || '';
-  const customerEmail = order.customerEmail || order.customer?.email || '';
-  const paymentMethod = order.paymentMethod || '';
-  const paymentLabel = window.getPaymentMethodLabel ? window.getPaymentMethodLabel(paymentMethod) : paymentMethod;
+  const orderNumber =
+    order.orderNumber || order._id?.substring(0, 8).toUpperCase();
+  const customerName = order.customerName || order.customer?.name || "Cliente";
+  const customerPhone = order.customerPhone || order.customer?.phone || "";
+  const customerEmail = order.customerEmail || order.customer?.email || "";
+  const paymentMethod = order.paymentMethod || "";
+  let paymentLabel = window.getPaymentMethodLabel
+    ? window.getPaymentMethodLabel(paymentMethod)
+    : paymentMethod;
+  // Normalize 'agreement' to 'Acordo' in the payment label
+  paymentLabel = paymentLabel === "agreement" ? "Acordo" : paymentLabel;
   const total = Number(order.total) || 0;
   const items = Array.isArray(order.items) ? order.items : [];
   const agreement = order.paymentAgreement || null;
-  const pending = (Array.isArray(order.payments) ? (total - order.payments.reduce((sum, p) => sum + (Number(p.amount)||0), 0)) : total);
-  const formattedTotal = total.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+  const pending = Array.isArray(order.payments)
+    ? total -
+      order.payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+    : total;
+  const formattedTotal = total.toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 
   // Lista de itens
-  const itemsList = items.map(item => `- ${item.name || 'Produto'} x${item.quantity} (R$ ${(Number(item.price)||0).toLocaleString('pt-BR',{minimumFractionDigits:2})})`).join('\n');
+  const itemsList = items
+    .map(
+      (item) =>
+        `- ${item.name || "Produto"} x${item.quantity} (R$ ${(Number(item.price) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })})`,
+    )
+    .join("\n");
 
   // Modelo 1: Agradecimento
-  let msg1 = `Olá ${customerName}!\n\nSeu pedido #${orderNumber} foi entregue com sucesso.\n\nItens:\n${itemsList}\n\nValor total: R$ ${formattedTotal}\nForma de pagamento: ${paymentLabel}`;
+  // Modelo 1: Agradecimento/Confirmação de entrega
+  let msg1 = `PEDIDO ENTREGUE #${orderNumber}\n\nCliente: ${customerName}`;
+  if (customerPhone) msg1 += `\nTelefone: ${formatPhoneNumber(customerPhone)}`;
   if (customerEmail) msg1 += `\nE-mail: ${customerEmail}`;
-  msg1 += `\n\nMuito obrigado pela preferência! Qualquer dúvida, estamos à disposição.`;
+
+  msg1 += `\n\nItens do Pedido:\n${itemsList.replace(/\n/g, "\n- ").replace(/^- /, "")}`;
+
+  if (agreement && agreement.installments > 1) {
+    const valorParcela =
+      Math.round((total / agreement.installments) * 100) / 100;
+    const valorFormatado = valorParcela.toLocaleString("pt-BR", {
+      minimumFractionDigits: 2,
+    });
+    msg1 += `\n\nPagamento: em ${agreement.installments}x de R$ ${valorFormatado} sem juros`;
+  }
+
+  msg1 += `\nValor Total: R$ ${formattedTotal}`;
+
+  if (agreement && agreement.installments > 1) {
+    msg1 += "\n\nAcordo:";
+    agreement.dates.forEach((date, idx) => {
+      const [ano, mes, dia] = date.split("-");
+      const dataFormatada = `${dia}/${mes}/${ano}`;
+      const valorParcela =
+        Math.round((total / agreement.installments) * 100) / 100;
+      const valorFormatado = valorParcela.toLocaleString("pt-BR", {
+        minimumFractionDigits: 2,
+      });
+      msg1 += `\n${idx + 1}ª Parcela em ${dataFormatada} - R$${valorFormatado}`;
+    });
+  }
+
+  msg1 +=
+    "\n\nEssenza agradece pela comprinha! Aproveite o máximo do cuidado!🌻Deus te abençoe!\n\nhttps://essenzasite.vercel.app/";
 
   // Modelo 2: Cobrança/lembrança de pagamento
+  // Modelo 2: Cobrança/lembrança de pagamento
   let msg2 = `Olá ${customerName}!\n\nLembrando sobre o pagamento do pedido #${orderNumber}.`;
+
   if (agreement && agreement.installments > 1) {
-    msg2 += `\n\nAcordo: ${agreement.installments}x parcelas.\nPróximos vencimentos:`;
-    (agreement.dates||[]).forEach((date, idx) => {
-      // Formatar data para DD/MM/AAAA
-      const [ano, mes, dia] = date.split('-');
-      const dataFormatada = `${dia}/${mes}/${ano}`;
-      // Calcular valor da parcela
-      const valorParcela = Math.round((total / agreement.installments) * 100) / 100;
-      // Pagamentos vinculados à parcela
-      const parcelaPagamentos = (order.payments || []).filter(p => p.installmentIndex === idx);
-      const totalPagoParcela = parcelaPagamentos.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-      const statusParcela = totalPagoParcela >= valorParcela ? 'Pago' : 'Pendente';
-      msg2 += `\n${idx+1}ª parcela: ${dataFormatada} (${statusParcela})`;
+    const valorParcela =
+      Math.round((total / agreement.installments) * 100) / 100;
+    const valorFormatado = valorParcela.toLocaleString("pt-BR", {
+      minimumFractionDigits: 2,
     });
-    msg2 += `\nValor total: R$ ${formattedTotal}`;
+
+    msg2 += `\n\nAcordo: ${agreement.installments}x de R$ ${valorFormatado}`;
+    msg2 += "\nPróximas parcelas:";
+
+    (agreement.dates || []).forEach((date, idx) => {
+      const [ano, mes, dia] = date.split("-");
+      const dataFormatada = `${dia}/${mes}/${ano}`;
+      const parcelaPagamentos = (order.payments || []).filter(
+        (p) => p.installmentIndex === idx,
+      );
+      const totalPagoParcela = parcelaPagamentos.reduce(
+        (sum, p) => sum + (Number(p.amount) || 0),
+        0,
+      );
+      const statusParcela =
+        totalPagoParcela >= valorParcela ? "Pago" : "Pendente";
+
+      msg2 += `\n${idx + 1}ª parcela: R$ ${valorFormatado} - ${statusParcela}`;
+
+      if (statusParcela === "Pendente") {
+        msg2 += `\n   Vencimento: ${dataFormatada}`;
+        msg2 += `\n   Valor: R$ ${valorFormatado}`;
+      }
+    });
+
+    msg2 += `\n\nValor total: R$ ${formattedTotal}`;
   } else {
-    msg2 += `\nValor: R$ ${formattedTotal}`;
+    msg2 += `\n\nValor: R$ ${formattedTotal}`;
   }
   msg2 += `\nForma de pagamento: ${paymentLabel}`;
-  if (pending > 0) msg2 += `\nValor em aberto: R$ ${pending.toLocaleString('pt-BR',{minimumFractionDigits:2})}`;
+  if (pending > 0)
+    msg2 += `\nValor em aberto: R$ ${pending.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
   msg2 += `\n\nSe já realizou o pagamento, por favor desconsidere. Em caso de dúvida, estamos à disposição.`;
 
   // SweetAlert2 Modal
   const { value: selectedMsg } = await Swal.fire({
-    title: 'Enviar mensagem por WhatsApp',
+    title: "Enviar mensagem por WhatsApp",
     html: `<div style='text-align:left;font-size:1em;'>
       <b>Escolha o modelo de mensagem:</b><br><br>
       <label style='display:block;margin-bottom:10px;'>
@@ -1512,46 +2172,45 @@ window.openWhatsAppModal = async function(order) {
       </label>
     </div>`,
     showCancelButton: true,
-    confirmButtonText: 'Abrir WhatsApp',
-    cancelButtonText: 'Cancelar',
+    confirmButtonText: "Abrir WhatsApp",
+    cancelButtonText: "Cancelar",
     focusConfirm: false,
     preConfirm: () => {
-      const selected = document.querySelector('input[name=waMsg]:checked');
+      const selected = document.querySelector("input[name=waMsg]:checked");
       return selected ? selected.value : null;
     },
-    width: 600
+    width: 600,
   });
 
   if (!selectedMsg) return;
 
   // Formatar telefone
-  let phoneNumber = customerPhone.replace(/\D/g, '');
+  let phoneNumber = customerPhone.replace(/\D/g, "");
   if (phoneNumber.length < 10) {
-    Swal.fire('Erro', 'Número de telefone inválido.', 'error');
+    Swal.fire("Erro", "Número de telefone inválido.", "error");
     return;
   }
   if (phoneNumber.length === 10) {
-    phoneNumber = phoneNumber.substring(0, 2) + '9' + phoneNumber.substring(2);
+    phoneNumber = phoneNumber.substring(0, 2) + "9" + phoneNumber.substring(2);
   }
 
   // Mensagem escolhida
-  const message = selectedMsg === 'msg1' ? msg1 : msg2;
+  const message = selectedMsg === "msg1" ? msg1 : msg2;
   const whatsappUrl = `https://wa.me/55${phoneNumber}?text=${encodeURIComponent(message)}`;
-  window.open(whatsappUrl, '_blank');
+  window.open(whatsappUrl, "_blank");
 };
-
 
 // Função para abrir o modal de pagamento
 function openPaymentModal(orderId, orderTotal, pendingAmount) {
   // Usa SweetAlert2 para exibir o modal de pagamento
   const formatCurrency = (value) =>
-    parseFloat(value).toLocaleString('pt-BR', {
+    parseFloat(value).toLocaleString("pt-BR", {
       minimumFractionDigits: 2,
-      maximumFractionDigits: 2
+      maximumFractionDigits: 2,
     });
 
   Swal.fire({
-    title: 'Registrar Pagamento',
+    title: "Registrar Pagamento",
     html: `
       <div class="form-group">
         <label>Valor Total do Pedido</label>
@@ -1561,19 +2220,23 @@ function openPaymentModal(orderId, orderTotal, pendingAmount) {
         <label>Valor Pendente</label>
         <input type="text" class="form-control" value="R$ ${formatCurrency(pendingAmount)}" disabled>
       </div>
-      ${window.lastOrderForPayment && window.lastOrderForPayment.paymentAgreement ? `
+      ${
+        window.lastOrderForPayment &&
+        window.lastOrderForPayment.paymentAgreement
+          ? `
       <div class="form-group">
         <label for="swalInstallmentSelect">Selecione a Parcela do Acordo *</label>
         <select id="swalInstallmentSelect" class="form-control" required>
           <option value="">Escolha a parcela...</option>
-          ${window.lastOrderForPayment.paymentAgreement.dates.map((date, idx) => {
+          ${window.lastOrderForPayment.paymentAgreement.dates
+            .map((date, idx) => {
               // Format date to DD/MM/YYYY
-              let brDate = '';
+              let brDate = "";
               if (date) {
                 const d = new Date(date);
                 if (!isNaN(d)) {
-                  const day = String(d.getDate()).padStart(2, '0');
-                  const month = String(d.getMonth() + 1).padStart(2, '0');
+                  const day = String(d.getDate()).padStart(2, "0");
+                  const month = String(d.getMonth() + 1).padStart(2, "0");
                   const year = d.getFullYear();
                   brDate = `${day}/${month}/${year}`;
                 } else {
@@ -1581,12 +2244,18 @@ function openPaymentModal(orderId, orderTotal, pendingAmount) {
                   brDate = date;
                 }
               }
-              const valor = window.lastOrderForPayment.paymentAgreement.amountPerInstallment ? `R$ ${formatCurrency(window.lastOrderForPayment.paymentAgreement.amountPerInstallment)}` : '';
-              return `<option value="${idx}">${idx+1}ª parcela - ${brDate} ${valor}</option>`;
-            }).join('')}
+              const valor = window.lastOrderForPayment.paymentAgreement
+                .amountPerInstallment
+                ? `R$ ${formatCurrency(window.lastOrderForPayment.paymentAgreement.amountPerInstallment)}`
+                : "";
+              return `<option value="${idx}">${idx + 1}ª parcela - ${brDate} ${valor}</option>`;
+            })
+            .join("")}
         </select>
       </div>
-      ` : ''}
+      `
+          : ""
+      }
       <div class="form-group">
         <label for="swalPaymentAmount">Valor do Pagamento *</label>
         <div class="input-with-prefix">
@@ -1608,71 +2277,88 @@ function openPaymentModal(orderId, orderTotal, pendingAmount) {
       </div>
       <div class="form-group">
         <label for="swalPaymentDate">Data do Pagamento</label>
-        <input type="date" id="swalPaymentDate" class="form-control" value="${new Date().toISOString().split('T')[0]}">
+        <input type="date" id="swalPaymentDate" class="form-control" value="${new Date().toISOString().split("T")[0]}">
       </div>
       <div class="form-group">
         <label>
-          <input type="checkbox" id="swalSetAsPaid" ${pendingAmount <= orderTotal ? 'checked' : ''}>
+          <input type="checkbox" id="swalSetAsPaid" ${pendingAmount <= orderTotal ? "checked" : ""}>
           Marcar como totalmente pago
         </label>
       </div>
     `,
     showCancelButton: true,
-    confirmButtonText: 'Salvar Pagamento',
-    cancelButtonText: 'Cancelar',
+    confirmButtonText: "Salvar Pagamento",
+    cancelButtonText: "Cancelar",
     focusConfirm: false,
     customClass: {
-      popup: 'swal2-modal swal2-payment-modal',
-      confirmButton: 'btn btn-primary',
-      cancelButton: 'btn btn-secondary'
+      popup: "swal2-modal swal2-payment-modal",
+      confirmButton: "btn btn-primary",
+      cancelButton: "btn btn-secondary",
     },
     preConfirm: () => {
-      const amount = parseFloat(document.getElementById('swalPaymentAmount').value);
-      const method = document.getElementById('swalPaymentMethod').value;
-      const date = document.getElementById('swalPaymentDate').value;
-      const setAsPaid = document.getElementById('swalSetAsPaid').checked;
+      const amount = parseFloat(
+        document.getElementById("swalPaymentAmount").value,
+      );
+      const method = document.getElementById("swalPaymentMethod").value;
+      const date = document.getElementById("swalPaymentDate").value;
+      const setAsPaid = document.getElementById("swalSetAsPaid").checked;
       let installmentIndex = null;
-      if (window.lastOrderForPayment && window.lastOrderForPayment.paymentAgreement) {
-        installmentIndex = document.getElementById('swalInstallmentSelect').value;
-        if (installmentIndex === '') {
-          Swal.showValidationMessage('Selecione a parcela do acordo.');
+      if (
+        window.lastOrderForPayment &&
+        window.lastOrderForPayment.paymentAgreement
+      ) {
+        installmentIndex = document.getElementById(
+          "swalInstallmentSelect",
+        ).value;
+        if (installmentIndex === "") {
+          Swal.showValidationMessage("Selecione a parcela do acordo.");
           return false;
         }
         installmentIndex = parseInt(installmentIndex);
       }
       if (!amount || amount <= 0) {
-        Swal.showValidationMessage('Por favor, informe um valor válido para o pagamento.');
+        Swal.showValidationMessage(
+          "Por favor, informe um valor válido para o pagamento.",
+        );
         return false;
       }
       if (!method) {
-        Swal.showValidationMessage('Por favor, selecione uma forma de pagamento.');
+        Swal.showValidationMessage(
+          "Por favor, selecione uma forma de pagamento.",
+        );
         return false;
       }
       return { amount, method, date, setAsPaid, installmentIndex };
-    }
+    },
   }).then((result) => {
     if (result.isConfirmed && result.value) {
-      window.savePayment(orderId, result.value.amount, result.value.method, result.value.date, result.value.setAsPaid, result.value.installmentIndex);
+      window.savePayment(
+        orderId,
+        result.value.amount,
+        result.value.method,
+        result.value.date,
+        result.value.setAsPaid,
+        result.value.installmentIndex,
+      );
     }
   });
 
   setTimeout(() => {
-    const amountInput = document.getElementById('swalPaymentAmount');
+    const amountInput = document.getElementById("swalPaymentAmount");
     if (amountInput) amountInput.focus();
   }, 150);
 }
 
-
-window.openPaymentModal = function(orderId, orderTotal, pendingAmount) {
+window.openPaymentModal = function (orderId, orderTotal, pendingAmount) {
   // Busca o pedido para saber se tem acordo e passar para o modal
   const orders = window.ordersCache || [];
-  const order = orders.find(o => o._id === orderId);
+  const order = orders.find((o) => o._id === orderId);
   window.lastOrderForPayment = order || null;
   try {
     return openPaymentModal.apply(this, [orderId, orderTotal, pendingAmount]);
   } catch (e) {
-    alert('Erro ao abrir modal de pagamento. Veja o console.');
-    console.error('openPaymentModal erro:', e);
+    alert("Erro ao abrir modal de pagamento. Veja o console.");
+    console.error("openPaymentModal erro:", e);
   }
 };
 
@@ -1681,20 +2367,20 @@ function openAgreementModal(orderId, isEdit = false) {
   // Buscar dados do pedido se for edição
   let agreementData = null;
   if (isEdit && window.ordersCache) {
-    const order = window.ordersCache.find(o => o._id === orderId);
+    const order = window.ordersCache.find((o) => o._id === orderId);
     if (order && order.paymentAgreement) {
       agreementData = order.paymentAgreement;
     }
   }
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toISOString().split("T")[0];
 
   Swal.fire({
-    title: isEdit ? 'Editar Acordo de Pagamento' : 'Criar Acordo de Pagamento',
+    title: isEdit ? "Editar Acordo de Pagamento" : "Criar Acordo de Pagamento",
     html: `
       <div class="form-group">
         <label for="swalInstallments">Número de Parcelas</label>
         <select id="swalInstallments" class="form-control" required>
-          ${[...Array(12)].map((_,i) => `<option value="${i+1}"${agreementData && agreementData.installments === (i+1) ? ' selected' : ''}>${i+1}x${i===0?' (À vista)':''}</option>`).join('')}
+          ${[...Array(12)].map((_, i) => `<option value="${i + 1}"${agreementData && agreementData.installments === i + 1 ? " selected" : ""}>${i + 1}x${i === 0 ? " (À vista)" : ""}</option>`).join("")}
         </select>
       </div>
       <div class="form-group">
@@ -1703,118 +2389,152 @@ function openAgreementModal(orderId, isEdit = false) {
       </div>
     `,
     showCancelButton: true,
-    confirmButtonText: 'Salvar Acordo',
-    cancelButtonText: 'Cancelar',
+    confirmButtonText: "Salvar Acordo",
+    cancelButtonText: "Cancelar",
     focusConfirm: false,
     customClass: {
-      popup: 'swal2-modal swal2-agreement-modal',
-      confirmButton: 'btn btn-primary',
-      cancelButton: 'btn btn-secondary'
+      popup: "swal2-modal swal2-agreement-modal",
+      confirmButton: "btn btn-primary",
+      cancelButton: "btn btn-secondary",
     },
     didOpen: () => {
-      const today = new Date().toISOString().split('T')[0];
+      const today = new Date().toISOString().split("T")[0];
       // Função para gerar inputs de data para cada parcela
       const updateScheduleInputs = () => {
-        const installments = parseInt(document.getElementById('swalInstallments').value);
-        const container = document.getElementById('swalScheduleInputs');
-        container.innerHTML = '';
+        const installments = parseInt(
+          document.getElementById("swalInstallments").value,
+        );
+        const container = document.getElementById("swalScheduleInputs");
+        container.innerHTML = "";
         let lastDate = today;
         for (let i = 0; i < installments; i++) {
-          let value = '';
-          if (agreementData && Array.isArray(agreementData.dates) && agreementData.dates[i]) {
+          let value = "";
+          if (
+            agreementData &&
+            Array.isArray(agreementData.dates) &&
+            agreementData.dates[i]
+          ) {
             value = agreementData.dates[i];
           } else if (i === 0) {
             value = today;
           } else {
             // Sugere mês seguinte à anterior
-            const prevInput = container.querySelectorAll('input[type=date]')[i-1];
-            let baseDate = prevInput && prevInput.value ? new Date(prevInput.value) : new Date(today);
+            const prevInput =
+              container.querySelectorAll("input[type=date]")[i - 1];
+            let baseDate =
+              prevInput && prevInput.value
+                ? new Date(prevInput.value)
+                : new Date(today);
             baseDate.setMonth(baseDate.getMonth() + 1);
-            value = baseDate.toISOString().split('T')[0];
+            value = baseDate.toISOString().split("T")[0];
           }
-          const label = document.createElement('label');
+          const label = document.createElement("label");
           label.innerText = `Parcela ${i + 1}`;
-          label.style.fontWeight = '500';
-          label.style.marginBottom = '2px';
-          const input = document.createElement('input');
-          input.type = 'date';
-          input.className = 'form-control';
+          label.style.fontWeight = "500";
+          label.style.marginBottom = "2px";
+          const input = document.createElement("input");
+          input.type = "date";
+          input.className = "form-control";
           input.required = true;
           input.min = today;
           input.value = value;
-          input.id = `swalInstallmentDate${i+1}`;
+          input.id = `swalInstallmentDate${i + 1}`;
           container.appendChild(label);
           container.appendChild(input);
         }
       };
-      document.getElementById('swalInstallments').addEventListener('change', updateScheduleInputs);
+      document
+        .getElementById("swalInstallments")
+        .addEventListener("change", updateScheduleInputs);
       updateScheduleInputs();
     },
     preConfirm: () => {
-      const installments = parseInt(document.getElementById('swalInstallments').value);
+      const installments = parseInt(
+        document.getElementById("swalInstallments").value,
+      );
       const dates = [];
       for (let i = 0; i < installments; i++) {
-        const input = document.getElementById(`swalInstallmentDate${i+1}`);
+        const input = document.getElementById(`swalInstallmentDate${i + 1}`);
         if (!input || !input.value) {
-          Swal.showValidationMessage(`Preencha a data da parcela ${i+1}.`);
+          Swal.showValidationMessage(`Preencha a data da parcela ${i + 1}.`);
           return false;
         }
         dates.push(input.value);
       }
       return { installments, dates };
-    }
+    },
   }).then(async (result) => {
     if (result.isConfirmed && result.value) {
       if (isEdit) {
         // Atualizar o acordo no Firestore
         try {
-          const orderRef = doc(window.db, 'orders', orderId);
+          const orderRef = doc(window.db, "orders", orderId);
           await updateDoc(orderRef, {
             paymentAgreement: {
               installments: parseInt(result.value.installments),
-              dates: result.value.dates
+              dates: result.value.dates,
             },
-            updatedAt: new Date().toISOString()
+            updatedAt: new Date().toISOString(),
           });
           await renderOrdersList();
-          Swal.fire('Acordo atualizado!', 'O acordo de pagamento foi editado com sucesso.', 'success');
+          Swal.fire(
+            "Acordo atualizado!",
+            "O acordo de pagamento foi editado com sucesso.",
+            "success",
+          );
         } catch (err) {
-          Swal.fire('Erro', 'Não foi possível atualizar o acordo. Tente novamente.', 'error');
+          Swal.fire(
+            "Erro",
+            "Não foi possível atualizar o acordo. Tente novamente.",
+            "error",
+          );
         }
       } else {
-        window.saveAgreement(orderId, result.value.installments, result.value.dates);
+        window.saveAgreement(
+          orderId,
+          result.value.installments,
+          result.value.dates,
+        );
       }
     }
   });
 }
 
-window.openAgreementModal = function(...args) {
-  console.log('[DEBUG] openAgreementModal chamado', args);
+window.openAgreementModal = function (...args) {
+  console.log("[DEBUG] openAgreementModal chamado", args);
   try {
     return openAgreementModal.apply(this, args);
   } catch (e) {
-    alert('Erro ao abrir modal de acordo. Veja o console.');
-    console.error('openAgreementModal erro:', e);
+    alert("Erro ao abrir modal de acordo. Veja o console.");
+    console.error("openAgreementModal erro:", e);
   }
 };
 
 // Função para salvar o acordo de pagamento
-window.saveAgreement = async function(orderId, installments, dates) {
+window.saveAgreement = async function (orderId, installments, dates) {
   try {
     // Compatibilidade: se não vierem por parâmetro, tenta pegar do DOM antigo
     if (!installments || !dates) {
-      const domInstallments = document.getElementById('installments')?.value || 1;
-      const domFirstPaymentDate = document.getElementById('firstPaymentDate')?.value;
+      const domInstallments =
+        document.getElementById("installments")?.value || 1;
+      const domFirstPaymentDate =
+        document.getElementById("firstPaymentDate")?.value;
       if (!domInstallments || !domFirstPaymentDate) {
-        alert('Por favor, preencha todos os campos do acordo.');
+        alert("Por favor, preencha todos os campos do acordo.");
         return;
       }
       installments = domInstallments;
       dates = [domFirstPaymentDate];
     }
     // Validação extra
-    if (!orderId || !installments || !dates || !Array.isArray(dates) || dates.length === 0) {
-      alert('Por favor, preencha todos os campos do acordo.');
+    if (
+      !orderId ||
+      !installments ||
+      !dates ||
+      !Array.isArray(dates) ||
+      dates.length === 0
+    ) {
+      alert("Por favor, preencha todos os campos do acordo.");
       return;
     }
     // Chama a função que salva o acordo, passando todas as datas
@@ -1823,53 +2543,61 @@ window.saveAgreement = async function(orderId, installments, dates) {
     // Fechar o modal SweetAlert2 (se aberto)
     if (Swal.isVisible()) Swal.close();
     // Fechar o modal antigo se existir
-    const modal = document.getElementById('agreementModal');
+    const modal = document.getElementById("agreementModal");
     if (modal) document.body.removeChild(modal);
 
     // Atualizar a lista de pedidos
     await renderOrdersList();
 
     // Mostrar mensagem de sucesso
-    alert('Acordo de pagamento criado com sucesso!');
-
+    alert("Acordo de pagamento criado com sucesso!");
   } catch (error) {
-    console.error('Erro ao salvar acordo:', error);
-    alert('Ocorreu um erro ao criar o acordo de pagamento. Por favor, tente novamente.');
+    console.error("Erro ao salvar acordo:", error);
+    alert(
+      "Ocorreu um erro ao criar o acordo de pagamento. Por favor, tente novamente.",
+    );
   }
 };
 
 // Função para salvar um novo pagamento
-window.savePayment = async function(orderId, amount, method, date, setAsPaid, installmentIndex) {
+window.savePayment = async function (
+  orderId,
+  amount,
+  method,
+  date,
+  setAsPaid,
+  installmentIndex,
+) {
   try {
     // Permitir chamada tanto pelo SweetAlert2 quanto pelo DOM antigo (fallback)
-    if (typeof amount === 'undefined') {
-      amount = parseFloat(document.getElementById('paymentAmount')?.value);
+    if (typeof amount === "undefined") {
+      amount = parseFloat(document.getElementById("paymentAmount")?.value);
     }
-    if (typeof method === 'undefined') {
-      method = document.getElementById('paymentMethod')?.value;
+    if (typeof method === "undefined") {
+      method = document.getElementById("paymentMethod")?.value;
     }
-    if (typeof date === 'undefined') {
-      date = document.getElementById('paymentDate')?.value;
+    if (typeof date === "undefined") {
+      date = document.getElementById("paymentDate")?.value;
     }
-    if (typeof setAsPaid === 'undefined') {
-      setAsPaid = document.getElementById('setAsPaid')?.checked;
+    if (typeof setAsPaid === "undefined") {
+      setAsPaid = document.getElementById("setAsPaid")?.checked;
     }
-    
+
     if (!amount || amount <= 0) {
-      alert('Por favor, informe um valor válido para o pagamento.');
+      alert("Por favor, informe um valor válido para o pagamento.");
       return;
     }
-    
+
     if (!method) {
-      alert('Por favor, selecione uma forma de pagamento.');
+      alert("Por favor, selecione uma forma de pagamento.");
       return;
     }
-    
+
     // Obter dados atuais do pedido
-    const orderRef = doc(db, 'orders', orderId);
+    const orderRef = doc(db, "orders", orderId);
     const orderDoc = await getDoc(orderRef);
     const orderData = orderDoc.data();
-    
+
     // Preparar atualização
     const payment = {
       amount,
@@ -1877,83 +2605,93 @@ window.savePayment = async function(orderId, amount, method, date, setAsPaid, in
       // Salva a data do pagamento exatamente como informada (YYYY-MM-DD)
       date: date,
       // Salva o momento do registro do pagamento (data/hora local completa)
-      createdAt: new Date().toLocaleString('sv-SE', { timeZone: 'America/Sao_Paulo' })
+      createdAt: new Date().toLocaleString("sv-SE", {
+        timeZone: "America/Sao_Paulo",
+      }),
     };
 
-    if (typeof installmentIndex !== 'undefined' && installmentIndex !== null) {
+    if (typeof installmentIndex !== "undefined" && installmentIndex !== null) {
       payment.installmentIndex = installmentIndex;
     }
-    
+
     const currentPayments = orderData.payments || [];
     const updatedPayments = [...currentPayments, payment];
-    const totalPaid = updatedPayments.reduce((sum, p) => sum + parseFloat(p.amount), 0);
-    
+    const totalPaid = updatedPayments.reduce(
+      (sum, p) => sum + parseFloat(p.amount),
+      0,
+    );
+
     // Determinar o novo status
-    let paymentStatus = 'Pendente';
+    let paymentStatus = "Pendente";
     if (totalPaid >= (orderData.total || 0)) {
-      paymentStatus = 'Pago';
+      paymentStatus = "Pago";
     } else if (totalPaid > 0) {
-      paymentStatus = 'Parcial';
+      paymentStatus = "Parcial";
     }
-    
+
     // Atualizar o pedido
     await updateDoc(orderRef, {
       payments: updatedPayments,
       paymentStatus,
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     });
-    
+
     // Fechar o modal
-    const modal = document.getElementById('paymentModal');
+    const modal = document.getElementById("paymentModal");
     if (modal) document.body.removeChild(modal);
-    
+
     // Recarregar a lista de pedidos
     await renderOrdersList();
-    
+
     // Mostrar mensagem de sucesso
-    alert('Pagamento registrado com sucesso!');
-    
+    alert("Pagamento registrado com sucesso!");
   } catch (error) {
-    console.error('Erro ao registrar pagamento:', error);
-    alert('Ocorreu um erro ao registrar o pagamento. Por favor, tente novamente.');
+    console.error("Erro ao registrar pagamento:", error);
+    alert(
+      "Ocorreu um erro ao registrar o pagamento. Por favor, tente novamente.",
+    );
   }
 };
 
 // Definição das funções de pedidos
 
-window.StockModule.completeOrder = async function(orderId) {
-
-  console.debug('[Pedidos] Clique em Concluído para orderId:', orderId);
+window.StockModule.completeOrder = async function (orderId) {
+  console.debug("[Pedidos] Clique em Concluído para orderId:", orderId);
 
   try {
-    const orderRef = doc(window.db, 'orders', orderId);
+    const orderRef = doc(window.db, "orders", orderId);
     const orderSnap = await getDoc(orderRef);
-    if (!orderSnap.exists()) return Swal.fire('Erro', 'Pedido não encontrado!', 'error');
+    if (!orderSnap.exists())
+      return Swal.fire("Erro", "Pedido não encontrado!", "error");
     const order = orderSnap.data();
-    if (order.status === 'Concluído') return;
-    await setDoc(orderRef, { status: 'Concluído' }, { merge: true });
-    Swal.fire('Pedido concluído!', 'O status do pedido foi atualizado para Concluído.', 'success');
+    if (order.status === "Concluído") return;
+    await setDoc(orderRef, { status: "Concluído" }, { merge: true });
+    Swal.fire(
+      "Pedido concluído!",
+      "O status do pedido foi atualizado para Concluído.",
+      "success",
+    );
     renderOrdersList();
   } catch (e) {
-    Swal.fire('Erro', 'Não foi possível atualizar o pedido.', 'error');
-    console.error('Erro ao consumir pedido:', e);
+    Swal.fire("Erro", "Não foi possível atualizar o pedido.", "error");
+    console.error("Erro ao consumir pedido:", e);
   }
 };
-window.StockModule.cancelOrder = async function(orderId) {
-
-  console.debug('[Pedidos] Clique em Cancelar para orderId:', orderId);
+window.StockModule.cancelOrder = async function (orderId) {
+  console.debug("[Pedidos] Clique em Cancelar para orderId:", orderId);
 
   try {
-    const orderRef = doc(window.db, 'orders', orderId);
+    const orderRef = doc(window.db, "orders", orderId);
     const orderSnap = await getDoc(orderRef);
-    if (!orderSnap.exists()) return Swal.fire('Erro', 'Pedido não encontrado!', 'error');
+    if (!orderSnap.exists())
+      return Swal.fire("Erro", "Pedido não encontrado!", "error");
     const order = orderSnap.data();
-    if (order.status === 'Cancelado') return;
+    if (order.status === "Cancelado") return;
     // Retornar saldo dos produtos ao estoque
     if (Array.isArray(order.items)) {
       const batch = writeBatch(window.db);
       for (const item of order.items) {
-        const prodRef = doc(window.db, 'products', String(item.id));
+        const prodRef = doc(window.db, "products", String(item.id));
         const prodSnap = await getDoc(prodRef);
         if (prodSnap.exists()) {
           const prodData = prodSnap.data();
@@ -1963,15 +2701,18 @@ window.StockModule.cancelOrder = async function(orderId) {
       }
       await batch.commit();
     }
-    await setDoc(orderRef, { status: 'Cancelado' }, { merge: true });
-    Swal.fire('Pedido cancelado!', 'O pedido foi cancelado e o estoque atualizado.', 'success');
+    await setDoc(orderRef, { status: "Cancelado" }, { merge: true });
+    Swal.fire(
+      "Pedido cancelado!",
+      "O pedido foi cancelado e o estoque atualizado.",
+      "success",
+    );
     renderOrdersList();
   } catch (e) {
-    Swal.fire('Erro', 'Não foi possível cancelar o pedido.', 'error');
-    console.error('Erro ao cancelar pedido:', e);
+    Swal.fire("Erro", "Não foi possível cancelar o pedido.", "error");
+    console.error("Erro ao cancelar pedido:", e);
   }
 };
-
 
 import { loadProducts, saveProduct } from "../js/products.js";
 
@@ -1992,7 +2733,6 @@ function getNextProductId() {
     id++;
   }
 }
-
 
 // Função auxiliar para atualizar o DOM quando necessário
 function updateUI() {
@@ -2168,14 +2908,16 @@ async function renderStockList() {
   // Carregar produtos atualizados do Firestore
   try {
     // Forçar leitura do servidor para evitar cache
-    const querySnapshot = await getDocs(collection(window.db, "products"), { source: "server" });
+    const querySnapshot = await getDocs(collection(window.db, "products"), {
+      source: "server",
+    });
     const products = [];
     querySnapshot.forEach((doc) => {
       const data = doc.data();
       products.push({
         id: doc.id,
         ...data,
-        category: typeof data.category === 'string' ? data.category : '', // fallback para garantir campo
+        category: typeof data.category === "string" ? data.category : "", // fallback para garantir campo
       });
     });
     window.products = products;
@@ -2232,32 +2974,32 @@ async function renderStockList() {
             <div class="stock-item-content">
                 <div class="stock-item-info">
   <h3>${product.name}</h3>
-  ${product.description ? `<div class="product-description">${formatProductDescription(product.description, product.descUnderlineColor)}</div>` : ''}
+  ${product.description ? `<div class="product-description">${formatProductDescription(product.description, product.descUnderlineColor)}</div>` : ""}
   <div class="product-category-label">
-    ${typeof product.category === 'string' && product.category.trim() ? product.category : '<span style=\"color:#bbb;\">Sem categoria</span>'}
+    ${typeof product.category === "string" && product.category.trim() ? product.category : '<span style="color:#bbb;">Sem categoria</span>'}
   </div>
   <div class="offer-prices">
     <div style="display: flex; flex-direction: column; align-items: flex-start; margin-bottom: 0.5em; gap: 0.2em;">
   <div>
     <span style="font-size:0.97em;color:#666;">Compra:</span>
-    <span style="font-weight:600; color:#227a2a;">R$ ${(product.purchasePrice ?? 0).toFixed(2).replace('.', ',')}</span>
+    <span style="font-weight:600; color:#227a2a;">R$ ${(product.purchasePrice ?? 0).toFixed(2).replace(".", ",")}</span>
   </div>
   <div>
     <span style="font-size:0.97em;color:#666;">Lucro:</span>
-    <span style="font-weight:600; color:${(product.price - (product.purchasePrice ?? 0)) > 0 ? '#1bc700' : '#c62828'};">
-      R$ ${(product.price - (product.purchasePrice ?? 0)).toFixed(2).replace('.', ',')}
+    <span style="font-weight:600; color:${product.price - (product.purchasePrice ?? 0) > 0 ? "#1bc700" : "#c62828"};">
+      R$ ${(product.price - (product.purchasePrice ?? 0)).toFixed(2).replace(".", ",")}
     </span>
     <span style="font-size:0.97em;color:#444; margin-left:0.5em;">
-      (${(product.purchasePrice > 0 ? Math.round(((product.price - product.purchasePrice) / product.purchasePrice) * 100) : 0)}%)
+      (${product.purchasePrice > 0 ? Math.round(((product.price - product.purchasePrice) / product.purchasePrice) * 100) : 0}%)
     </span>
   </div>
   <div>
     <span style="font-size:0.97em;color:#666;">Lucro PIX:</span>
-    <span style="font-weight:600; color:${(product.pixPrice - (product.purchasePrice ?? 0)) > 0 ? '#1bc700' : '#c62828'};">
-      R$ ${(product.pixPrice && product.purchasePrice !== undefined ? (product.pixPrice - product.purchasePrice).toFixed(2).replace('.', ',') : '0,00')}
+    <span style="font-weight:600; color:${product.pixPrice - (product.purchasePrice ?? 0) > 0 ? "#1bc700" : "#c62828"};">
+      R$ ${product.pixPrice && product.purchasePrice !== undefined ? (product.pixPrice - product.purchasePrice).toFixed(2).replace(".", ",") : "0,00"}
     </span>
     <span style="font-size:0.97em;color:#444; margin-left:0.5em;">
-      (${(product.purchasePrice > 0 && product.pixPrice ? Math.round(((product.pixPrice - product.purchasePrice) / product.purchasePrice) * 100) : 0)}%)
+      (${product.purchasePrice > 0 && product.pixPrice ? Math.round(((product.pixPrice - product.purchasePrice) / product.purchasePrice) * 100) : 0}%)
     </span>
   </div>
 </div>
@@ -2328,12 +3070,14 @@ async function renderStockList() {
                 </div>
                 <!-- Barra de Progresso de Estoque -->
                 <div class="product-stock-bar">
-                  <div class="product-stock-bar-inner ${quantity <= 2 ? 'critico' : ''}" style="width: ${Math.min((quantity / 20) * 100, 100)}%;" title="${quantity} unidades em estoque"></div>
+                  <div class="product-stock-bar-inner ${quantity <= 2 ? "critico" : ""}" style="width: ${Math.min((quantity / 20) * 100, 100)}%;" title="${quantity} unidades em estoque"></div>
                 </div>
                 ${
                   !active || quantity === 0
                     ? `<div class="stock-alert-wrapper"><span class="stock-alert unavailable"><i class='fas fa-ban'></i>Indisponível</span></div>`
-                    : (quantity <= 2 ? `<div class="stock-alert-wrapper"><span class="stock-alert low"><i class='fas fa-exclamation-triangle'></i>${quantity === 1 ? "Última unidade!" : "Apenas 2 unidades!"}</span></div>` : '')
+                    : quantity <= 2
+                      ? `<div class="stock-alert-wrapper"><span class="stock-alert low"><i class='fas fa-exclamation-triangle'></i>${quantity === 1 ? "Última unidade!" : "Apenas 2 unidades!"}</span></div>`
+                      : ""
                 }
 
         `;
@@ -3104,19 +3848,19 @@ export async function editProduct(productId) {
   <div class="form-group" style="display: flex; flex-direction: column; gap: 0.7rem;">
     <div style="display: flex; align-items: center; gap: 0.7rem;">
       <label for="productName" style="min-width: 120px;">Nome</label>
-      <input id="productName" class="swal2-input" style="flex:1;" placeholder="Nome do produto" value="${product.name || ''}" required>
+      <input id="productName" class="swal2-input" style="flex:1;" placeholder="Nome do produto" value="${product.name || ""}" required>
     </div>
     <div style="display: flex; align-items: center; gap: 0.7rem;">
       <label for="productDescription" style="min-width: 120px;">Descrição</label>
-      <textarea id="productDescription" class="swal2-textarea" style="flex:1;" placeholder="Descrição">${product.description || ''}</textarea>
+      <textarea id="productDescription" class="swal2-textarea" style="flex:1;" placeholder="Descrição">${product.description || ""}</textarea>
     </div>
     <div style="display: flex; align-items: center; gap: 0.7rem;">
       <label for="productPurchasePrice" style="min-width: 120px;">Preço de Compra</label>
-      <input id="productPurchasePrice" type="number" class="swal2-input" style="flex:1;" placeholder="Preço de Compra" min="0" step="0.01" value="${product.purchasePrice !== undefined && product.purchasePrice !== null && product.purchasePrice !== '' ? product.purchasePrice : 0}">
+      <input id="productPurchasePrice" type="number" class="swal2-input" style="flex:1;" placeholder="Preço de Compra" min="0" step="0.01" value="${product.purchasePrice !== undefined && product.purchasePrice !== null && product.purchasePrice !== "" ? product.purchasePrice : 0}">
     </div>
     <div style="display: flex; align-items: center; gap: 0.7rem;">
       <label for="productOldPrice" style="min-width: 120px;">Preço Antigo</label>
-      <input id="productOldPrice" type="number" class="swal2-input" style="flex:1;" placeholder="Preço Antigo" min="0" step="0.01" value="${product.oldPrice !== undefined ? product.oldPrice : ''}">
+      <input id="productOldPrice" type="number" class="swal2-input" style="flex:1;" placeholder="Preço Antigo" min="0" step="0.01" value="${product.oldPrice !== undefined ? product.oldPrice : ""}">
     </div>
     <div style="display: flex; align-items: center; gap: 0.7rem;">
       <label for="productPrice" style="min-width: 120px;">Preço Atual</label>
@@ -3124,7 +3868,7 @@ export async function editProduct(productId) {
     </div>
     <div style="display: flex; align-items: center; gap: 0.7rem;">
       <label for="productPixPrice" style="min-width: 120px;">Preço PIX</label>
-      <input id="productPixPrice" type="number" class="swal2-input" style="flex:1;" placeholder="Preço PIX" min="0" step="0.01" value="${product.pixPrice !== undefined ? product.pixPrice : ''}">
+      <input id="productPixPrice" type="number" class="swal2-input" style="flex:1;" placeholder="Preço PIX" min="0" step="0.01" value="${product.pixPrice !== undefined ? product.pixPrice : ""}">
     </div>
     <div style="display: flex; align-items: center; gap: 0.7rem;">
       <label for="productQuantity" style="min-width: 120px;">Quantidade</label>
@@ -3159,10 +3903,16 @@ export async function editProduct(productId) {
       return {
         name: document.getElementById("productName").value,
         description: document.getElementById("productDescription").value,
-        purchasePrice: document.getElementById("productPurchasePrice").value ? parseFloat(document.getElementById("productPurchasePrice").value) : null,
+        purchasePrice: document.getElementById("productPurchasePrice").value
+          ? parseFloat(document.getElementById("productPurchasePrice").value)
+          : null,
         price: parseFloat(document.getElementById("productPrice").value),
-        oldPrice: document.getElementById("productOldPrice").value ? parseFloat(document.getElementById("productOldPrice").value) : null,
-        pixPrice: document.getElementById("productPixPrice").value ? parseFloat(document.getElementById("productPixPrice").value) : null,
+        oldPrice: document.getElementById("productOldPrice").value
+          ? parseFloat(document.getElementById("productOldPrice").value)
+          : null,
+        pixPrice: document.getElementById("productPixPrice").value
+          ? parseFloat(document.getElementById("productPixPrice").value)
+          : null,
         quantity: parseInt(document.getElementById("productQuantity").value),
         active: document.getElementById("productActive").checked,
       };
@@ -3181,18 +3931,26 @@ export async function editProduct(productId) {
       }
 
       const productName = form.querySelector("#productName").value;
-      const productDescription = form.querySelector("#productDescription").value;
-      const productPurchasePrice = form.querySelector("#productPurchasePrice").value;
+      const productDescription = form.querySelector(
+        "#productDescription",
+      ).value;
+      const productPurchasePrice = form.querySelector(
+        "#productPurchasePrice",
+      ).value;
       const productPrice = form.querySelector("#productPrice").value;
       const productOldPrice = form.querySelector("#productOldPrice").value;
       const productPixPrice = form.querySelector("#productPixPrice").value;
       const productQuantity = form.querySelector("#productQuantity").value;
       const productActive = form.querySelector("#productActive").checked;
-      const productCategory = form.querySelector("#productCategory") ? form.querySelector("#productCategory").value : '';
+      const productCategory = form.querySelector("#productCategory")
+        ? form.querySelector("#productCategory").value
+        : "";
 
       // Garantir que os campos obrigatórios existam
       if (!productName || !productPrice || productQuantity === undefined) {
-        throw new Error("Campos obrigatórios faltando: nome, preço ou quantidade");
+        throw new Error(
+          "Campos obrigatórios faltando: nome, preço ou quantidade",
+        );
       }
 
       // Converter valores numéricos
@@ -3200,7 +3958,9 @@ export async function editProduct(productId) {
         ...product,
         name: productName,
         description: productDescription,
-        purchasePrice: productPurchasePrice ? parseFloat(productPurchasePrice) : null,
+        purchasePrice: productPurchasePrice
+          ? parseFloat(productPurchasePrice)
+          : null,
         price: parseFloat(productPrice),
         oldPrice: productOldPrice ? parseFloat(productOldPrice) : null,
         pixPrice: productPixPrice ? parseFloat(productPixPrice) : null,
@@ -3384,7 +4144,7 @@ export async function deleteProduct(productId) {
       allowEscapeKey: false,
       didOpen: () => {
         Swal.showLoading();
-      }
+      },
     });
     try {
       // Excluir do Firestore
@@ -3427,7 +4187,9 @@ export async function deleteProduct(productId) {
           `Marcadas ${orphanCount} entradas da lista de espera como órfãs para o produto ${productId}`,
         );
       } else {
-        console.log("Nenhuma entrada da lista de espera para marcar como órfã.");
+        console.log(
+          "Nenhuma entrada da lista de espera para marcar como órfã.",
+        );
       }
 
       // Atualizar UI
@@ -3435,8 +4197,13 @@ export async function deleteProduct(productId) {
       await renderSpecialOffers();
       await renderWaitlistList();
       if (window.products && Array.isArray(window.products)) {
-        const stillExists = window.products.some(p => String(p.id) === String(productId));
-        console.log(`Produto id ${productId} ainda existe após exclusão?`, stillExists);
+        const stillExists = window.products.some(
+          (p) => String(p.id) === String(productId),
+        );
+        console.log(
+          `Produto id ${productId} ainda existe após exclusão?`,
+          stillExists,
+        );
       }
       // Mostrar sucesso
       Swal.fire({
@@ -3604,7 +4371,9 @@ export async function showAddProductModal() {
         .value.trim();
       const file = Swal.getPopup().querySelector("#productImage").files[0];
       const purchasePrice =
-        parseFloat(Swal.getPopup().querySelector("#productPurchasePrice").value) || 0;
+        parseFloat(
+          Swal.getPopup().querySelector("#productPurchasePrice").value,
+        ) || 0;
       const oldPrice =
         parseFloat(Swal.getPopup().querySelector("#productOldPrice").value) ||
         0;
@@ -3684,15 +4453,15 @@ export async function showAddProductModal() {
     },
   });
 
-   if (formValues) {
+  if (formValues) {
     try {
       // Mostrar loading imediato
       Swal.fire({
-        title: 'Adicionando produto...',
+        title: "Adicionando produto...",
         allowOutsideClick: false,
         didOpen: () => {
           Swal.showLoading();
-        }
+        },
       });
 
       // Função para obter próximo ID disponível
@@ -3728,7 +4497,7 @@ export async function showAddProductModal() {
         icon: "success",
         confirmButtonColor: "#4CAF50",
         timer: 1800,
-        showConfirmButton: false
+        showConfirmButton: false,
       });
     } catch (error) {
       console.error("Erro ao adicionar produto:", error);
@@ -3796,6 +4565,14 @@ async function showTab(tabName) {
         console.log("Renderizando lista de pedidos...");
         await renderOrdersList();
         break;
+      case "metrics":
+        console.log("Renderizando métricas de vendas...");
+        if (typeof renderSalesMetrics === "function") {
+          await renderSalesMetrics();
+        } else {
+          console.error("Função renderSalesMetrics não encontrada");
+        }
+        break;
     }
     console.log(`Conteúdo da aba ${tabName} renderizado com sucesso`);
   } catch (error) {
@@ -3846,7 +4623,7 @@ function renderSpecialOffers() {
 </div>
                 <div class="offer-item-info">
                     <h3>${product.name}</h3>
-                    ${product.description ? `<div class="product-description" style="color:#666; font-size:0.9em; margin: 0.2em 0 0.5em 0;">${product.description}</div>` : ''}
+                    ${product.description ? `<div class="product-description" style="color:#666; font-size:0.9em; margin: 0.2em 0 0.5em 0;">${product.description}</div>` : ""}
                     <div class="offer-prices">
                         ${
                           product.oldPrice
@@ -3909,12 +4686,14 @@ function renderSpecialOffers() {
             </div>
             <!-- Barra de Progresso de Estoque -->
             <div class="product-stock-bar">
-              <div class="product-stock-bar-inner ${quantity <= 2 ? 'critico' : ''}" style="width: ${Math.min((quantity / 20) * 100, 100)}%;" title="${quantity} unidades em estoque"></div>
+              <div class="product-stock-bar-inner ${quantity <= 2 ? "critico" : ""}" style="width: ${Math.min((quantity / 20) * 100, 100)}%;" title="${quantity} unidades em estoque"></div>
             </div>
             ${
-              (!active || quantity === 0)
+              !active || quantity === 0
                 ? `<div class="stock-alert-wrapper"><span class="stock-alert unavailable"><i class='fas fa-ban'></i>Indisponível</span></div>`
-                : (quantity <= 2 ? `<div class="stock-alert-wrapper"><span class="stock-alert low"><i class='fas fa-exclamation-triangle'></i>Estoque Baixo!</span></div>` : '')
+                : quantity <= 2
+                  ? `<div class="stock-alert-wrapper"><span class="stock-alert low"><i class='fas fa-exclamation-triangle'></i>Estoque Baixo!</span></div>`
+                  : ""
             }
         `;
 
@@ -4156,51 +4935,69 @@ export async function updateProductImage(productId) {
 
 // Definições explícitas para evitar ReferenceError
 async function completeOrder(orderId) {
-  console.debug('[Pedidos] Clique em Concluído para orderId:', orderId);
+  console.debug("[Pedidos] Clique em Concluído para orderId:", orderId);
   try {
-    const orderRef = doc(window.db, 'orders', orderId);
+    const orderRef = doc(window.db, "orders", orderId);
     const orderSnap = await getDoc(orderRef);
-    if (!orderSnap.exists()) return Swal.fire('Erro', 'Pedido não encontrado!', 'error');
+    if (!orderSnap.exists())
+      return Swal.fire("Erro", "Pedido não encontrado!", "error");
     const order = orderSnap.data();
-    
+
     // Verifica se o pedido já está concluído ou cancelado
-    if (order.status === 'Concluído') {
-      return Swal.fire('Aviso', 'Este pedido já foi marcado como Concluído.', 'info');
+    if (order.status === "Concluído") {
+      return Swal.fire(
+        "Aviso",
+        "Este pedido já foi marcado como Concluído.",
+        "info",
+      );
     }
-    if (order.status === 'Cancelado') {
-      return Swal.fire('Erro', 'Não é possível marcar um pedido cancelado como Concluído.', 'error');
+    if (order.status === "Cancelado") {
+      return Swal.fire(
+        "Erro",
+        "Não é possível marcar um pedido cancelado como Concluído.",
+        "error",
+      );
     }
-    await setDoc(orderRef, { status: 'Concluído' }, { merge: true });
-    Swal.fire('Pedido concluído!', 'O status do pedido foi atualizado para Concluído.', 'success');
+    await setDoc(orderRef, { status: "Concluído" }, { merge: true });
+    Swal.fire(
+      "Pedido concluído!",
+      "O status do pedido foi atualizado para Concluído.",
+      "success",
+    );
     renderOrdersList();
   } catch (e) {
-    Swal.fire('Erro', 'Não foi possível atualizar o pedido.', 'error');
-    console.error('Erro ao consumir pedido:', e);
+    Swal.fire("Erro", "Não foi possível atualizar o pedido.", "error");
+    console.error("Erro ao consumir pedido:", e);
   }
 }
 
 async function cancelOrder(orderId) {
-  console.debug('[Pedidos] Clique em Cancelar para orderId:', orderId);
+  console.debug("[Pedidos] Clique em Cancelar para orderId:", orderId);
   try {
-    const orderRef = doc(window.db, 'orders', orderId);
+    const orderRef = doc(window.db, "orders", orderId);
     const orderSnap = await getDoc(orderRef);
-    if (!orderSnap.exists()) return Swal.fire('Erro', 'Pedido não encontrado!', 'error');
-    
+    if (!orderSnap.exists())
+      return Swal.fire("Erro", "Pedido não encontrado!", "error");
+
     const order = orderSnap.data();
-    
+
     // Verifica se o pedido já está concluído ou cancelado
-    if (order.status === 'Concluído') {
-      return Swal.fire('Aviso', 'Não é possível cancelar um pedido já concluído.', 'error');
+    if (order.status === "Concluído") {
+      return Swal.fire(
+        "Aviso",
+        "Não é possível cancelar um pedido já concluído.",
+        "error",
+      );
     }
-    if (order.status === 'Cancelado') {
-      return Swal.fire('Aviso', 'Este pedido já foi cancelado.', 'info');
+    if (order.status === "Cancelado") {
+      return Swal.fire("Aviso", "Este pedido já foi cancelado.", "info");
     }
-    
+
     // Retornar saldo dos produtos ao estoque
     if (Array.isArray(order.items)) {
       const batch = writeBatch(window.db);
       for (const item of order.items) {
-        const prodRef = doc(window.db, 'products', String(item.productId));
+        const prodRef = doc(window.db, "products", String(item.productId));
         const prodSnap = await getDoc(prodRef);
         if (prodSnap.exists()) {
           const prodData = prodSnap.data();
@@ -4210,13 +5007,17 @@ async function cancelOrder(orderId) {
       }
       await batch.commit();
     }
-    
-    await setDoc(orderRef, { status: 'Cancelado' }, { merge: true });
-    Swal.fire('Pedido cancelado!', 'O pedido foi cancelado e o estoque atualizado.', 'success');
+
+    await setDoc(orderRef, { status: "Cancelado" }, { merge: true });
+    Swal.fire(
+      "Pedido cancelado!",
+      "O pedido foi cancelado e o estoque atualizado.",
+      "success",
+    );
     renderOrdersList();
   } catch (e) {
-    Swal.fire('Erro', 'Não foi possível cancelar o pedido.', 'error');
-    console.error('Erro ao cancelar pedido:', e);
+    Swal.fire("Erro", "Não foi possível cancelar o pedido.", "error");
+    console.error("Erro ao cancelar pedido:", e);
   }
 }
 
@@ -4234,7 +5035,7 @@ window.StockModule = {
 // Corrige sobrescrita: sempre reatribui funções de pedidos
 Object.assign(window.StockModule, {
   completeOrder,
-  cancelOrder
+  cancelOrder,
 });
 
 // Salva todas as alterações pendentes
@@ -4324,12 +5125,12 @@ export async function savePendingChanges() {
 }
 
 function closeProductModal() {
-  const modal = document.querySelector('.modal-content');
+  const modal = document.querySelector(".modal-content");
   if (!modal) {
     console.error("Modal não encontrado");
     return;
   }
-  modal.closest('.modal').classList.remove("active");
+  modal.closest(".modal").classList.remove("active");
   modal.classList.remove("active");
 }
 
@@ -4434,34 +5235,34 @@ async function setupEventListeners() {
     const stockTabBtn = document.getElementById("stockTabBtn");
     const specialOffersTabBtn = document.getElementById("specialOffersTabBtn");
     const waitlistTabBtn = document.getElementById("waitlistTabBtn");
-    
+
     // Configurar listeners para os filtros de pedidos
-    const searchInput = document.getElementById('searchTerm');
-    const dateFilter = document.getElementById('filterDate');
-    const statusFilter = document.getElementById('filterStatus');
-    const applyFiltersBtn = document.getElementById('applyFilters');
-    const clearFiltersBtn = document.getElementById('clearFilters');
-    
+    const searchInput = document.getElementById("searchTerm");
+    const dateFilter = document.getElementById("filterDate");
+    const statusFilter = document.getElementById("filterStatus");
+    const applyFiltersBtn = document.getElementById("applyFilters");
+    const clearFiltersBtn = document.getElementById("clearFilters");
+
     if (searchInput) {
-      searchInput.addEventListener('keyup', (e) => {
-        if (e.key === 'Enter') applyFilters();
+      searchInput.addEventListener("keyup", (e) => {
+        if (e.key === "Enter") applyFilters();
       });
     }
-    
+
     if (dateFilter) {
-      dateFilter.addEventListener('change', applyFilters);
+      dateFilter.addEventListener("change", applyFilters);
     }
-    
+
     if (statusFilter) {
-      statusFilter.addEventListener('change', applyFilters);
+      statusFilter.addEventListener("change", applyFilters);
     }
-    
+
     if (applyFiltersBtn) {
-      applyFiltersBtn.addEventListener('click', applyFilters);
+      applyFiltersBtn.addEventListener("click", applyFilters);
     }
-    
+
     if (clearFiltersBtn) {
-      clearFiltersBtn.addEventListener('click', clearFilters);
+      clearFiltersBtn.addEventListener("click", clearFilters);
     }
 
     if (stockTabBtn) {
@@ -4484,6 +5285,12 @@ async function setupEventListeners() {
       ordersTabBtn.addEventListener("click", () => showTab("orders"));
     }
 
+    // Adiciona event listener para o botão de métricas
+    const metricsTabBtn = document.getElementById("metricsTabBtn");
+    if (metricsTabBtn) {
+      metricsTabBtn.addEventListener("click", () => showTab("metrics"));
+    }
+
     // Botão de adicionar produto
     const addProductBtn = document.getElementById("addProductBtn");
     if (addProductBtn) {
@@ -4499,42 +5306,46 @@ async function setupEventListeners() {
 
     // Toggle collapsible summary
     function setupSummaryToggle() {
-      const summaryHeader = document.getElementById('summaryHeader');
+      const summaryHeader = document.getElementById("summaryHeader");
       const summaryCollapsible = summaryHeader?.parentElement;
-      
-      if (summaryHeader && summaryCollapsible) {
-          // Start collapsed
-          summaryCollapsible.classList.add('collapsed');
-          
-          summaryHeader.addEventListener('click', () => {
-              summaryCollapsible.classList.toggle('collapsed');
-              const icon = summaryHeader.querySelector('.toggle-icon');
-              if (icon) {
-                  icon.textContent = summaryCollapsible.classList.contains('collapsed') ? '+' : '-';
-              }
-          });
-      }
-  }
 
-  // Inicialização
-  document.addEventListener('DOMContentLoaded', async function() {
+      if (summaryHeader && summaryCollapsible) {
+        // Start collapsed
+        summaryCollapsible.classList.add("collapsed");
+
+        summaryHeader.addEventListener("click", () => {
+          summaryCollapsible.classList.toggle("collapsed");
+          const icon = summaryHeader.querySelector(".toggle-icon");
+          if (icon) {
+            icon.textContent = summaryCollapsible.classList.contains(
+              "collapsed",
+            )
+              ? "+"
+              : "-";
+          }
+        });
+      }
+    }
+
+    // Inicialização
+    document.addEventListener("DOMContentLoaded", async function () {
       // Setup summary toggle
       setupSummaryToggle();
-  });
+    });
 
     // Configuração dos eventos de clique nos botões de ação dos pedidos
-    document.addEventListener('click', async (e) => {
-      const target = e.target.closest('.order-action-btn');
+    document.addEventListener("click", async (e) => {
+      const target = e.target.closest(".order-action-btn");
       if (!target) return;
-  
+
       const action = target.dataset.action;
       const orderId = target.dataset.orderId;
-  
-      if (action === 'complete') {
+
+      if (action === "complete") {
         await completeOrder(orderId);
-      } else if (action === 'cancel') {
+      } else if (action === "cancel") {
         await cancelOrder(orderId);
-      } else if (action === 'delete') {
+      } else if (action === "delete") {
         await window.deleteOrder(orderId);
       }
     });
@@ -4602,19 +5413,20 @@ window.updateStock = updateStock;
 // Função para atualizar a lista manualmente
 const refreshStock = async () => {
   const refreshBtn = document.getElementById("refreshStock");
-  const originalText = refreshBtn ? refreshBtn.innerHTML : '';
-  
+  const originalText = refreshBtn ? refreshBtn.innerHTML : "";
+
   try {
     // Mostrar loading
     if (refreshBtn) {
-      refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Atualizando...';
+      refreshBtn.innerHTML =
+        '<i class="fas fa-spinner fa-spin"></i> Atualizando...';
       refreshBtn.disabled = true;
     }
 
     // Forçar atualização dos produtos do Firestore
     const productsCollection = collection(window.db, "products");
     const snapshot = await getDocs(productsCollection);
-    
+
     // Atualizar lista de produtos local
     window.products = [];
     snapshot.forEach((doc) => {
@@ -4626,19 +5438,21 @@ const refreshStock = async () => {
     });
 
     // Re-renderizar a aba atual
-    const activeTab = document.querySelector('.tab-button.active')?.getAttribute('data-tab');
+    const activeTab = document
+      .querySelector(".tab-button.active")
+      ?.getAttribute("data-tab");
     if (activeTab) {
       switch (activeTab) {
-        case 'stock':
+        case "stock":
           await renderStockList();
           break;
-        case 'specialOffers':
+        case "specialOffers":
           await renderSpecialOffers();
           break;
-        case 'waitlist':
+        case "waitlist":
           await renderWaitlistList();
           break;
-        case 'orders':
+        case "orders":
           await renderOrdersList();
           break;
       }
@@ -4647,9 +5461,9 @@ const refreshStock = async () => {
     // Feedback visual de sucesso
     if (refreshBtn) {
       const originalColor = refreshBtn.style.backgroundColor;
-      refreshBtn.style.backgroundColor = '#4CAF50';
+      refreshBtn.style.backgroundColor = "#4CAF50";
       refreshBtn.innerHTML = '<i class="fas fa-check"></i> Atualizado!';
-      
+
       // Resetar após 2 segundos
       setTimeout(() => {
         if (refreshBtn) {
@@ -4659,17 +5473,17 @@ const refreshStock = async () => {
         }
       }, 2000);
     }
-    
+
     return true;
   } catch (error) {
     console.error("Erro ao atualizar lista:", error);
-    
+
     // Feedback visual de erro
     if (refreshBtn) {
       const originalColor = refreshBtn.style.backgroundColor;
-      refreshBtn.style.backgroundColor = '#f44336';
+      refreshBtn.style.backgroundColor = "#f44336";
       refreshBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Erro';
-      
+
       // Resetar após 2 segundos
       setTimeout(() => {
         if (refreshBtn) {
@@ -4679,25 +5493,144 @@ const refreshStock = async () => {
         }
       }, 2000);
     }
-    
+
     return false;
   }
 };
 
-// Definir funções no objeto StockModule global
+// Garante que StockModule existe sem sobrescrever funções existentes
 if (!window.StockModule) {
   window.StockModule = {};
 }
 
-// Adicionar função refreshStock ao StockModule
-window.StockModule.refreshStock = refreshStock;
+// Função para remover um item de brinde
+async function removeGiftItem(orderId, itemId, isGiftNote = false) {
+  try {
+    const result = await Swal.fire({
+      title: "Remover item",
+      text: "Tem certeza que deseja remover este item?",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Sim, remover",
+      cancelButtonText: "Cancelar",
+      confirmButtonColor: "#ff3860",
+      cancelButtonColor: "#6c757d",
+      reverseButtons: true,
+    });
 
-// Adicionar função refreshStock diretamente ao objeto window para garantir disponibilidade
-window.refreshStock = refreshStock;
+    if (!result.isConfirmed) return;
 
+    const orderRef = doc(db, "orders", orderId);
+    const orderSnap = await getDoc(orderRef);
 
-console.log('Atualizando StockModule com as funções...');
-// Atualiza o objeto StockModule com todas as funções necessárias
+    if (!orderSnap.exists()) {
+      throw new Error("Pedido não encontrado");
+    }
+
+    const order = { id: orderSnap.id, ...orderSnap.data() };
+    const batch = writeBatch(db);
+    let itemToRemove;
+
+    if (isGiftNote) {
+      // Remove nota de brinde
+      const giftIndex = (order.gifts || []).findIndex(
+        (_, idx) => idx.toString() === itemId,
+      );
+      if (giftIndex === -1) throw new Error("Nota de brinde não encontrada");
+
+      const updatedGifts = [...(order.gifts || [])];
+      updatedGifts.splice(giftIndex, 1);
+
+      batch.update(orderRef, {
+        gifts: updatedGifts,
+        updatedAt: new Date().toISOString(),
+      });
+    } else {
+      // Remove item de brinde e restaura o estoque
+      const itemIndex = (order.items || []).findIndex(
+        (item) =>
+          (item.id && item.id.toString() === itemId) ||
+          (item._id && item._id.toString() === itemId),
+      );
+
+      if (itemIndex === -1) throw new Error("Item de brinde não encontrado");
+
+      itemToRemove = order.items[itemIndex];
+      const updatedItems = [...order.items];
+      updatedItems.splice(itemIndex, 1);
+
+      // Restaura o estoque
+      if (itemToRemove && itemToRemove.productId) {
+        const productRef = doc(
+          db,
+          "products",
+          itemToRemove.productId.toString(),
+        );
+        const productSnap = await getDoc(productRef);
+
+        if (productSnap.exists()) {
+          const productData = productSnap.data();
+          const currentQuantity = Number(productData.quantity || 0);
+          const quantityToRestore = Number(itemToRemove.quantity || 1);
+
+          batch.update(productRef, {
+            quantity: currentQuantity + quantityToRestore,
+            stock: currentQuantity + quantityToRestore,
+            updatedAt: new Date().toISOString(),
+          });
+
+          // Atualiza o cache local
+          if (window.stockProducts) {
+            const productIndex = window.stockProducts.findIndex(
+              (p) =>
+                p &&
+                p.id &&
+                p.id.toString() === itemToRemove.productId.toString(),
+            );
+
+            if (productIndex !== -1) {
+              window.stockProducts[productIndex].quantity += quantityToRestore;
+              window.stockProducts[productIndex].stock += quantityToRestore;
+            }
+          }
+        }
+      }
+
+      // Atualiza o pedido com os itens restantes
+      batch.update(orderRef, {
+        items: updatedItems,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
+    await batch.commit();
+    renderOrdersList();
+
+    Swal.fire({
+      title: "Sucesso!",
+      text: "Item removido com sucesso!",
+      icon: "success",
+      confirmButtonColor: "#4caf50",
+      timer: 2000,
+      timerProgressBar: true,
+    });
+  } catch (error) {
+    console.error("Erro ao remover item:", error);
+    Swal.fire({
+      title: "Erro!",
+      text: "Não foi possível remover o item: " + error.message,
+      icon: "error",
+      confirmButtonColor: "#f44336",
+    });
+  }
+}
+
+// Garante que o objeto StockModule existe SEM sobrescrever funções já anexadas
+if (typeof window !== 'undefined') {
+  window.StockModule = window.StockModule || {};
+}
+
+// Exponha todas as funções públicas de uma vez, sem sobrescrever o objeto
 Object.assign(window.StockModule, {
   renderOrdersList,
   showAddProductModal,
@@ -4711,19 +5644,17 @@ Object.assign(window.StockModule, {
   showTab,
   toggleSpecialOffer,
   updateProductImage,
-  refreshStock, // Adiciona a função refreshStock ao objeto StockModule
-  
-  // Adiciona funções de pedidos que podem ser necessárias
+  refreshStock,
+  removeGiftItem, // garante que a função está disponível
   completeOrder,
   cancelOrder,
   openPaymentModal,
   openAgreementModal,
   saveAgreement,
   savePayment,
-  // Adiciona um alias para refreshStock para garantir disponibilidade
-  refreshStock: refreshStock
 });
 
-// Log para depuração
-console.log('StockModule após atualização:', Object.keys(window.StockModule));
-console.log('refreshStock está disponível?', typeof window.StockModule.refreshStock === 'function');
+// Debug: log das funções expostas
+console.log('[DEBUG][StockModule] Funções expostas:', Object.keys(window.StockModule));
+console.log('[DEBUG][StockModule] typeof removeGiftItem:', typeof window.StockModule.removeGiftItem);
+console.log('[DEBUG][StockModule] typeof refreshStock:', typeof window.StockModule.refreshStock);

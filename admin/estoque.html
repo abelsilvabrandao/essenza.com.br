@@ -43,6 +43,7 @@
             <span class="waitlist-badge" id="waitlistBadge">0</span>
             </button>
             <button id="ordersTabBtn" class="tab-button" data-tab="orders">Pedidos</button>
+            <button id="metricsTabBtn" class="tab-button" data-tab="metrics">Métricas</button>
             </div>
 
 
@@ -165,10 +166,17 @@
                 <div id="specialOffersList" class="offers-list"></div>
             </div>
 
-            <!-- Aba de Lista de Espera -->
+            <!-- Aba de Métricas -->
+            <div id="metricsTab" class="tab-content" style="display: none;">
+                <div class="metrics-container" id="metricsContainer">
+                    <div class="loading-message">
+                        <i class="fas fa-spinner fa-spin"></i> Carregando métricas...
+                    </div>
+                </div>
+            </div>
 
-<!-- Aba de Pedidos -->
-<div id="ordersTab" class="tab-content" style="display: none;">
+            <!-- Aba de Pedidos -->
+            <div id="ordersTab" class="tab-content" style="display: none;">
     <div class="summary-collapsible">
         <div class="summary-header" id="summaryHeader">
             <h3>Resumo de Pedidos</h3>
@@ -450,146 +458,116 @@
         console.log('Verificando conexão com o Firestore...');
     </script>
 
-    <!-- Funções globais -->
-    <script>
-        // Inicializar objetos globais
-        window.StockModule = {};
-
-        // Funções de UI que serão definidas pelo módulo
-        window.showAddProductModal = () => window.StockModule.showAddProductModal();
-        window.closeProductModal = () => window.StockModule.closeProductModal();
-        window.editProduct = (id) => window.StockModule.editProduct(id);
-        window.deleteProduct = (id) => window.StockModule.deleteProduct(id);
-        window.handleProductSubmit = (event) => window.StockModule.handleProductSubmit(event);
-        window.updateQuantity = (productId, quantity) => window.StockModule.updateQuantity(productId, quantity);
-        
-        // Função para formatar o método de pagamento
-        window.getPaymentMethodLabel = (method) => {
-            const methods = {
-                'credit': 'Cartão de Crédito',
-                'debit': 'Cartão de Débito',
-                'pix': 'PIX',
-                'boleto': 'Boleto Bancário',
-                'cash': 'Dinheiro',
-                'bank_transfer': 'Transferência Bancária'
-            };
-            return methods[method] || method || 'Não informado';
-        };
-
-        // Função para alternar a visibilidade dos detalhes financeiros
-        window.toggleFinancialDetails = (button) => {
-            const content = button.nextElementSibling;
-            const icon = button.querySelector('i');
-            
-            if (content.style.display === 'none' || !content.style.display) {
-                content.style.display = 'block';
-                icon.classList.remove('fa-chevron-down');
-                icon.classList.add('fa-chevron-up');
-                button.querySelector('span').textContent = 'Ocultar detalhes financeiros';
-            } else {
-                content.style.display = 'none';
-                icon.classList.remove('fa-chevron-up');
-                icon.classList.add('fa-chevron-down');
-                button.querySelector('span').textContent = 'Ver detalhes financeiros';
-            }
-        };
-    </script>
-
+    <!-- Script de Métricas -->
+    <script src="js/sales-metrics.js"></script>
+    
     <!-- Scripts da aplicação -->
     <script type="module">
-    import * as ProductsModule from '../js/products.js';
-    import * as StockModule from './stock.js';
-    import { renderStockDashboard } from './dashboard.js';
-    
-    // Adicionando StockModule ao escopo global para acesso direto
-    window.StockModule = StockModule;
+import * as ProductsModule from '../js/products.js';
+import * as StockModule from './stock.js';
+import { renderStockDashboard } from './dashboard.js';
 
-        // Função para garantir que o Firestore está pronto
-        function waitForFirestore() {
-            return new Promise((resolve) => {
-                const checkFirestore = () => {
-                    if (window.db) {
-                        resolve();
-                    } else {
-                        setTimeout(checkFirestore, 100);
-                    }
-                };
-                checkFirestore();
-            });
-        }
 
-        // Inicializar quando o DOM e Firestore estiverem prontos
-        window.addEventListener('load', async () => {
-            try {
-                console.log('Iniciando aplicação...');
-                
-                // Verificar se o Firestore está disponível
-                if (!window.db) {
-                    throw new Error('Firestore não está inicializado');
-                }
-                
-                // Aguardar Firestore estar pronto
-                await waitForFirestore();
-                console.log('Firestore pronto para uso');
+// Funções globais para uso em onclick, etc.
+window.showAddProductModal = () => window.StockModule.showAddProductModal();
+window.closeProductModal = () => window.StockModule.closeProductModal();
+window.editProduct = (id) => window.StockModule.editProduct(id);
+window.deleteProduct = (id) => window.StockModule.deleteProduct(id);
+window.handleProductSubmit = (event) => window.StockModule.handleProductSubmit(event);
+window.updateQuantity = (productId, quantity) => window.StockModule.updateQuantity(productId, quantity);
+window.getPaymentMethodLabel = (method) => {
+    const methods = {
+        'credit': 'Cartão de Crédito',
+        'debit': 'Cartão de Débito',
+        'pix': 'PIX',
+        'boleto': 'Boleto Bancário',
+        'cash': 'Dinheiro',
+        'bank_transfer': 'Transferência Bancária'
+    };
+    return methods[method] || method || 'Não informado';
+};
+window.toggleFinancialDetails = (button) => {
+    const content = button.nextElementSibling;
+    const icon = button.querySelector('i');
+    if (content.style.display === 'none' || !content.style.display) {
+        content.style.display = 'block';
+        icon.classList.remove('fa-chevron-down');
+        icon.classList.add('fa-chevron-up');
+        button.querySelector('span').textContent = 'Ocultar detalhes financeiros';
+    } else {
+        content.style.display = 'none';
+        icon.classList.remove('fa-chevron-up');
+        icon.classList.add('fa-chevron-down');
+        button.querySelector('span').textContent = 'Ver detalhes financeiros';
+    }
+};
 
-                // 1. Carregar produtos primeiro
-                await ProductsModule.loadProducts();
-                console.log('Produtos carregados:', window.products ? window.products.length : 0);
-                
-                // 2. Inicializar estoque
-                await StockModule.initializeStock();
-                console.log('Estoque inicializado');
-                
-                // 3. Renderizar pedidos (que dependem dos produtos para cálculos)
-                if (typeof StockModule.renderOrdersList === 'function') {
-                    console.log('Chamando renderOrdersList...');
-                    await StockModule.renderOrdersList();
-                }
-                
-                // 4. Renderizar o painel do dashboard
-                if (window.products && window.products.length > 0) {
-                    renderStockDashboard(window.products, { estoqueCritico: 5 });
-                } else {
-                    console.error('Nenhum produto carregado para renderizar o dashboard');
-                }
-                
-                // 5. Carregar lista de espera (se a função existir no StockModule)
-                if (typeof StockModule.loadWaitlistFromFirestore === 'function') {
-                    console.log('Carregando lista de espera...');
-                    await StockModule.loadWaitlistFromFirestore();
-                } else {
-                    console.log('Função loadWaitlistFromFirestore não encontrada, pulando...');
-                }
-                
-                // Configurar event listeners da UI
-                if (typeof StockModule.setupEventListeners === 'function') {
-                    await StockModule.setupEventListeners();
-                }
-                
-                // Mostrar a aba de estoque por padrão
-                if (typeof showTab === 'function') {
-                    showTab('stock');
-                }
-                
-                console.log('Aplicação inicializada com sucesso!');
-                
-                // Renderizar outras listas
-                await StockModule.renderSpecialOffers();
-                await StockModule.renderWaitlistList();
-                console.log('Listas renderizadas');
-                
-                console.log('Aplicação inicializada com sucesso!');
-            } catch (error) {
-                console.error('Erro ao inicializar aplicação:', error);
-                Swal.fire({
-                    title: 'Erro',
-                    text: 'Erro ao inicializar aplicação: ' + error.message,
-                    icon: 'error',
-                    confirmButtonColor: '#ff1493'
-                });
+function waitForFirestore() {
+    return new Promise((resolve) => {
+        const checkFirestore = () => {
+            if (window.db) {
+                resolve();
+            } else {
+                setTimeout(checkFirestore, 100);
             }
-        });      
-    </script>
+        };
+        checkFirestore();
+    });
+}
+
+window.addEventListener('load', async () => {
+    try {
+        console.log('Iniciando aplicação...');
+        if (!window.db) throw new Error('Firestore não está inicializado');
+        await waitForFirestore();
+        console.log('Firestore pronto para uso');
+        await ProductsModule.loadProducts();
+        console.log('Produtos carregados:', window.products ? window.products.length : 0);
+        await StockModule.initializeStock();
+        console.log('Estoque inicializado');
+        if (typeof StockModule.renderOrdersList === 'function') {
+            console.log('Chamando renderOrdersList...');
+            await StockModule.renderOrdersList();
+        }
+        if (window.products && window.products.length > 0) {
+            renderStockDashboard(window.products, { estoqueCritico: 5 });
+        } else {
+            console.error('Nenhum produto carregado para renderizar o dashboard');
+        }
+        if (typeof StockModule.loadWaitlistFromFirestore === 'function') {
+            console.log('Carregando lista de espera...');
+            await StockModule.loadWaitlistFromFirestore();
+        } else {
+            console.log('Função loadWaitlistFromFirestore não encontrada, pulando...');
+        }
+        if (typeof StockModule.setupEventListeners === 'function') {
+            await StockModule.setupEventListeners();
+        }
+        const urlParams = new URLSearchParams(window.location.search);
+        const tabParam = urlParams.get('tab');
+        const defaultTab = tabParam || 'stock';
+        if (typeof StockModule.showTab === 'function') {
+            StockModule.showTab(defaultTab);
+        } else if (typeof showTab === 'function') {
+            showTab(defaultTab);
+        }
+        console.log('Aplicação inicializada com sucesso!');
+        await StockModule.renderSpecialOffers();
+        await StockModule.renderWaitlistList();
+        console.log('Listas renderizadas');
+        console.log('Aplicação inicializada com sucesso!');
+    } catch (error) {
+        console.error('Erro ao inicializar aplicação:', error);
+        Swal.fire({
+            title: 'Erro',
+            text: 'Erro ao inicializar aplicação: ' + error.message,
+            icon: 'error',
+            confirmButtonColor: '#ff1493'
+        });
+    }
+});
+</script>
+
     <script src="https://cdn.jsdelivr.net/npm/browser-image-compression@1.0.16/dist/browser-image-compression.js"></script>
     <!-- Chart.js (antes do dashboard.js) -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -597,7 +575,6 @@
 <script src="dashboard.js" type="module"></script>
 <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 <script src="accordion.js"></script>
-<script src="./stock.js" type="module"></script>
 <script type="module" src="./coupons-admin.js"></script>
 
 </body>
