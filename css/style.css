@@ -41,6 +41,57 @@ body {
     gap: 0.7em;
 }
 
+.footer-info .logo-title {
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 0.1em;
+    width: fit-content;
+    height: 50px;
+    margin: 0 auto 0 auto;
+    overflow: visible;
+}
+
+.footer-info .logo-title .logo {
+    margin: 0;
+    padding: 0;
+    display: block;
+    width: 50px;
+    height: 50px;
+}
+
+.footer-info .logo-title h3 {
+    margin: 0;
+    padding: 0;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    height: 50px;
+}
+
+.footer-info .logo-title .logo {
+    margin: 0;
+    padding: 0;
+    display: block;
+    width: 50px;
+    height: 50px;
+}
+
+.footer-info .logo-title h3 {
+    margin: 0;
+    padding: 0;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    height: 50px;
+}
+
+.footer-info .logo-title .logo {
+    display: block;
+    margin: 0 auto;
+    max-width: 90px;
+}
+
 .logo-title .logo {
     width: 50px;
     height: 50px;
@@ -432,10 +483,13 @@ body {
     }
     
     .footer-info, 
-    .footer-contact {
-        text-align: center;
-    }
-    
+.footer-contact {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
     .social-links {
         justify-content: center;
         margin-top: 1rem;
@@ -931,7 +985,26 @@ body {
 }
 
 /* Add to Cart Button */
+.btn-add-cart .icon-bag {
+  /* White icon for colored backgrounds */
+  stroke: #fff;
+  color: #fff;
+  filter: drop-shadow(0 1px 4px rgba(0,0,0,0.10));
+  width: 1.25em;
+  height: 1.25em;
+  vertical-align: middle;
+  margin-right: 0.32em;
+  transition: transform 0.15s cubic-bezier(.4,2,.6,1), filter 0.15s;
+  filter: drop-shadow(0 0 0 rgba(74,74,74,0));
+}
+.btn-add-cart:hover .icon-bag,
+.btn-add-cart:focus .icon-bag {
+  transform: scale(1.11) rotate(-6deg);
+  filter: drop-shadow(0 2px 2px rgba(74,74,74,0.10));
+}
+
 .btn-add-cart {
+  font-weight: bold;
     width: 100%;
     padding: 0.8rem;
     border: none;
@@ -2247,6 +2320,21 @@ body {
     color: #ccc;
     margin-bottom: 1.5rem;
     font-size: 0.95rem;
+    text-align: center;
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.footer-desc-justified {
+    color: #ccc;
+    font-size: 0.97rem;
+    text-align: justify;
+    margin: 0 auto 1.2rem auto;
+    max-width: 700px;
+    line-height: 1.7;
+    letter-spacing: 0.01em;
+    display: block;
 }
 
 .social-links {

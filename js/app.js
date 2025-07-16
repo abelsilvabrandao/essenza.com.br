@@ -603,15 +603,15 @@ async function renderProductList() {
                             ${available === 1 ? 'Última unidade!' : 'Apenas 2 unidades!'}
                         </p>
                         <button onclick="addToCart('${product.id}')" class="btn-add-cart" ${available === 0 ? 'disabled style="opacity: 0.7; cursor: not-allowed;"' : ''}>
-                            <i class="fas fa-shopping-cart"></i>
-                            ${available === 0 ? 'Sem estoque' : 'Adicionar ao Carrinho'}
+                            <svg class="icon-bag" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="vertical-align:middle;margin-right:0.32em;"><path d="M7 7V6a5 5 0 0110 0v1" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><rect x="3" y="7" width="18" height="14" rx="2" stroke="#fff" stroke-width="2"/><path d="M16 11a4 4 0 01-8 0" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            ${available === 0 ? 'Sem estoque' : '<b>COMPRAR</b>'}
                         </button>
                     `;
                 } else {
                     return `
                         <button onclick="addToCart('${product.id}')" class="btn-add-cart">
-                            <i class="fas fa-shopping-cart"></i>
-                            Adicionar ao Carrinho
+                            <svg class="icon-bag" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="vertical-align:middle;margin-right:0.32em;"><path d="M7 7V6a5 5 0 0110 0v1" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><rect x="3" y="7" width="18" height="14" rx="2" stroke="#fff" stroke-width="2"/><path d="M16 11a4 4 0 01-8 0" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            <b>COMPRAR</b>
                         </button>
                     `;
                 }
