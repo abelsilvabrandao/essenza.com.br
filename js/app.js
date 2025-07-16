@@ -11,12 +11,16 @@ function formatProductDescription(description, underlineColor = 'underline-prima
   const lines = description.split(/\r?\n/);
   let html = '';
   lines.forEach((line, idx) => {
-    const isTitle = line.trim().endsWith('*');
-    if (isTitle) {
-      const cleanTitle = line.replace(/\s*\*+\s*$/, '').trim();
-      html += `<span class=\"desc-title ${underlineColor}\"><b>${escapeHtml(cleanTitle)}</b></span><br>`;
+    const titleMatch = line.trim().match(/^\*\*(.+)\*\*$/);
+    if (titleMatch) {
+      const cleanTitle = titleMatch[1].trim();
+      // Se não for o primeiro título, adiciona espaçamento antes
+      if (html.trim() !== '') {
+        html += '<div style="height:0.7em"></div>';
+      }
+      html += `<span class="desc-title ${underlineColor}"><b>${escapeHtml(cleanTitle)}</b></span><br>`;
     } else if (line.trim()) {
-      html += `<span class="desc-text">${escapeHtml(line.trim())}</span>`;
+      html += `<div class="desc-text">${escapeHtml(line.trim())}</div>`;
     }
     if (!line.trim() && idx !== 0) {
       html += '<div style="height:0.5em"></div>';
@@ -516,8 +520,9 @@ async function renderProductList() {
     let showSeeMore = false;
     let i = 0;
     while (i < lines.length) {
-      if (lines[i].trim().endsWith('*')) {
-        const title = lines[i].trim().replace(/\*+$/, '').trim();
+      const titleMatch = lines[i].trim().match(/^\*\*(.+)\*\*$/);
+      if (titleMatch) {
+        const title = titleMatch[1].trim();
         html += `<span class=\"desc-title underline-primary\"><b>${escapeHtml(title)}</b></span>`;
         // Preview: até 2 linhas ou 120 caracteres após o título
         let previewText = '';
@@ -674,7 +679,9 @@ function handleSeeMoreClick(event) {
         },
         width: 600,
         didOpen: () => {
-            // Optional: focus modal or scroll
+            // Foca no título ao abrir
+            const el = document.querySelector('.swal2-product-desc-modal .desc-title');
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
     });
 }

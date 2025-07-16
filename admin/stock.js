@@ -42,9 +42,9 @@ function formatProductDescription(
   const lines = description.split(/\r?\n/);
   let html = "";
   lines.forEach((line, idx) => {
-    const isTitle = line.trim().endsWith("*");
-    if (isTitle) {
-      const cleanTitle = line.trim().replace(/\*+$/, "").trim();
+    const titleMatch = line.trim().match(/^\*\*(.+)\*\*$/);
+    if (titleMatch) {
+      const cleanTitle = titleMatch[1].trim();
       html += `<span class="desc-title ${underlineColor}"><b>${escapeHtml(cleanTitle)}</b></span>`;
     } else if (line.trim()) {
       html += `<p class="desc-text">${escapeHtml(line.trim())}</p>`;
