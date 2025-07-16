@@ -898,7 +898,7 @@ async function removeFromCart(productId) {
             icon: 'question',
             showCancelButton: true,
             confirmButtonText: '<i class="fas fa-trash"></i> Remover',
-            cancelButtonText: '<i class="fas fa-times"></i> Manter no carrinho',
+            cancelButtonText: '<i class="fas fa-times"></i> Manter na Sacola',
             confirmButtonColor: getComputedStyle(document.documentElement).getPropertyValue('--color-danger').trim() || '#dc3545',
             cancelButtonColor: getComputedStyle(document.documentElement).getPropertyValue('--color-gray').trim() || '#6c757d',
             background: getComputedStyle(document.documentElement).getPropertyValue('--color-background').trim() || '#fff',
@@ -925,10 +925,10 @@ async function removeFromCart(productId) {
                 html: `
                     <div style="text-align: center;">
                         <i class="fas fa-check-circle" style="color: #28a745; font-size: 3em; margin-bottom: 15px;"></i>
-                        <p>Produto removido do carrinho</p>
+                        <p>Produto removido da Sacola</p>
                         ${product && product.quantity > 0 ? 
                           `<p style="color: #28a745; margin-top: 10px;">
-                              <i class="fas fa-undo"></i> ${item.quantity} foi removido do carrinho.
+                              <i class="fas fa-undo"></i> ${item.quantity} foi removido da sacola.
                           </p>` : ''}
                     </div>
                 `,
@@ -950,7 +950,7 @@ async function removeFromCart(productId) {
         console.error('Erro ao remover item do carrinho:', error);
         await Swal.fire({
             title: 'Erro',
-            text: 'Ocorreu um erro ao remover o produto do carrinho. Por favor, tente novamente.',
+            text: 'Ocorreu um erro ao remover o produto da sacola. Por favor, tente novamente.',
             icon: 'error',
             confirmButtonColor: '#ff1493'
         });
@@ -1008,7 +1008,7 @@ async function decreaseQuantity(productId) {
             await Toast.fire({
                 icon: 'info',
                 title: 'Quantidade atualizada',
-                text: `Agora você tem ${item.quantity} unidade(s) de ${item.name} no carrinho`
+                text: `Agora você tem ${item.quantity} unidade(s) de ${item.name} na sacola`
             });
             
         } else {
@@ -1073,7 +1073,7 @@ async function increaseQuantity(productId) {
             await Toast.fire({
                 icon: 'success',
                 title: 'Quantidade atualizada',
-                text: `Agora você tem ${item.quantity} unidade(s) de ${item.name} no carrinho`
+                text: `Agora você tem ${item.quantity} unidade(s) de ${item.name} na sacola`
             });
             
         } else {
@@ -1093,7 +1093,7 @@ async function increaseQuantity(productId) {
                     title: 'Limite de estoque',
                     html: `
                         <div style="text-align: center;">
-                            <p>Você já adicionou todas as <b>${product.quantity} unidade(s)</b> disponíveis de <b>${product.name}</b> ao carrinho.</p>
+                            <p>Você já adicionou todas as <b>${product.quantity} unidade(s)</b> disponíveis de <b>${product.name}</b> a sacola.</p>
                             <p style="color: #666; font-size: 0.9em; margin-top: 10px;">
                                 Para adquirir mais unidades, entre em contato conosco.
                             </p>
@@ -1636,8 +1636,8 @@ if (checkoutForm) {
             // Verificar se há itens no carrinho
             if (cart.length === 0) {
                 await Swal.fire({
-                    title: 'Carrinho vazio',
-                    text: 'Adicione itens ao carrinho antes de finalizar o pedido.',
+                    title: 'Sacola vazia',
+                    text: 'Adicione itens a sacola antes de finalizar o pedido.',
                     icon: 'warning',
                     confirmButtonColor: '#4CAF50'
                 });
@@ -2185,8 +2185,8 @@ async function doResetOrder() {
         // Restaurar HTML do carrinho vazio
         elements.cartItems.innerHTML = `
             <div class="empty-cart" id="emptyCart">
-                <img src="img/empty-cart.png" alt="Carrinho Vazio" class="empty-cart-icon">
-                <p>Seu carrinho está vazio</p>
+                <img src="img/empty-cart.png" alt="Sacola Vazia" class="empty-cart-icon">
+                <p>Sua sacola está vazia</p>
                 <p class="empty-cart-subtitle">Explore nossos produtos e encontre o que você procura</p>
                 <button class="btn-continue-shopping" onclick="closeCartModal()">
                     <span>Continuar Comprando</span>
@@ -2217,8 +2217,8 @@ async function doResetOrder() {
 
         // Mostrar mensagem de sucesso
         Swal.fire({
-            title: 'Carrinho Resetado',
-            text: 'Seu carrinho foi resetado com sucesso!',
+            title: 'Sacola Resetada',
+            text: 'Sua sacola foi resetada com sucesso!',
             icon: 'success',
             timer: 1500,
             showConfirmButton: false
