@@ -167,7 +167,9 @@ async function renderSalesMetrics() {
           total: 0,
           pago: 0,
           pendente: 0,
-          pedidos: 0
+          pedidos: 0,
+          pedidosDetalhados: [], // Novo campo para armazenar detalhes dos pedidos
+          formasPagamento: [] // Novo campo para armazenar formas de pagamento
         };
       }
       
@@ -176,11 +178,85 @@ async function renderSalesMetrics() {
       clientes[clienteId].total += valorPedido;
       clientes[clienteId].pedidos += 1;
 
+      // Adiciona detalhes do pedido
+      clientes[clienteId].pedidosDetalhados.push({
+        numero: order.orderNumber || '',
+        itens: Array.isArray(order.items) ? order.items.map(item => ({
+          nome: item.name,
+          quantidade: item.quantity || 1,
+          isGift: !!item.isGift
+        })) : []
+      });
+
+      // Adiciona forma de pagamento (com status)
+      let formasPedido = [];
+      let pedidoPago = false;
+      // Determina se o pedido está pago
+      if (order.payments && Array.isArray(order.payments)) {
+        pedidoPago = order.payments.some(p => {
+          if (!p || !p.amount) return false;
+          let statusPag = String(p.status || order.paymentStatus || '').toLowerCase()
+            .normalize('NFD').replace(/[^\w\s]/g, '').trim();
+          return statusPag.includes('concluido') || statusPag.includes('pago') || statusPag.includes('paid') || statusPag.includes('completed') || statusPag.includes('aprovado') || statusPag === 'success';
+        });
+        order.payments.forEach(p => {
+          if (!p || !p.method) return;
+          let metodo = String(p.method || '').toLowerCase();
+          let nomeMetodo = '';
+          if (metodo.includes('pix')) nomeMetodo = 'Pix';
+          else if (metodo.includes('cartao') || metodo.includes('credito') || metodo.includes('card') || metodo === 'credit') nomeMetodo = 'Cartão de Crédito';
+          else if (metodo.includes('acordo') || metodo.includes('agreement') || order.paymentAgreement) nomeMetodo = 'Acordo';
+          else if (metodo.includes('dinheiro') || metodo.includes('money')) nomeMetodo = 'Dinheiro';
+          else if (metodo) nomeMetodo = metodo.charAt(0).toUpperCase() + metodo.slice(1);
+          if (nomeMetodo) formasPedido.push({ nome: nomeMetodo, pago: pedidoPago });
+        });
+      } else if (order.paymentMethod) {
+        let metodo = String(order.paymentMethod).toLowerCase();
+        let nomeMetodo = '';
+        if (metodo.includes('pix')) nomeMetodo = 'Pix';
+        else if (metodo.includes('cartao') || metodo.includes('credito') || metodo.includes('card') || metodo === 'credit') nomeMetodo = 'Cartão de Crédito';
+        else if (metodo.includes('acordo') || metodo.includes('agreement') || order.paymentAgreement) nomeMetodo = 'Acordo';
+        else if (metodo.includes('dinheiro') || metodo.includes('money')) nomeMetodo = 'Dinheiro';
+        else nomeMetodo = metodo.charAt(0).toUpperCase() + metodo.slice(1);
+        // Considera pago se status do pedido for pago
+        const status = (order.paymentStatus || '').toLowerCase();
+        pedidoPago = status.includes('pago') || status.includes('paid') || status.includes('concluido') || status.includes('completed') || status.includes('aprovado') || status === 'success';
+        if (nomeMetodo) formasPedido.push({ nome: nomeMetodo, pago: pedidoPago });
+      }
+      // Adiciona 'Acordo' explicitamente se houver paymentAgreement
+      if (order.paymentAgreement) {
+        const jaTemAcordo = formasPedido.some(fp => fp.nome === 'Acordo');
+        if (!jaTemAcordo) {
+          // Status de pagamento do pedido
+          let pagoAcordo = false;
+          if (order.payments && Array.isArray(order.payments)) {
+            pagoAcordo = order.payments.some(p => {
+              if (!p || !p.amount) return false;
+              let statusPag = String(p.status || order.paymentStatus || '').toLowerCase()
+                .normalize('NFD').replace(/[^\w\s]/g, '').trim();
+              return statusPag.includes('concluido') || statusPag.includes('pago') || statusPag.includes('paid') || statusPag.includes('completed') || statusPag.includes('aprovado') || statusPag === 'success';
+            });
+          } else {
+            const status = (order.paymentStatus || '').toLowerCase();
+            pagoAcordo = status.includes('pago') || status.includes('paid') || status.includes('concluido') || status.includes('completed') || status.includes('aprovado') || status === 'success';
+          }
+          formasPedido.push({ nome: 'Acordo', pago: pagoAcordo });
+        }
+      }
+      formasPedido.forEach(fp => {
+        if (!fp.nome) return;
+        // Só adiciona se não existir igual (nome+status)
+        if (!clientes[clienteId].formasPagamento.some(f => f.nome === fp.nome && f.pago === fp.pago)) {
+          clientes[clienteId].formasPagamento.push(fp);
+        }
+      });
+
       // Corrige cálculo do valor realmente pago e pendente por cliente
       let valorPagoNoPedido = 0;
       if (order.payments && Array.isArray(order.payments)) {
         order.payments.forEach(p => {
           if (!p || !p.amount) return;
+          
           let statusPag = String(p.status || order.paymentStatus || '').toLowerCase()
             .normalize('NFD').replace(/[^\w\s]/g, '').trim();
           const isPago = statusPag.includes('concluido') || statusPag.includes('pago') || statusPag.includes('paid') || statusPag.includes('completed') || statusPag.includes('aprovado') || statusPag === 'success';
@@ -312,7 +388,7 @@ async function renderSalesMetrics() {
                 ${topClientes.length} clientes
               </span>
             </div>
-            <div class="clients-header" style="display: grid; grid-template-columns: 1.5fr 0.8fr 1fr 1fr; padding: 8px 15px; background: #f0f2f5; font-weight: 500; border-radius: 6px; margin-bottom: 8px; font-size: 0.9em;">
+            <div class="clients-header" style="display: grid; grid-template-columns: 2.5fr 0.8fr 1fr 1fr; padding: 8px 15px; background: #f0f2f5; font-weight: 500; border-radius: 6px; margin-bottom: 8px; font-size: 0.9em;">
               <span>Cliente</span>
               <span style="text-align: center;">Pedidos</span>
               <span style="text-align: right;">Pago</span>
@@ -321,14 +397,30 @@ async function renderSalesMetrics() {
             <div class="top-list scrollable" style="max-height: 600px; overflow-y: auto;">
               ${topClientes.length > 0 ? 
                 topClientes.map((cliente, index) => `
-                  <div class="client-row" style="display: grid; grid-template-columns: 1.5fr 0.8fr 1fr 1fr; align-items: center; padding: 10px 15px; border-bottom: 1px solid #eee; font-size: 0.92em; cursor: pointer; transition: background-color 0.2s;">
+                  <div class="client-row" style="display: grid; grid-template-columns: 2.5fr 0.8fr 1fr 1fr; align-items: center; padding: 10px 15px; border-bottom: 1px solid #eee; font-size: 0.92em; cursor: pointer; transition: background-color 0.2s;">
                     <div class="client-name" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 10px; font-size: 0.95em;">
                       ${index + 1}. ${cliente.nome}
-                      ${cliente.email ? `<div style="font-size: 0.85em; color: #666; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${cliente.email}</div>` : ''}
-                      ${cliente.telefone ? `<div style="font-size: 0.85em; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${cliente.telefone}</div>` : ''}
+                      ${cliente.email ? `<div style="font-size: 0.85em; color: #666; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><i class='fa fa-envelope' style='margin-right:4px;'></i>${cliente.email}</div>` : ''}
+                      ${cliente.telefone ? `<div style="font-size: 0.85em; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><i class='fa fa-phone' style='margin-right:4px;'></i>${cliente.telefone}</div>` : ''}
+                      ${cliente.formasPagamento.length > 0 ? `<div style="font-size: 0.83em; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${cliente.formasPagamento.map(fp => {
+  let icon = '';
+  if (fp.nome === 'Pix') icon = '<i class="fa fa-qrcode" style="margin-right:3px;"></i>';
+  else if (fp.nome === 'Cartão de Crédito') icon = '<i class="fa fa-credit-card" style="margin-right:3px;"></i>';
+  else if (fp.nome === 'Dinheiro') icon = '<i class="fa fa-money-bill-wave" style="margin-right:3px;"></i>';
+  else if (fp.nome === 'Acordo') icon = '<i class="fa fa-handshake" style="margin-right:3px;"></i>';
+  else icon = '<i class="fa fa-question-circle" style="margin-right:3px;"></i>';
+  return `<span class='badge-pagamento ${fp.pago ? "pago" : "nao-pago"}'>${icon}${fp.nome}</span>`;
+}).join(' ')}</div>` : ''}
                     </div>
-                    <div class="client-orders" style="text-align: center; font-weight: 500; font-size: 0.95em;">
-                      ${cliente.pedidos} ${cliente.pedidos === 1 ? 'pedido' : 'pedidos'}
+                    <div class="client-orders" style="text-align: left; font-weight: 500; font-size: 0.95em; min-width: 220px;">
+                      ${cliente.pedidosDetalhados.map(pedido => `
+                        <div style="margin-bottom: 6px;">
+                          <span style="font-weight: 600; color: #4a6cf7;">#${pedido.numero}</span>
+                          <div style="font-size: 0.92em; color: #444; margin-top: 2px;">
+                            ${pedido.itens.map(item => `<div>${item.nome} <span style='color:#888;'>(x${item.quantidade})</span>${item.isGift ? " <span class='badge-gift'>Brinde</span>" : ''}</div>`).join('')}
+                          </div>
+                        </div>
+                      `).join('')}
                     </div>
                     <div class="client-total" style="text-align: right; font-weight: 600; color: #2e7d32; font-size: 0.95em; padding-right: 10px;">
                       R$ ${cliente.pago.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
@@ -347,7 +439,7 @@ async function renderSalesMetrics() {
                 : '<div style="padding: 15px; text-align: center; color: #666;">Nenhum cliente encontrado</div>'
               }
               ${topClientes.length > 0 ? `
-                <div style="display: grid; grid-template-columns: 1.5fr 0.8fr 1fr 1fr; align-items: center; padding: 12px 15px; background: #f8f9fa; border-top: 2px solid #e0e0e0; font-weight: 600; font-size: 0.95em;">
+                <div style="display: grid; grid-template-columns: 2.5fr 0.8fr 1fr 1fr; align-items: center; padding: 12px 15px; background: #f8f9fa; border-top: 2px solid #e0e0e0; font-weight: 600; font-size: 0.95em;">
                   <div>Total</div>
                   <div style="text-align: center;">${topClientes.reduce((sum, c) => sum + c.pedidos, 0).toLocaleString('pt-BR')}</div>
                   <div style="text-align: right; color: #2e7d32; padding-right: 10px;">
@@ -487,7 +579,7 @@ async function renderSalesMetrics() {
         
         .clients-header {
           display: grid;
-          grid-template-columns: 2fr 1fr 1fr;
+          grid-template-columns: 2.5fr 0.8fr 1fr 1fr;
           padding: 10px 15px;
           background: #f0f2f5;
           font-weight: bold;
@@ -503,12 +595,40 @@ async function renderSalesMetrics() {
         
         .client-row {
           display: grid;
-          grid-template-columns: 2fr 1fr 1fr;
+          grid-template-columns: 2.5fr 0.8fr 1fr 1fr;
           align-items: center;
           padding: 12px 15px;
           border-bottom: 1px solid #eee;
           cursor: pointer;
           transition: background-color 0.2s;
+        }
+        .badge-gift {
+          display: inline-block;
+          background: #43a047;
+          color: #fff;
+          font-size: 0.78em;
+          font-weight: 600;
+          padding: 1px 8px;
+          border-radius: 10px;
+          margin-left: 6px;
+          vertical-align: middle;
+        }
+        .badge-pagamento {
+          display: inline-block;
+          font-size: 0.78em;
+          font-weight: 600;
+          padding: 1px 8px;
+          border-radius: 10px;
+          margin-right: 5px;
+          vertical-align: middle;
+        }
+        .badge-pagamento.pago {
+          background: #43a047;
+          color: #fff;
+        }
+        .badge-pagamento.nao-pago {
+          background: #d32f2f;
+          color: #fff;
         }
         
         .client-row:hover {
