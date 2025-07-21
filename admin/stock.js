@@ -1281,10 +1281,13 @@ ${(() => {
                 ${
                   order.status !== "Cancelado"
                     ? `
-                  <button class="order-action-btn cancel" data-action="cancel" data-order-id="${order._id}" style="background-color: #f44336; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.9em; display: inline-flex; align-items: center; gap: 5px; transition: background-color 0.2s;">
-                    <i class="fas fa-times"></i>
-                    Cancelar Pedido
-                  </button>
+                  <span class="cancel-btn-tooltip-wrapper" style="position: relative; display: inline-block;">
+  <button class="order-action-btn cancel" data-action="cancel" data-order-id="${order._id}" style="background-color: #f44336; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 0.9em; display: inline-flex; align-items: center; gap: 5px; transition: background-color 0.2s;${order.status === 'Concluído' ? ' opacity: 0.6; cursor: not-allowed;' : ''}" ${order.status === 'Concluído' ? 'disabled' : ''}>
+    <i class="fas fa-times"></i>
+    Cancelar Pedido
+  </button>
+  ${order.status === 'Concluído' ? `<span class="custom-tooltip bs-tooltip-top show" style="visibility: hidden; opacity: 0; transition: opacity 0.2s; position: absolute; left: 50%; top: -40px; transform: translateX(-50%); background: #343a40; color: #fff; padding: 6px 12px; border-radius: 4px; font-size: 0.85em; box-shadow: 0 2px 8px rgba(0,0,0,0.12); z-index: 100; max-width: 250px; white-space: normal; text-align: center; pointer-events: none;">Desfaça a conclusão para cancelar.</span>` : ''}
+</span>
                 `
                     : ""
                 }
@@ -1367,6 +1370,45 @@ ${(() => {
       if (window._orderActionBtnDelegation) {
         ordersList.removeEventListener("click", window._orderActionBtnDelegation, true);
       }
+      // Tooltip customizado Bootstrap-like para botão cancelar desativado
+      ordersList.addEventListener('mouseover', function(e) {
+        const wrapper = e.target.closest('.cancel-btn-tooltip-wrapper');
+        if (wrapper && wrapper.querySelector('.custom-tooltip')) {
+          const btn = wrapper.querySelector('button.order-action-btn.cancel');
+          if (btn && btn.disabled) {
+            const tooltip = wrapper.querySelector('.custom-tooltip');
+            tooltip.style.visibility = 'visible';
+            tooltip.style.opacity = '1';
+          }
+        }
+      });
+      ordersList.addEventListener('mouseout', function(e) {
+        const wrapper = e.target.closest('.cancel-btn-tooltip-wrapper');
+        if (wrapper && wrapper.querySelector('.custom-tooltip')) {
+          const tooltip = wrapper.querySelector('.custom-tooltip');
+          tooltip.style.visibility = 'hidden';
+          tooltip.style.opacity = '0';
+        }
+      });
+      ordersList.addEventListener('focusin', function(e) {
+        const wrapper = e.target.closest('.cancel-btn-tooltip-wrapper');
+        if (wrapper && wrapper.querySelector('.custom-tooltip')) {
+          const btn = wrapper.querySelector('button.order-action-btn.cancel');
+          if (btn && btn.disabled) {
+            const tooltip = wrapper.querySelector('.custom-tooltip');
+            tooltip.style.visibility = 'visible';
+            tooltip.style.opacity = '1';
+          }
+        }
+      });
+      ordersList.addEventListener('focusout', function(e) {
+        const wrapper = e.target.closest('.cancel-btn-tooltip-wrapper');
+        if (wrapper && wrapper.querySelector('.custom-tooltip')) {
+          const tooltip = wrapper.querySelector('.custom-tooltip');
+          tooltip.style.visibility = 'hidden';
+          tooltip.style.opacity = '0';
+        }
+      });
       window._orderActionBtnDelegation = async function (event) {
         const btnComplete = event.target.closest(".order-action-btn.complete");
         const btnCancel = event.target.closest(".order-action-btn.cancel");
