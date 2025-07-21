@@ -184,7 +184,9 @@ async function renderSalesMetrics() {
         itens: Array.isArray(order.items) ? order.items.map(item => ({
           nome: item.name,
           quantidade: item.quantity || 1,
-          isGift: !!item.isGift
+          isGift: !!item.isGift,
+          price: item.price,
+          pixPrice: item.pixPrice
         })) : []
       });
 
@@ -259,7 +261,7 @@ async function renderSalesMetrics() {
           
           let statusPag = String(p.status || order.paymentStatus || '').toLowerCase()
             .normalize('NFD').replace(/[^\w\s]/g, '').trim();
-          const isPago = statusPag.includes('concluido') || statusPag.includes('pago') || statusPag.includes('paid') || statusPag.includes('completed') || statusPag.includes('aprovado') || statusPag === 'success';
+          const isPago = statusPag.includes('concluido') || statusPag.includes('pago') || statusPag.includes('paid') || statusPag.includes('completed') || statusPag.includes('aprovado') || statusPag === 'success' || statusPag.includes('parcial');
           if (isPago) {
             valorPagoNoPedido += parseFloat(p.amount) || 0;
           }
@@ -287,6 +289,7 @@ async function renderSalesMetrics() {
       if (!order.items) return;
       
       order.items.forEach(item => {
+        if (item.isGift) return; // Ignora brindes
         if (!produtos[item.id || item.name]) {
           produtos[item.id || item.name] = {
             nome: item.name,
@@ -294,8 +297,8 @@ async function renderSalesMetrics() {
             total: 0
           };
         }
-        
         produtos[item.id || item.name].quantidade += item.quantity || 0;
+        // Usa o valor do item registrado no pedido
         produtos[item.id || item.name].total += (item.price || 0) * (item.quantity || 0);
       });
     });
@@ -388,7 +391,7 @@ async function renderSalesMetrics() {
                 ${topClientes.length} clientes
               </span>
             </div>
-            <div class="clients-header" style="display: grid; grid-template-columns: 2.5fr 0.8fr 1fr 1fr; padding: 8px 15px; background: #f0f2f5; font-weight: 500; border-radius: 6px; margin-bottom: 8px; font-size: 0.9em;">
+            <div class="clients-header" style="display: grid; grid-template-columns: 1.7fr 1.3fr 1fr 1fr; padding: 8px 15px; background: #f0f2f5; font-weight: 500; border-radius: 6px; margin-bottom: 8px; font-size: 0.9em;">
               <span>Cliente</span>
               <span style="text-align: center;">Pedidos</span>
               <span style="text-align: right;">Pago</span>
@@ -397,7 +400,7 @@ async function renderSalesMetrics() {
             <div class="top-list scrollable" style="max-height: 600px; overflow-y: auto;">
               ${topClientes.length > 0 ? 
                 topClientes.map((cliente, index) => `
-                  <div class="client-row" style="display: grid; grid-template-columns: 2.5fr 0.8fr 1fr 1fr; align-items: center; padding: 10px 15px; border-bottom: 1px solid #eee; font-size: 0.92em; cursor: pointer; transition: background-color 0.2s;">
+                  <div class="client-row" style="display: grid; grid-template-columns: 1.7fr 1.3fr 1fr 1fr; align-items: center; padding: 10px 15px; border-bottom: 1px solid #eee; font-size: 0.92em; cursor: pointer; transition: background-color 0.2s;">
                     <div class="client-name" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 10px; font-size: 0.95em;">
                       ${index + 1}. ${cliente.nome}
                       ${cliente.email ? `<div style="font-size: 0.85em; color: #666; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><i class='fa fa-envelope' style='margin-right:4px;'></i>${cliente.email}</div>` : ''}
@@ -417,7 +420,14 @@ async function renderSalesMetrics() {
                         <div style="margin-bottom: 6px;">
                           <span style="font-weight: 600; color: #4a6cf7;">#${pedido.numero}</span>
                           <div style="font-size: 0.92em; color: #444; margin-top: 2px;">
-                            ${pedido.itens.map(item => `<div>${item.nome} <span style='color:#888;'>(x${item.quantidade})</span>${item.isGift ? " <span class='badge-gift'>Brinde</span>" : ''}</div>`).join('')}
+                            ${pedido.itens.map(item => {
+  let valor = item.price;
+  if (pedido.metodoPagamento && pedido.metodoPagamento.toLowerCase().includes('pix') && item.pixPrice !== undefined) {
+    valor = item.pixPrice;
+  }
+  return `<div>${item.nome} <span style='color:#888;'>(x${item.quantidade})</span> - R$${(valor !== undefined ? Number(valor).toLocaleString('pt-BR', {minimumFractionDigits: 2}) : '0,00')}${item.isGift ? " <span class='badge-gift'>Brinde</span>" : ''}</div>`;
+}).join('')}
+
                           </div>
                         </div>
                       `).join('')}
@@ -439,7 +449,7 @@ async function renderSalesMetrics() {
                 : '<div style="padding: 15px; text-align: center; color: #666;">Nenhum cliente encontrado</div>'
               }
               ${topClientes.length > 0 ? `
-                <div style="display: grid; grid-template-columns: 2.5fr 0.8fr 1fr 1fr; align-items: center; padding: 12px 15px; background: #f8f9fa; border-top: 2px solid #e0e0e0; font-weight: 600; font-size: 0.95em;">
+                <div style="display: grid; grid-template-columns: 1.7fr 1.3fr 1fr 1fr; align-items: center; padding: 12px 15px; background: #f8f9fa; border-top: 2px solid #e0e0e0; font-weight: 600; font-size: 0.95em;">
                   <div>Total</div>
                   <div style="text-align: center;">${topClientes.reduce((sum, c) => sum + c.pedidos, 0).toLocaleString('pt-BR')}</div>
                   <div style="text-align: right; color: #2e7d32; padding-right: 10px;">

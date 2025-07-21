@@ -453,9 +453,6 @@
                 cacheSizeBytes: CACHE_SIZE_UNLIMITED
             })
         });
-
-        // Verificar conexão com o Firestore
-        console.log('Verificando conexão com o Firestore...');
     </script>
 
     <!-- Script de Métricas -->
@@ -517,28 +514,18 @@ function waitForFirestore() {
 
 window.addEventListener('load', async () => {
     try {
-        console.log('Iniciando aplicação...');
         if (!window.db) throw new Error('Firestore não está inicializado');
         await waitForFirestore();
-        console.log('Firestore pronto para uso');
         await ProductsModule.loadProducts();
-        console.log('Produtos carregados:', window.products ? window.products.length : 0);
         await StockModule.initializeStock();
-        console.log('Estoque inicializado');
         if (typeof StockModule.renderOrdersList === 'function') {
-            console.log('Chamando renderOrdersList...');
             await StockModule.renderOrdersList();
         }
         if (window.products && window.products.length > 0) {
             renderStockDashboard(window.products, { estoqueCritico: 5 });
-        } else {
-            console.error('Nenhum produto carregado para renderizar o dashboard');
         }
         if (typeof StockModule.loadWaitlistFromFirestore === 'function') {
-            console.log('Carregando lista de espera...');
             await StockModule.loadWaitlistFromFirestore();
-        } else {
-            console.log('Função loadWaitlistFromFirestore não encontrada, pulando...');
         }
         if (typeof StockModule.setupEventListeners === 'function') {
             await StockModule.setupEventListeners();
@@ -551,11 +538,8 @@ window.addEventListener('load', async () => {
         } else if (typeof showTab === 'function') {
             showTab(defaultTab);
         }
-        console.log('Aplicação inicializada com sucesso!');
         await StockModule.renderSpecialOffers();
         await StockModule.renderWaitlistList();
-        console.log('Listas renderizadas');
-        console.log('Aplicação inicializada com sucesso!');
     } catch (error) {
         console.error('Erro ao inicializar aplicação:', error);
         Swal.fire({
@@ -576,6 +560,6 @@ window.addEventListener('load', async () => {
 <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 <script src="accordion.js"></script>
 <script type="module" src="./coupons-admin.js"></script>
-
+<script src="stock.js"></script>
 </body>
 </html>

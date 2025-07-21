@@ -314,18 +314,6 @@ export function applyFilters() {
         // Se o filtro for 'Pendente' e o card não tiver status, considerar como correspondência
         statusMatches = true;
       }
-
-      // Log para debug
-      console.log("Comparação de status:", {
-        cardId: card.dataset.orderId,
-        cardStatus,
-        normalizedCardStatus,
-        filterStatus,
-        normalizedFilterStatus,
-        cardStatusNormalized,
-        filterStatusNormalized,
-        statusMatches,
-      });
     }
 
     // 3. Verificar se o pedido corresponde ao filtro de data
@@ -366,24 +354,6 @@ export function applyFilters() {
         searchMatches = true; // Em caso de erro, considera como se a busca correspondesse
       }
     }
-
-    // Log detalhado para debug
-    console.log("Filtros aplicados:", {
-      cardId: card.dataset.orderId,
-      cardNumber,
-      customerName,
-      cardStatus,
-      filterStatus,
-      normalizedCardStatus,
-      normalizedFilterStatus: normalizedFilterStatus || "Nenhum filtro",
-      statusMatches,
-      dateMatches,
-      searchTerm: searchTerm || "Nenhum termo",
-      searchMatches,
-      orderDate: orderDate ? formatDateForInput(orderDate) : "N/A",
-      filterDate: filterDate || "Nenhuma data",
-    });
-
     // Lógica de decisão:
     // 1. Primeiro verifica se os filtros básicos estão atendidos (status e data)
     const basicFiltersMatch = statusMatches && dateMatches;
@@ -394,26 +364,13 @@ export function applyFilters() {
       ? searchMatches && basicFiltersMatch // Busca + Filtros
       : basicFiltersMatch; // Apenas Filtros
 
-    console.log("Resultado final - Mostrar?", shouldShow, {
-      statusMatches,
-      dateMatches,
-      searchMatches,
-      hasSearchTerm: !!searchTerm,
-    });
-
     // 4. Aplicar a decisão final de exibição
     if (shouldShow) {
       card.style.display = ""; // Remove qualquer display: none
       card.style.removeProperty("display"); // Garante que não há estilos inline sobrescrevendo
       visibleCount++;
-      console.log(
-        `Mostrando card ${card.dataset.orderId} - Status: ${cardStatus}`,
-      );
     } else {
       card.style.display = "none";
-      console.log(
-        `Ocultando card ${card.dataset.orderId} - Status: ${cardStatus}`,
-      );
     }
   });
 
@@ -666,7 +623,10 @@ export async function renderOrdersList() {
           // Gerar HTML dos itens do pedido
           const itemsHtml = (order.items || [])
             .map((item, index) => {
-              const precoUnitario = Number(item.price) || 0;
+              const precoUnitario =
+  order.paymentMethod === "pix"
+    ? Number(item.pixPrice ?? item.price) || 0
+    : Number(item.price) || 0;
               const quantidade = Number(item.quantity) || 1;
               const subtotal = precoUnitario * quantidade;
               const isGift = item.isGift === true;
@@ -1308,11 +1268,11 @@ ${(() => {
               </div>
               <div class="order-actions" style="display: flex; gap: 8px; flex-wrap: wrap;">
                 ${
-                  order.status !== "Concluído" && order.status !== "Cancelado"
+                  order.status !== "Cancelado"
                     ? `
-                  <button class="order-action-btn complete" data-action="complete" data-order-id="${order._id}" style="background-color: #4caf50; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.9em; display: inline-flex; align-items: center; gap: 5px; transition: background-color 0.2s;">
+                  <button class="order-action-btn complete" data-action="toggle-complete" data-order-id="${order._id}" style="background-color: #4caf50; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.9em; display: inline-flex; align-items: center; gap: 5px; transition: background-color 0.2s;">
                     <i class="fas fa-check"></i>
-                    Marcar como Concluído
+                    ${order.status === "Concluído" ? "Desfazer Conclusão" : "Marcar como Concluído"}
                   </button>
                 `
                     : ""
@@ -1321,7 +1281,7 @@ ${(() => {
                 ${
                   order.status !== "Cancelado"
                     ? `
-                  <button class="order-action-btn cancel" data-action="cancel" data-order-id="${order._id}" style="background-color: #f44336; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.9em; display: inline-flex; align-items: center; gap: 5px; transition: background-color 0.2s;" ${order.status === "Concluído" || order.status === "Cancelado" ? 'disabled style="opacity: 0.6; cursor: not-allowed;"' : ""}>
+                  <button class="order-action-btn cancel" data-action="cancel" data-order-id="${order._id}" style="background-color: #f44336; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.9em; display: inline-flex; align-items: center; gap: 5px; transition: background-color 0.2s;">
                     <i class="fas fa-times"></i>
                     Cancelar Pedido
                   </button>
@@ -1403,6 +1363,101 @@ ${(() => {
 
     // Event delegation para editar/excluir acordo
     if (ordersList) {
+      // Delegação para botões de ação de pedido (concluir/desfazer conclusão e cancelar)
+      if (window._orderActionBtnDelegation) {
+        ordersList.removeEventListener("click", window._orderActionBtnDelegation, true);
+      }
+      window._orderActionBtnDelegation = async function (event) {
+        const btnComplete = event.target.closest(".order-action-btn.complete");
+        const btnCancel = event.target.closest(".order-action-btn.cancel");
+        if (btnComplete) {
+          event.preventDefault();
+          const orderId = btnComplete.getAttribute("data-order-id");
+          if (!orderId) return;
+          // Buscar pedido atual do cache
+          const order = (window.ordersCache || []).find(o => o._id === orderId);
+          if (!order) return Swal.fire("Erro", "Pedido não encontrado no cache.", "error");
+          if (order.status === "Concluído") {
+            // Desfazer conclusão
+            const result = await Swal.fire({
+              title: "Desfazer conclusão?",
+              text: "Deseja realmente reverter o status deste pedido para Pendente?",
+              icon: "question",
+              showCancelButton: true,
+              confirmButtonColor: "#f59e0b",
+              cancelButtonColor: "#3085d6",
+              confirmButtonText: "Sim, desfazer",
+              cancelButtonText: "Cancelar",
+            });
+            if (result.isConfirmed) {
+              const orderRef = doc(window.db, "orders", orderId);
+              await setDoc(orderRef, { status: "Pendente" }, { merge: true });
+              Swal.fire("Revertido!", "O pedido voltou para o status Pendente.", "success");
+              renderOrdersList();
+            }
+          } else if (order.status !== "Cancelado") {
+            // Marcar como concluído
+            const result = await Swal.fire({
+              title: "Marcar como concluído?",
+              text: "Deseja realmente marcar este pedido como Concluído?",
+              icon: "success",
+              showCancelButton: true,
+              confirmButtonColor: "#4caf50",
+              cancelButtonColor: "#3085d6",
+              confirmButtonText: "Sim, concluir",
+              cancelButtonText: "Cancelar",
+            });
+            if (result.isConfirmed) {
+              if (typeof window.StockModule?.completeOrder === "function") {
+                await window.StockModule.completeOrder(orderId);
+              } else {
+                // fallback direto
+                const orderRef = doc(window.db, "orders", orderId);
+                await setDoc(orderRef, { status: "Concluído" }, { merge: true });
+                renderOrdersList();
+              }
+            }
+          }
+          return;
+        }
+        if (btnCancel) {
+          event.preventDefault();
+          const orderId = btnCancel.getAttribute("data-order-id");
+          if (!orderId) return;
+          // Buscar pedido atual do cache
+          const order = (window.ordersCache || []).find(o => o._id === orderId);
+          if (!order) return Swal.fire("Erro", "Pedido não encontrado no cache.", "error");
+          if (order.status === "Concluído") {
+            await Swal.fire({
+              icon: "info",
+              title: "Não é possível cancelar um pedido concluído!",
+              text: "Desfaça a conclusão antes de cancelar o pedido.",
+              confirmButtonText: "OK",
+              confirmButtonColor: "#f59e0b"
+            });
+            return;
+          }
+          const result = await Swal.fire({
+            title: "Cancelar pedido?",
+            text: "Deseja realmente cancelar este pedido? O estoque será restaurado.",
+            icon: "warning",
+            showCancelButton: true,
+            confirmButtonColor: "#f44336",
+            cancelButtonColor: "#3085d6",
+            confirmButtonText: "Sim, cancelar",
+            cancelButtonText: "Não",
+          });
+          if (result.isConfirmed) {
+            if (typeof window.StockModule?.cancelOrder === "function") {
+              await window.StockModule.cancelOrder(orderId);
+            } else {
+              Swal.fire("Erro", "Função de cancelamento não encontrada.", "error");
+            }
+          }
+        }
+      };
+      ordersList.addEventListener("click", window._orderActionBtnDelegation, true);
+
       ordersList.removeEventListener(
         "click",
         window._agreementBtnDelegation,
@@ -1505,9 +1560,6 @@ ${(() => {
         "click",
         window._agreementBtnDelegation,
         true,
-      );
-      console.log(
-        "[DEBUG] Event delegation para acordo ativado em #ordersList",
       );
     }
 
@@ -2642,7 +2694,22 @@ window.StockModule.cancelOrder = async function (orderId) {
     if (!orderSnap.exists())
       return Swal.fire("Erro", "Pedido não encontrado!", "error");
     const order = orderSnap.data();
-    if (order.status === "Cancelado") return;
+    if (order.status === "Concluído") {
+      await Swal.fire(
+        "Aviso",
+        "Não é possível cancelar um pedido já concluído. Desfaça a conclusão antes de cancelar.",
+        "info"
+      );
+      return;
+    }
+    if (order.status === "Cancelado") {
+      await Swal.fire(
+        "Aviso",
+        "Este pedido já foi cancelado.",
+        "info"
+      );
+      return;
+    }
     // Retornar saldo dos produtos ao estoque
     if (Array.isArray(order.items)) {
       const batch = writeBatch(window.db);
@@ -3089,13 +3156,6 @@ async function renderWaitlistList(retryCount = 0) {
     ?.value?.toLowerCase()
     .trim();
 
-  // Debug: Log current state
-  console.log("[Waitlist] renderWaitlistList called", {
-    retryCount,
-    productsLoaded: Array.isArray(window.products) ? window.products.length : 0,
-    waitlistKeys: Object.keys(waitlistData).length,
-  });
-
   // Guard: Retry if products not loaded
   if (!window.products || window.products.length === 0) {
     if (retryCount < 10) {
@@ -3317,10 +3377,6 @@ async function renderWaitlistList(retryCount = 0) {
     console.warn("[Waitlist] Criado #waitlistTotals dinamicamente");
   }
   totalsDiv.innerHTML = totalizerHtml;
-  console.log("[Waitlist] Totalizador atualizado:", {
-    totalGanhoAtual,
-    totalGanhoPix,
-  });
 }
 
 // Alternar status de notificado/pendente no Firestore
@@ -4898,13 +4954,7 @@ async function cancelOrder(orderId) {
     const order = orderSnap.data();
 
     // Verifica se o pedido já está concluído ou cancelado
-    if (order.status === "Concluído") {
-      return Swal.fire(
-        "Aviso",
-        "Não é possível cancelar um pedido já concluído.",
-        "error",
-      );
-    }
+    
     if (order.status === "Cancelado") {
       return Swal.fire("Aviso", "Este pedido já foi cancelado.", "info");
     }
@@ -5567,8 +5617,3 @@ Object.assign(window.StockModule, {
   saveAgreement,
   savePayment,
 });
-
-// Debug: log das funções expostas
-console.log('[DEBUG][StockModule] Funções expostas:', Object.keys(window.StockModule));
-console.log('[DEBUG][StockModule] typeof removeGiftItem:', typeof window.StockModule.removeGiftItem);
-console.log('[DEBUG][StockModule] typeof refreshStock:', typeof window.StockModule.refreshStock);

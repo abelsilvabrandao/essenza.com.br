@@ -3,10 +3,6 @@
 // Requer Chart.js (CDN)
 
 export function renderStockDashboard(products, options = {}) {
-  console.log(products)
-  products.forEach((p, i) => {
-    console.log(`Produto ${i+1}:`, p, 'Categoria:', products[i].category);
-  });
   // Separa as renderizações por seção
   renderIndicadoresEstoque(products, options);
   renderLucroPorProduto(products);
