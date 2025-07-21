@@ -232,16 +232,11 @@ function formatDateForInput(date) {
 
 // Função para aplicar os filtros
 export function applyFilters() {
-  console.log("=== APLICANDO FILTROS ===");
-
+  
   const searchTerm =
     document.getElementById("searchTerm")?.value?.trim().toLowerCase() || "";
   const filterDate = document.getElementById("filterDate")?.value || "";
   const filterStatus = document.getElementById("filterStatus")?.value || "";
-
-  console.log("Termo de busca:", searchTerm);
-  console.log("Data:", filterDate);
-  console.log("Status:", filterStatus);
 
   // Atualizar a URL com os parâmetros de filtro
   const urlParams = new URLSearchParams();
@@ -252,22 +247,14 @@ export function applyFilters() {
   const newUrl = `${window.location.pathname}?${urlParams.toString()}`;
   window.history.pushState({}, "", newUrl);
 
-  console.log("Termo de busca:", searchTerm);
-  console.log("Data:", filterDate);
-  console.log("Status:", filterStatus);
-
   const orderCards = document.querySelectorAll(".order-card");
-  console.log("Total de cards encontrados:", orderCards.length);
 
   // Verificar se existem cards
   if (orderCards.length === 0) {
     console.warn("Nenhum card de pedido encontrado na página!");
     const ordersList = document.getElementById("ordersList");
     if (ordersList) {
-      console.log(
-        "Conteúdo de ordersList:",
-        ordersList.innerHTML.substring(0, 200) + "...",
-      );
+
     } else {
       console.error("Elemento ordersList não encontrado!");
     }
@@ -279,10 +266,6 @@ export function applyFilters() {
   // Log dos dados do primeiro pedido para debug
   if (orderCards.length > 0) {
     const firstCard = orderCards[0];
-    console.log("=== DADOS DO PRIMEIRO PEDIDO ===");
-    console.log("HTML do card:", firstCard.outerHTML);
-    console.log("Dataset:", firstCard.dataset);
-    console.log("Status no dataset:", firstCard.dataset.status);
   }
 
   orderCards.forEach((card) => {
@@ -299,13 +282,6 @@ export function applyFilters() {
       card.querySelector(".order-date")?.getAttribute("data-date")?.trim() ||
       "";
     const cardStatus = (card.dataset.status || "").trim();
-
-    console.log("---");
-    console.log("Card ID:", card.dataset.orderId);
-    console.log("Número:", cardNumber);
-    console.log("Cliente:", customerName);
-    console.log("Data:", orderDate);
-    console.log("Status no card:", cardStatus);
 
     // 1. Normalizar status para comparação consistente
     const normalizedCardStatus = getNormalizedStatus(cardStatus || "Pendente");
@@ -335,9 +311,7 @@ export function applyFilters() {
         filterStatusNormalized === "pendente" &&
         (!cardStatus || cardStatus.trim() === "")
       ) {
-        console.log(
-          "Mostrando pedido sem status definido (considerado Pendente)",
-        );
+        // Se o filtro for 'Pendente' e o card não tiver status, considerar como correspondência
         statusMatches = true;
       }
 
@@ -443,15 +417,11 @@ export function applyFilters() {
     }
   });
 
-  console.log("Total de pedidos visíveis após filtro:", visibleCount);
-
   // Mostrar mensagem quando não houver resultados
   const noResultsMessage = document.getElementById("noResultsMessage");
   if (noResultsMessage) {
     noResultsMessage.style.display = visibleCount > 0 ? "none" : "block";
   }
-
-  console.log("Total de pedidos visíveis após filtro:", visibleCount);
 
   // Mostrar mensagem se não houver resultados
   const ordersList = document.getElementById("ordersList");
@@ -515,7 +485,6 @@ window.clearFilters = clearFilters;
 
 // Função para renderizar pedidos
 export async function renderOrdersList() {
-  console.log("Iniciando renderOrdersList...");
   console.log(
     "[DEBUG] typeof window.StockModule.removeGiftItem:",
     typeof window.StockModule?.removeGiftItem,
@@ -541,18 +510,13 @@ export async function renderOrdersList() {
     ordersSummary.style.display = "none";
   }
 
-  console.log("Buscando pedidos no Firestore...");
-
   try {
     // Buscar pedidos
     const ordersRef = collection(window.db, "orders");
-    console.log("Referência da coleção orders:", ordersRef);
 
     const ordersSnapshot = await getDocs(ordersRef);
-    console.log("Total de pedidos encontrados:", ordersSnapshot.size);
 
     if (ordersSnapshot.empty) {
-      console.log("Nenhum pedido encontrado no Firestore");
       ordersList.innerHTML = `
         <div class="no-orders" style="text-align: center; padding: 2rem; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
           <i class="fas fa-box-open" style="font-size: 3rem; color: #ccc; margin-bottom: 1rem;"></i>
@@ -572,7 +536,6 @@ export async function renderOrdersList() {
     // Processar cada pedido
     ordersSnapshot.forEach((doc) => {
       try {
-        console.log("Processando pedido:", doc.id);
         const order = { ...doc.data(), _id: doc.id };
 
         // Garantir que os itens sejam um array
@@ -1431,11 +1394,6 @@ ${(() => {
         </div>
       `;
     }
-
-    // Atualiza o conteúdo da lista de pedidos
-    console.log("Atualizando HTML da lista de pedidos...");
-    console.log("Tamanho do HTML gerado:", html ? html.length : 0);
-    console.log("Elemento ordersList:", ordersList);
     // Garante que todos os cards são concatenados e inseridos de uma vez
     ordersList.innerHTML =
       html && html.trim().length > 0
@@ -1555,7 +1513,6 @@ ${(() => {
 
     // Aplica os filtros após carregar os pedidos
     setTimeout(() => {
-      console.log("Aplicando filtros após carregar os pedidos...");
       applyFilters();
     }, 0);
 
@@ -2501,7 +2458,6 @@ function openAgreementModal(orderId, isEdit = false) {
 }
 
 window.openAgreementModal = function (...args) {
-  console.log("[DEBUG] openAgreementModal chamado", args);
   try {
     return openAgreementModal.apply(this, args);
   } catch (e) {
@@ -2839,10 +2795,8 @@ async function initializeStock() {
     );
 
     // Renderizar lista inicial
-    console.log("Renderizando lista inicial com", products.length, "produtos");
     renderStockList();
-
-    console.log("Estoque inicializado com sucesso!");
+    // Carregar dados da lista de espera
     return true;
   } catch (error) {
     console.error("Erro ao inicializar estoque:", error);
@@ -2858,7 +2812,6 @@ async function initializeStock() {
 
 async function saveStockData(showFeedback = false) {
   try {
-    console.log("Salvando dados do estoque...");
     const batch = writeBatch(window.db);
 
     // Salvar dados do estoque
@@ -2876,7 +2829,6 @@ async function saveStockData(showFeedback = false) {
     }
 
     await batch.commit();
-    console.log("Dados do estoque salvos com sucesso!");
 
     if (showFeedback) {
       Swal.fire({
@@ -2903,8 +2855,6 @@ async function saveStockData(showFeedback = false) {
 }
 
 async function renderStockList() {
-  console.log("Iniciando renderStockList...");
-
   // Carregar produtos atualizados do Firestore
   try {
     // Forçar leitura do servidor para evitar cache
@@ -2921,7 +2871,6 @@ async function renderStockList() {
       });
     });
     window.products = products;
-    console.log("Produtos atualizados do Firestore:", products.length);
   } catch (error) {
     console.error("Erro ao carregar produtos:", error);
     return;
@@ -2938,19 +2887,14 @@ async function renderStockList() {
 
   // Criar um fragmento para melhor performance
   const fragment = document.createDocumentFragment();
-  console.log("Fragmento criado para manipulação do DOM");
 
   // Carregar dados da lista de espera
   const waitlist = JSON.parse(localStorage.getItem("waitlist") || "{}");
 
-  console.log("Iniciando iteração dos produtos...");
+  // Iterar sobre os produtos
   window.products.forEach((product) => {
-    console.log("Renderizando produto:", product.id, product.name);
     const quantity = product.quantity || 0;
     const active = product.active !== false;
-    console.log(
-      `Renderizando produto ${product.id} - quantity: ${quantity}, active: ${active}`,
-    );
     const stockItem = document.createElement("div");
     stockItem.className = "stock-item";
     stockItem.setAttribute("data-product-id", product.id);
@@ -3081,17 +3025,11 @@ async function renderStockList() {
                 }
 
         `;
-
-    // ...
-    console.log("Adicionando item ao DOM:", product.id);
     fragment.appendChild(stockItem);
-    console.log("Item adicionado ao fragmento:", product.id);
   });
 
   // Adicionar fragmento ao DOM
-  console.log("Adicionando fragmento ao DOM...");
   stockList.appendChild(fragment);
-  console.log("Fragmento adicionado com sucesso!");
 
   // Atualizar badge da lista de espera
   updateWaitlistBadge();
@@ -3519,7 +3457,6 @@ window.notifyClientById = async function (docId) {
     });
     if (!isConfirmed) return;
     const whatsappUrl = `https://wa.me/${sanitizedPhone}?text=${encodeURIComponent(customMessage)}`;
-    console.log("Abrindo WhatsApp URL:", whatsappUrl);
     window.open(whatsappUrl, "_blank");
     await setDoc(docRef, { ...entry, notified: true }, { merge: true });
     renderWaitlistList();
@@ -3614,8 +3551,7 @@ async function updateStock(productId, quantity, active) {
   }
 
   try {
-    console.log("Atualizando estoque:", { productId, quantity, active });
-
+    // Verifica se a quantidade é válida
     const newQuantity = parseInt(quantity) || 0;
     if (newQuantity < 0) {
       Swal.fire({
@@ -3664,7 +3600,6 @@ async function updateStock(productId, quantity, active) {
       const productRef = doc(window.db, "products", String(productId));
       await setDoc(productRef, { active: true }, { merge: true });
     }
-    console.log("Novo estado do estoque:", stockData[productId]);
 
     // Atualizar interface
     const stockItem = document.querySelector(
@@ -3834,7 +3769,6 @@ export async function notifyAllCustomers(productId) {
 }
 
 export async function editProduct(productId) {
-  console.log("Editando produto:", productId);
   const product = products.find((p) => String(p.id) === String(productId));
   if (!product) {
     console.error("Produto não encontrado:", productId);
@@ -3921,9 +3855,6 @@ export async function editProduct(productId) {
 
   if (formValues) {
     try {
-      console.log("Salvando alterações do produto:", productId);
-      console.log("Form values:", formValues);
-
       // Pegar valores diretamente do DOM
       const form = document.getElementById("editProductForm");
       if (!form) {
@@ -3972,8 +3903,6 @@ export async function editProduct(productId) {
       // Salvar no Firestore
       const success = await saveProduct(updatedProduct);
       if (success) {
-        console.log("Produto atualizado com sucesso!");
-
         // Atualizar dados locais
         const index = products.findIndex((p) => p.id === productId);
         if (index > -1) {
@@ -4066,7 +3995,6 @@ export async function editProduct(productId) {
           updateWaitlistBadge();
         });
       }
-      console.log("Produto atualizado com sucesso!");
       Swal.fire({
         title: "Sucesso!",
         text: "Produto atualizado com sucesso!",
@@ -4090,7 +4018,6 @@ export async function editProduct(productId) {
 }
 
 export async function deleteProduct(productId) {
-  console.log("Solicitando confirmação para excluir produto:", productId);
   let product = null; // Declarar a variável no escopo da função
 
   // Primeiro verificar no Firestore
@@ -4148,13 +4075,10 @@ export async function deleteProduct(productId) {
     });
     try {
       // Excluir do Firestore
-      console.log("Chamando deleteDoc para produto:", productId);
       await deleteDoc(doc(window.db, "products", String(productId)));
-      console.log("deleteDoc concluído sem erro");
       deletedIds.add(String(productId));
       localStorage.removeItem("products");
       localStorage.removeItem("specialOffers");
-      console.log("Cache local de produtos e ofertas limpo após exclusão.");
 
       // Marcar clientes da waitlist como órfãos (orphaned) para este produto
       const waitlistCol = collection(window.db, "waitlist");
@@ -4225,8 +4149,6 @@ export async function deleteProduct(productId) {
 }
 
 export async function showAddProductModal() {
-  console.log("Abrindo modal para adicionar produto");
-
   // Função para processar imagem
   async function processImage(file) {
     try {
@@ -4512,7 +4434,6 @@ export async function showAddProductModal() {
 }
 
 async function showTab(tabName) {
-  console.log(`Mostrando aba: ${tabName}`);
   const tabs = document.querySelectorAll(".tab-content");
   const buttons = document.querySelectorAll(".tab-button");
 
@@ -4527,7 +4448,6 @@ async function showTab(tabName) {
   if (selectedTab) {
     selectedTab.style.display = "block";
     selectedTab.classList.add("active");
-    console.log(`Aba ${tabName}Tab exibida`);
   } else {
     console.error(`Elemento ${tabName}Tab não encontrado`);
   }
@@ -4574,7 +4494,6 @@ async function showTab(tabName) {
         }
         break;
     }
-    console.log(`Conteúdo da aba ${tabName} renderizado com sucesso`);
   } catch (error) {
     console.error(`Erro ao renderizar a aba ${tabName}:`, error);
   }
@@ -4804,10 +4723,7 @@ let pendingChanges = {};
 
 // Atualiza a quantidade temporariamente
 export function updateQuantity(productId, quantity) {
-  console.log(
-    "Atualizando quantidade temporariamente para produto:",
-    productId,
-  );
+ 
   const parsedQuantity = parseInt(quantity);
 
   // Validar quantidade
@@ -5045,7 +4961,6 @@ export async function savePendingChanges() {
   const totalChanges = quantityChanges + offerChanges;
 
   if (totalChanges === 0) {
-    console.log("Nenhuma alteração pendente para salvar");
     Swal.fire({
       title: "Nada para salvar",
       text: "Nenhuma alteração pendente encontrada.",
@@ -5096,7 +5011,6 @@ export async function savePendingChanges() {
     );
 
     await batch.commit();
-    console.log("Alterações salvas com sucesso!");
 
     // Limpar alterações pendentes
     pendingChanges = {};
