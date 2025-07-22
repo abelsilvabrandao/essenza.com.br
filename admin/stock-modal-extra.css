@@ -1,0 +1,21 @@
+.swal2-container.stock-entry-modal .swal2-popup {
+    max-width: 1400px !important;
+    width: 98vw !important;
+    min-width: 900px;
+    margin: 0 auto;
+    padding: 0;
+}
+
+@media (max-width: 1200px) {
+  .swal2-container.stock-entry-modal .swal2-popup {
+    max-width: 99vw !important;
+    min-width: 0;
+  }
+}
+
+/* Ajustes para conteúdo interno se necessário */
+#stockEntryForm {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0;
+}

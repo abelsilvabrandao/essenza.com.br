@@ -25,9 +25,13 @@
                     Salvar Alterações
                 </button>
                 <button class="btn-primary" onclick="StockModule.showAddProductModal()">
-                    <i class="fas fa-plus"></i>
-                    Adicionar Novo Produto
-                </button>
+    <i class="fas fa-plus"></i>
+    Adicionar Novo Produto
+</button>
+<button class="btn-primary" id="openStockEntryModal" style="margin-left: 0.5rem">
+    <i class="fas fa-sign-in-alt"></i>
+    Entrada em Estoque
+</button>
                 <button type="button" id="refreshStock" class="btn-primary" onclick="(window.StockModule?.refreshStock || window.refreshStock || (() => window.location.reload()))()">
                     <i class="fas fa-sync-alt"></i>
                     Atualizar Lista
@@ -116,6 +120,35 @@
       <div id="stockList" class="stock-list"></div>
     </div>
   </div>
+  <!-- INÍCIO: Entradas e Saídas de Estoque -->
+  <div class="accordion-section" id="stockMovementsAccordion">
+    <div class="accordion-header">Entradas e Saídas de Estoque <span class="arrow">&#9654;</span></div>
+    <div class="accordion-content">
+      <div class="filters stock-movements-filters" style="display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-end;margin-bottom:1.2rem;">
+  <div class="filter-group">
+    <label for="stockFilterPeriod">Período</label>
+    <input type="date" id="stockFilterStart" class="filter-input" style="width:130px;" placeholder="Início">
+    <span style="margin:0 4px;">a</span>
+    <input type="date" id="stockFilterEnd" class="filter-input" style="width:130px;" placeholder="Fim">
+  </div>
+  <div class="filter-group">
+    <label for="stockFilterProduct">Produto</label>
+    <input type="text" id="stockFilterProduct" class="filter-input" placeholder="Nome ou código..." style="width:170px;">
+  </div>
+  <div class="filter-group">
+    <label for="stockFilterClient">Cliente</label>
+    <input type="text" id="stockFilterClient" class="filter-input" placeholder="Nome do cliente..." style="width:170px;">
+  </div>
+  <button id="applyStockMovementsFilters" class="btn btn-primary" type="button" style="min-width:110px;"><i class="fas fa-search"></i> Filtrar</button>
+  <button id="clearStockMovementsFilters" class="btn btn-secondary" type="button" style="min-width:110px;"><i class="fas fa-times"></i> Limpar</button>
+  <button id="exportStockMovementsXlsx" class="btn btn-success" type="button" style="min-width:150px;"><i class="fas fa-file-excel"></i> Exportar XLSX</button>
+</div>
+<div id="stockMovementsContent">
+        <!-- Conteúdo dinâmico das entradas e saídas será renderizado aqui -->
+      </div>
+    </div>
+  </div>
+  <!-- FIM: Entradas e Saídas de Estoque -->
   <!-- Nova Seção: Produtos & Margens -->
   <div class="accordion-section">
     <div class="accordion-header">Produtos & Margens <span class="arrow">&#9654;</span></div>
@@ -560,6 +593,8 @@ window.addEventListener('load', async () => {
 <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 <script src="accordion.js"></script>
 <script type="module" src="./coupons-admin.js"></script>
+<script type="module" src="./stock-entries.js"></script>
+<script type="module" src="./stock-movements.js"></script>
 <script src="stock.js"></script>
 </body>
 </html>

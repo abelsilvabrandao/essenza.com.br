@@ -2707,21 +2707,79 @@ window.savePayment = async function (
 
 window.StockModule.completeOrder = async function (orderId) {
   console.debug("[Pedidos] Clique em Concluído para orderId:", orderId);
-
   try {
     const orderRef = doc(window.db, "orders", orderId);
     const orderSnap = await getDoc(orderRef);
     if (!orderSnap.exists())
       return Swal.fire("Erro", "Pedido não encontrado!", "error");
     const order = orderSnap.data();
-    if (order.status === "Concluído") return;
-    await setDoc(orderRef, { status: "Concluído" }, { merge: true });
+    if (order.status === "Concluído") {
+      return Swal.fire(
+        "Aviso",
+        "Este pedido já foi marcado como Concluído.",
+        "info",
+      );
+    }
+    if (order.status === "Cancelado") {
+      return Swal.fire(
+        "Erro",
+        "Não é possível marcar um pedido cancelado como Concluído.",
+        "error",
+      );
+    }
+    // Validação dos itens do pedido
+    const items = order.items || order.products || [];
+    if (!items.length) {
+      return Swal.fire("Erro", "Pedido não possui itens para dar baixa no estoque.", "error");
+    }
+    // Checar saldo suficiente
+    let insufficientStock = [];
+    for (const item of items) {
+      if (!item.productId || !item.quantity) continue;
+      const prodRef = doc(window.db, "products", String(item.productId));
+      const prodSnap = await getDoc(prodRef);
+      if (!prodSnap.exists()) {
+        insufficientStock.push({ ...item, reason: 'Produto não encontrado' });
+        continue;
+      }
+      const prodData = prodSnap.data();
+      if ((parseInt(prodData.quantity)||0) < (parseInt(item.quantity)||0)) {
+        insufficientStock.push({
+          ...item,
+          reason: `Saldo insuficiente: disponível ${prodData.quantity||0}`
+        });
+      }
+    }
+    if (insufficientStock.length) {
+      let msg = 'Não foi possível concluir o pedido devido a saldo insuficiente nos seguintes itens:\n';
+      msg += insufficientStock.map(i => `- Código: ${i.productId} | Qtd. pedida: ${i.quantity} | Motivo: ${i.reason||'Saldo insuficiente'}`).join('\n');
+      return Swal.fire("Estoque insuficiente", msg, "error");
+    }
+    // Realizar baixa de estoque
+    const batch = writeBatch(window.db);
+    for (const item of items) {
+      if (!item.productId || !item.quantity) continue;
+      const prodRef = doc(window.db, "products", String(item.productId));
+      const prodSnap = await getDoc(prodRef);
+      if (!prodSnap.exists()) continue;
+      const prodData = prodSnap.data();
+      const newQty = (parseInt(prodData.quantity)||0) - (parseInt(item.quantity)||0);
+      batch.update(prodRef, {
+        quantity: newQty,
+        updatedAt: new Date().toISOString()
+      });
+    }
+    // Atualiza status do pedido
+    batch.set(orderRef, { status: "Concluído" }, { merge: true });
+    await batch.commit();
     Swal.fire(
       "Pedido concluído!",
-      "O status do pedido foi atualizado para Concluído.",
+      "O status do pedido foi atualizado para Concluído e o estoque foi atualizado.",
       "success",
     );
-    renderOrdersList();
+    if (window.StockModule.refreshStock) await window.StockModule.refreshStock();
+    if (typeof renderOrdersList === 'function') renderOrdersList();
+    if (typeof renderStockMovements === 'function') renderStockMovements();
   } catch (e) {
     Swal.fire("Erro", "Não foi possível atualizar o pedido.", "error");
     console.error("Erro ao consumir pedido:", e);
@@ -2756,11 +2814,15 @@ window.StockModule.cancelOrder = async function (orderId) {
     if (Array.isArray(order.items)) {
       const batch = writeBatch(window.db);
       for (const item of order.items) {
-        const prodRef = doc(window.db, "products", String(item.id));
+        // Prioriza productId, mas aceita id para pedidos antigos
+        const pid = item.productId || item.id;
+        if (!pid) continue;
+        const prodRef = doc(window.db, "products", String(pid));
         const prodSnap = await getDoc(prodRef);
         if (prodSnap.exists()) {
           const prodData = prodSnap.data();
-          const newQty = (prodData.quantity || 0) + (item.quantity || 0);
+          // Permite restauração mesmo se estoque estiver negativo
+          const newQty = (parseInt(prodData.quantity)||0) + (parseInt(item.quantity)||0);
           batch.set(prodRef, { quantity: newQty }, { merge: true });
         }
       }
@@ -5635,6 +5697,225 @@ async function removeGiftItem(orderId, itemId, isGiftNote = false) {
 if (typeof window !== 'undefined') {
   window.StockModule = window.StockModule || {};
 }
+
+/**
+ * Modal de Entrada de Estoque
+ * Permite selecionar múltiplos produtos, quantidade e preço unitário.
+ */
+window.StockModule.showStockEntryModal = async function() {
+  const products = window.products || [];
+  if (!products.length) {
+    await (window.StockModule.refreshStock ? window.StockModule.refreshStock() : Promise.resolve());
+  }
+  const allProducts = window.products || [];
+  if (!allProducts.length) {
+    Swal.fire({
+      icon: 'warning',
+      title: 'Nenhum produto disponível',
+      text: 'Cadastre produtos antes de lançar entradas em estoque.',
+      confirmButtonColor: '#ff1493'
+    });
+    return;
+  }
+
+  // Estado dos itens da entrada
+  let entryProducts = [{ productId: '', quantity: 1, unitPrice: '' }];
+
+  function calcSubtotal(item) {
+    return (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
+  }
+  function calcTotal() {
+    return entryProducts.reduce((sum, item) => sum + calcSubtotal(item), 0);
+  }
+
+  function renderEntryProductsTable() {
+    return `
+      <table class="dashboard-table" style="width:100%;margin-bottom:0;">
+        <thead>
+          <tr>
+            <th style="width:120px;">Código</th>
+            <th>Descrição</th>
+            <th style="width:70px;">Qtd</th>
+            <th style="width:120px;">Valor Unitário</th>
+            <th style="width:120px;">Subtotal</th>
+            <th style="width:40px;"></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${entryProducts.map((item, idx) => {
+            const prod = allProducts.find(p => String(p.id) === String(item.productId));
+            return `<tr>
+              <td>
+                <select class="swal2-select entry-product-select" data-idx="${idx}" style="min-width:90px;max-width:100%;">
+                  <option value="">Selecione...</option>
+                  ${allProducts.map(p => `<option value="${p.id}" ${String(p.id)===String(item.productId)?'selected':''}>${p.id}</option>`).join('')}
+                </select>
+              </td>
+              <td>${prod ? prod.name : ''}</td>
+              <td><input type="number" min="1" class="swal2-input entry-product-qty" data-idx="${idx}" value="${item.quantity||1}" style="width:60px;"></td>
+              <td><input type="number" min="0" step="0.01" class="swal2-input entry-product-price" data-idx="${idx}" value="${item.unitPrice||''}" style="width:100px;"></td>
+              <td style="text-align:right;">R$ ${(calcSubtotal(item)).toLocaleString('pt-BR',{minimumFractionDigits:2})}</td>
+              <td><button type="button" class="btn btn-secondary remove-entry-product" data-idx="${idx}" title="Remover"><i class="fas fa-trash"></i></button></td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  let formHtml = `
+    <form id="stockEntryForm" style="max-width:1100px;width:100%;margin:0 auto;">
+      <div style="display:flex;gap:1.2rem;flex-wrap:wrap;margin-bottom:1.1rem;align-items:flex-end;">
+        <div style="flex:1 1 220px;min-width:180px;">
+          <label for="entrySupplier" style="font-weight:500;">Fornecedor</label>
+          <input type="text" id="entrySupplier" class="swal2-input" placeholder="Nome do fornecedor" style="width:100%;">
+        </div>
+        <div style="flex:1 1 120px;min-width:120px;">
+          <label for="entryDate" style="font-weight:500;">Data</label>
+          <input type="date" id="entryDate" class="swal2-input" value="${new Date().toISOString().slice(0,10)}" style="width:100%;">
+        </div>
+        <div style="flex:1 1 110px;min-width:110px;">
+          <label for="entryInvoice" style="font-weight:500;">NF/Fatura</label>
+          <input type="text" id="entryInvoice" class="swal2-input" placeholder="Número da nota" style="width:100%;">
+        </div>
+        <div style="flex:1 1 110px;min-width:110px;">
+          <label style="font-weight:500;">Total</label>
+          <input type="text" id="entryTotal" class="swal2-input" value="R$ 0,00" style="width:100%;" disabled>
+        </div>
+      </div>
+      <div style="margin-bottom:0.5rem;">
+        <label style="font-weight:500;">Itens da Entrada</label>
+        <div id="stockEntryProducts" style="margin-top:0.3rem;">
+          <button type="button" id="addEntryProductBtn" class="btn btn-secondary" style="margin-bottom:0.7rem;"><i class="fas fa-plus"></i> Adicionar Item</button>
+          <div id="entryProductsList"></div>
+        </div>
+      </div>
+    </form>
+  `;
+  await Swal.fire({
+    title: 'Entrada de Estoque',
+    customClass: { container: 'stock-entry-modal' },
+    html: formHtml,
+    showCancelButton: true,
+    confirmButtonText: 'Finalizar e Salvar',
+    cancelButtonText: 'Cancelar',
+    focusConfirm: false,
+    willOpen: () => {
+      const entryProductsList = document.getElementById('entryProductsList');
+      function renderAll() {
+        entryProductsList.innerHTML = renderEntryProductsTable();
+        document.getElementById('entryTotal').value = 'R$ ' + calcTotal().toLocaleString('pt-BR', {minimumFractionDigits:2});
+      }
+      renderAll();
+      document.getElementById('addEntryProductBtn').onclick = () => {
+        entryProducts.push({ productId: '', quantity: 1, unitPrice: '' });
+        renderAll();
+      };
+      entryProductsList.addEventListener('change', (e) => {
+        const idx = e.target.dataset.idx;
+        if (e.target.classList.contains('entry-product-select')) {
+          entryProducts[idx].productId = e.target.value;
+          // Preenche preço unitário sugerido
+          const prod = allProducts.find(p => String(p.id) === String(e.target.value));
+          if (prod) {
+            entryProducts[idx].unitPrice = prod.purchasePrice || '';
+          }
+          renderAll();
+        }
+        if (e.target.classList.contains('entry-product-qty')) {
+          entryProducts[idx].quantity = parseInt(e.target.value) || 1;
+          renderAll();
+        }
+        if (e.target.classList.contains('entry-product-price')) {
+          entryProducts[idx].unitPrice = parseFloat(e.target.value) || 0;
+          renderAll();
+        }
+      });
+      entryProductsList.addEventListener('click', (e) => {
+        if (e.target.closest('.remove-entry-product')) {
+          const idx = e.target.closest('.remove-entry-product').dataset.idx;
+          entryProducts.splice(idx, 1);
+          renderAll();
+        }
+      });
+    },
+    preConfirm: () => {
+      const entrySupplier = document.getElementById('entrySupplier').value.trim();
+      const entryDate = document.getElementById('entryDate').value;
+      const entryInvoice = document.getElementById('entryInvoice').value.trim();
+      const entryProductsCopy = entryProducts.map(p => ({ ...p }));
+      if (!entryProductsCopy.length || entryProductsCopy.some(p => !p.productId || !p.quantity || !p.unitPrice)) {
+        Swal.showValidationMessage('Preencha todos os campos dos itens.');
+        return false;
+      }
+      return {
+        supplier: entrySupplier,
+        date: entryDate,
+        invoice: entryInvoice,
+        products: entryProductsCopy
+      };
+    }
+  }).then(async (result) => {
+    if (result.isConfirmed && result.value) {
+      await window.StockModule.confirmStockEntry(result.value);
+    }
+  });
+};
+
+setTimeout(() => {
+  const btn = document.getElementById('openStockEntryModal');
+  if (btn) btn.onclick = window.StockModule.showStockEntryModal;
+}, 600);
+
+import { registerStockEntry } from './stock-entries.js';
+import { renderStockMovements } from './stock-movements.js';
+
+window.StockModule.confirmStockEntry = async function(entryData) {
+  try {
+    const batch = writeBatch(window.db);
+    for (const item of entryData.products) {
+      const prodRef = doc(window.db, "products", String(item.productId));
+      const prodSnap = await getDoc(prodRef);
+      if (!prodSnap.exists()) continue;
+      const prodData = prodSnap.data();
+      const newQty = (parseInt(prodData.quantity)||0) + (parseInt(item.quantity)||0);
+      batch.update(prodRef, {
+        quantity: newQty,
+        purchasePrice: parseFloat(item.unitPrice),
+        updatedAt: new Date().toISOString()
+      });
+    }
+    await batch.commit();
+    // Salva entrada no histórico
+    await registerStockEntry(entryData);
+    Swal.fire({
+      icon: 'success',
+      title: 'Entrada registrada!',
+      text: 'Produtos adicionados ao estoque com sucesso.',
+      confirmButtonColor: '#4caf50',
+      timer: 2000,
+      timerProgressBar: true
+    });
+    if (window.StockModule.refreshStock) await window.StockModule.refreshStock();
+    // Atualiza lista de movimentos
+    await renderStockMovements();
+  } catch (error) {
+    console.error('Erro ao registrar entrada:', error);
+    Swal.fire({
+      icon: 'error',
+      title: 'Erro',
+      text: 'Erro ao registrar entrada: ' + error.message,
+      confirmButtonColor: '#ff1493'
+    });
+  }
+};
+
+// Renderiza movimentos ao carregar
+window.addEventListener('DOMContentLoaded', () => {
+  if (document.getElementById('stockMovementsContent')) {
+    renderStockMovements();
+  }
+});
 
 // Exponha todas as funções públicas de uma vez, sem sobrescrever o objeto
 Object.assign(window.StockModule, {
