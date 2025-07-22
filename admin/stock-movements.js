@@ -142,6 +142,77 @@ export async function renderStockMovements(filters = null) {
     });
     html += `</tbody></table>`;
   }
+
+  // --- Tabela Analítica por Item ---
+  // Mapear todos os produtos presentes em entradas e saídas
+  const analyticsMap = {};
+  // Entradas
+  entries.forEach(entry => {
+    entry.products.forEach(prod => {
+      const key = String(prod.productId);
+      if (!analyticsMap[key]) {
+        analyticsMap[key] = {
+          productId: prod.productId,
+          productName: '',
+          entradas: 0,
+          saidas: 0
+        };
+      }
+      analyticsMap[key].entradas += Number(prod.quantity) || 0;
+      // Buscar nome do produto
+      if (!analyticsMap[key].productName && window.products && Array.isArray(window.products)) {
+        const found = window.products.find(p => String(p.id) === String(prod.productId));
+        analyticsMap[key].productName = found ? found.name : '';
+      }
+    });
+  });
+  // Saídas
+  saidas.forEach(s => {
+    const key = String(s.productId);
+    if (!analyticsMap[key]) {
+      analyticsMap[key] = {
+        productId: s.productId,
+        productName: s.productName||'',
+        entradas: 0,
+        saidas: 0
+      };
+    }
+    analyticsMap[key].saidas += Number(s.quantity) || 0;
+    // Buscar nome do produto se não tiver
+    if (!analyticsMap[key].productName && s.productName) {
+      analyticsMap[key].productName = s.productName;
+    }
+  });
+  // Renderizar tabela analítica
+  html += `<h3 style="margin-top:2em">Analítico por Item</h3>`;
+  html += `<table class="dashboard-table" style="width:100%;margin-bottom:2em;">
+    <thead><tr>
+      <th>Código</th><th>Descrição</th><th>Entradas</th><th>Saídas</th><th>Saldo</th><th>Estoque</th>
+    </tr></thead><tbody>`;
+  Object.values(analyticsMap).forEach(item => {
+    // Buscar estoque atual
+    let estoque = '-';
+    if (window.products && Array.isArray(window.products)) {
+      const found = window.products.find(p => String(p.id) === String(item.productId));
+      if (found && typeof found.quantity !== 'undefined') estoque = found.quantity;
+    }
+    const saldo = item.entradas - item.saidas;
+    // Destacar divergência
+    let diffStyle = '';
+    if (estoque !== '-' && Number(estoque) !== saldo) {
+      diffStyle = 'background:#ffebee;color:#c62828;font-weight:bold;' // vermelho claro
+    }
+    html += `<tr>
+      <td>${item.productId}</td>
+      <td>${item.productName||'-'}</td>
+      <td>${item.entradas}</td>
+      <td>${item.saidas}</td>
+      <td style="font-weight:bold;${saldo<0?'color:#dc3545':'color:#4CAF50'}">${saldo}</td>
+      <td style="${diffStyle}">${estoque}</td>
+    </tr>`;
+  });
+  html += `</tbody></table>`;
+
   container.innerHTML = html;
 
   // Handler de exclusão de entrada
@@ -281,11 +352,12 @@ if (typeof window._stockMovementsFiltersInit === 'undefined') {
         window.XLSX.utils.book_append_sheet(wb, entriesSheet, 'Entradas');
         // Saídas
         const saidasSheet = window.XLSX.utils.json_to_sheet(lastMovementsData.saidas.map(s => ({
-          Data: formatDateCell(s.date),
+          Data: formatDateCell(s.date, true), // true para formato BR (dd/mm/aaaa)
           Cliente: s.client||'-',
+          Código: s.productId || '-',
           Produto: s.productName||s.productId,
           Qtd: s.quantity,
-          Pedido: s.orderId||'-'
+          Pedido: s.orderNumber || s.orderId || '-'
         })));
         window.XLSX.utils.book_append_sheet(wb, saidasSheet, 'Saidas');
         window.XLSX.writeFile(wb, 'movimentos-estoque.xlsx');
