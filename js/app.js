@@ -2293,6 +2293,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const productsFromFirestore = await loadProducts();
         if (productsFromFirestore) {
             products = productsFromFirestore;
+            renderSpecialOffersCarousel();
             
             // Configurar listener em tempo real para produtos
             const productsCollection = collection(window.db, 'products');
@@ -2305,6 +2306,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 
                 // Atualizar produtos globalmente
                 products = updatedProducts;
+                renderSpecialOffersCarousel();
                 
                 // Re-renderizar listas
                 renderProductList();
@@ -2372,9 +2374,164 @@ async function initializeApp() {
     }
 }
 
+// Carregar HTML do carrossel de ofertas especiais e inicializar carrossel
+async function loadSpecialOffersCarousel() {
+    const includeDiv = document.getElementById('carouselOffersInclude');
+    if (!includeDiv) return;
+    try {
+        const resp = await fetch('components/carousel-offers.html');
+        const html = await resp.text();
+        includeDiv.innerHTML = html;
+        renderSpecialOffersCarousel();
+    } catch (e) {
+        console.error('Erro ao carregar carrossel de ofertas:', e);
+    }
+}
+
+// Renderizar produtos de oferta especial no carrossel
+function renderSpecialOffersCarousel() {
+    // DEBUG: Exibir todos os produtos e os filtrados
+    console.log('Todos os produtos carregados:', window.products);
+    const offers = (window.products || []).filter(p => p.specialOffer && p.active !== false);
+    const carousel = document.getElementById('specialOffersCarousel');
+    if (!carousel) return;
+    const track = carousel.querySelector('.carousel-track');
+    if (!track) return;
+
+    // Carrossel infinito: duplicar primeiros e últimos
+    let extendedOffers = [];
+    if (offers.length > 3) {
+        // Para suavidade, adiciona 3 últimos no início e 3 primeiros no fim
+        extendedOffers = [
+            ...offers.slice(-3),
+            ...offers,
+            ...offers.slice(0, 3)
+        ];
+    } else {
+        extendedOffers = [...offers];
+    }
+
+    let html = '';
+    extendedOffers.forEach((p, i) => {
+        html += `<div class="special-offer-card" data-index="${i}">
+    <div class="special-offer-img-area">
+        <span class="special-offer-badge">Oferta Especial</span>
+        <div class="special-offer-img-wrap">
+            <img src="${p.imageUrl || p.image || '/img/placeholder.png'}" alt="${p.name}" loading="lazy" />
+        </div>
+    </div>
+    <div class="special-offer-info">
+        <h3 class="special-offer-title">${p.name}</h3>
+        <div class="offer-prices">
+            ${p.oldPrice ? `<span class='old-price'>De: ${Number(p.oldPrice).toLocaleString('pt-BR', {minimumFractionDigits:2})}</span>` : ''}
+            <span class="current-price">Por: R$ ${Number(p.price).toLocaleString('pt-BR', {minimumFractionDigits:2})}</span>
+            ${p.pixPrice && p.pixPrice < p.price ? `<span class="pix-price">PIX: R$ ${Number(p.pixPrice).toLocaleString('pt-BR', {minimumFractionDigits:2})}</span>` : ''}
+        </div>
+        <button class="btn-buy-offer" data-id="${p.id}"><i class="fas fa-bag-shopping"></i> Comprar</button>
+    </div>
+</div>`;
+    });
+    track.innerHTML = html;
+    setupCarouselLogic(offers.length, extendedOffers.length);
+    // Integrar botões comprar
+    document.querySelectorAll('.btn-buy-offer').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const id = this.getAttribute('data-id');
+            if (window.addToCart) window.addToCart(id);
+        });
+    });
+}
+
+// Lógica de navegação do carrossel
+let specialOffersCurrent = 3; // Começa no primeiro card "real"
+let specialOffersTimer = null;
+let specialOffersCardsLength = 0;
+function setupCarouselLogic(total, extendedLength) {
+    specialOffersCardsLength = extendedLength || total;
+    const carousel = document.getElementById('specialOffersCarousel');
+    if (!carousel) return;
+    const track = carousel.querySelector('.carousel-track');
+    const cards = carousel.querySelectorAll('.special-offer-card');
+    if (!cards.length || !track) return;
+    showCarouselItem(specialOffersCurrent, cards, track);
+    const prev = document.getElementById('carouselPrevBtn');
+    const next = document.getElementById('carouselNextBtn');
+    if (prev && next) {
+        prev.onclick = () => moveCarousel(-1, cards, track);
+        next.onclick = () => moveCarousel(1, cards, track);
+    }
+    let startX = 0;
+    carousel.ontouchstart = e => startX = e.touches[0].clientX;
+    carousel.ontouchend = e => {
+        const dx = e.changedTouches[0].clientX - startX;
+        if (dx > 50) moveCarousel(-1, cards, track);
+        if (dx < -50) moveCarousel(1, cards, track);
+    };
+    clearInterval(specialOffersTimer);
+    specialOffersTimer = setInterval(() => moveCarousel(1, cards, track), 5000);
+}
+
+
+function showCarouselItem(idx, cards, track) {
+    let cardsPerView = window.innerWidth <= 768 ? 1 : 3;
+    const cardWidth = cards[0].offsetWidth;
+    const gap = parseInt(getComputedStyle(cards[0]).marginRight) + parseInt(getComputedStyle(cards[0]).marginLeft);
+    const totalMove = (cardWidth + gap) * idx;
+    if (track) {
+        track.style.transition = 'transform 0.55s cubic-bezier(.4,0,.2,1)';
+        track.style.transform = `translateX(-${totalMove}px)`;
+    }
+}
+
+
+function moveCarousel(dir, cards, track) {
+    let cardsPerView = window.innerWidth <= 768 ? 1 : 3;
+    let maxReal = specialOffersCardsLength - 6; // Só os reais
+    specialOffersCurrent += dir;
+    showCarouselItem(specialOffersCurrent, cards, track);
+    // Transição suave e looping
+    setTimeout(() => {
+        if (specialOffersCurrent >= maxReal + 3) {
+            // Pulou pro "fim" duplicado, volta pro real
+            specialOffersCurrent = 3;
+            if (track) {
+                track.style.transition = 'none';
+                showCarouselItem(specialOffersCurrent, cards, track);
+                // Forçar repaint para garantir transição próxima
+                void track.offsetWidth;
+                track.style.transition = 'transform 0.55s cubic-bezier(.4,0,.2,1)';
+            }
+        } else if (specialOffersCurrent < 3) {
+            // Pulou pro "início" duplicado, volta pro real
+            specialOffersCurrent = maxReal + 2;
+            if (track) {
+                track.style.transition = 'none';
+                showCarouselItem(specialOffersCurrent, cards, track);
+                void track.offsetWidth;
+                track.style.transition = 'transform 0.55s cubic-bezier(.4,0,.2,1)';
+            }
+        }
+    }, 560);
+}
+
+
+
+// Atualiza o carrossel ao redimensionar a janela
+window.addEventListener('resize', () => {
+    const carousel = document.getElementById('specialOffersCarousel');
+    if (!carousel) return;
+    const track = carousel.querySelector('.carousel-track');
+    const cards = carousel.querySelectorAll('.special-offer-card');
+    showCarouselItem(specialOffersCurrent, cards, track);
+});
+
 // Inicializar a aplicação quando o DOM estiver pronto
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initializeApp);
+    document.addEventListener('DOMContentLoaded', () => {
+        loadSpecialOffersCarousel();
+        initializeApp();
+    });
 } else {
+    loadSpecialOffersCarousel();
     initializeApp();
 }

@@ -4820,9 +4820,7 @@ export function toggleSpecialOffer(productId) {
   const newSpecialOffer = !isSpecialOffer;
 
   // Armazenar alteração pendente
-  pendingSpecialOffers[productId] = {
-    specialOffer: newSpecialOffer,
-  };
+  pendingSpecialOffers[productId] = newSpecialOffer;
 
   // Atualizar o produto localmente
   product.specialOffer = newSpecialOffer;

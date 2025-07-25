@@ -27,7 +27,7 @@ export async function loadProducts() {
                           ? productData.category.trim()
                           : 'Sem categoria',
                 active: productData.active === false ? false : true,
-                specialOffer: productData.specialOffer || false,
+                specialOffer: productData.specialOffer === true || productData.specialOffer === 1 || productData.specialOffer === 'true',
                 oldPrice: productData.oldPrice || null
               };
               
