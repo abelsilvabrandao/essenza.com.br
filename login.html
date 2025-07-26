@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login - Essenza</title>
+  <link rel="stylesheet" href="css/style.css">
+<!-- FontAwesome 6 para ícones do olho -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" integrity="sha512-papmV4QyQe8Qn6e7nXv1z8J2r3XWvQ4wzT5b1uJ2rQq8Q4wzT5b1uJ2r3XWvQ4wzT5b1uJ2rQq8Q4wzT5b1uJ2r3XWvQ4w==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Poppins:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    body.login-bg {
+      min-height: 100vh;
+      background: linear-gradient(135deg, #ffb6d5 0%, #ff69b4 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Poppins', Arial, sans-serif;
+    }
+    .essenza-login-box {
+      background: #fff;
+      border-radius: 20px;
+      box-shadow: 0 4px 32px rgba(255,105,180,0.13);
+      padding: 2.5rem 2rem 2.2rem 2rem;
+      max-width: 370px;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+    }
+    .essenza-login-title {
+      font-family: 'Playfair Display', serif;
+      color: #ff69b4;
+      font-size: 2.1rem;
+      font-weight: 700;
+      margin-bottom: 0.8rem;
+      letter-spacing: 2px;
+      text-align: center;
+    }
+    .essenza-login-box label {
+      width: 100%;
+      color: #ff69b4;
+      font-size: 1.08rem;
+      margin-bottom: 0.25rem;
+      font-weight: 500;
+      margin-top: 1.1rem;
+    }
+    .essenza-login-box input[type="email"] {
+      width: 100%;
+      padding: 0.7rem 1rem;
+      border: 1.5px solid #ffb6d5;
+      border-radius: 8px;
+      font-size: 1rem;
+      margin-bottom: 0.6rem;
+      outline: none;
+      transition: border 0.2s;
+    }
+    .essenza-login-box input[type="email"]:focus {
+      border-color: #ff69b4;
+    }
+    .essenza-login-box .forgot {
+      color: #ff69b4;
+      font-size: 0.96rem;
+      text-align: left;
+      width: 100%;
+      margin-bottom: 1.1rem;
+      margin-top: -0.5rem;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+    .essenza-login-box button.login-btn {
+      width: 100%;
+      background: #ff69b4;
+      color: #fff;
+      border: none;
+      border-radius: 9px;
+      padding: 0.85rem 0;
+      font-size: 1.13rem;
+      font-weight: 600;
+      margin-bottom: 1.2rem;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.2s;
+      box-shadow: 0 2px 8px rgba(255,105,180,0.13);
+    }
+    .essenza-login-box button.login-btn:hover,
+    .essenza-login-box button.login-btn:focus {
+      background: #ff4da6;
+      transform: translateY(-2px);
+    }
+    .essenza-login-divider {
+      width: 100%;
+      border-bottom: 1.5px solid #ffe0f1;
+      margin: 0.8rem 0 1.1rem 0;
+      text-align: center;
+      color: #ff69b4;
+      font-size: 0.97rem;
+      position: relative;
+    }
+    .essenza-login-divider span {
+      background: #fff;
+      position: relative;
+      top: 0.7em;
+      padding: 0 1em;
+    }
+    .essenza-login-google {
+      width: 100%;
+      border: 1.5px solid #ffb6d5;
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #fff;
+      color: #ff69b4;
+      font-weight: 500;
+      font-size: 1.13rem;
+      padding: 0.7rem 0;
+      margin-bottom: 0.9rem;
+      cursor: pointer;
+      transition: background 0.2s, border 0.2s;
+      box-shadow: 0 2px 8px rgba(255,182,213,0.07);
+    }
+    .essenza-login-google:hover,
+    .essenza-login-google:focus {
+      background: #ffe0f1;
+      border-color: #ff69b4;
+    }
+    .essenza-login-google img {
+      height: 22px;
+      margin-right: 0.9em;
+    }
+    .essenza-login-box .recaptcha {
+      margin-top: 1.2rem;
+      font-size: 0.85rem;
+      color: #b8b8b8;
+      text-align: center;
+    }
+    @media (max-width: 480px) {
+      .essenza-login-box {
+        padding: 1.2rem 0.4rem;
+        max-width: 98vw;
+      }
+      .essenza-login-title {
+        font-size: 1.45rem;
+      }
+    }
+  </style>
+</head>
+<body class="login-bg">
+  <div class="essenza-login-box" id="essenzaLoginBox">
+    <div class="essenza-login-title">ESSENZA</div>
+    <form id="formLogin" autocomplete="on">
+      <label for="loginEmail">E-mail</label>
+      <input type="email" id="loginEmail" name="email" placeholder="Email" required autocomplete="email">
+      <label for="loginPassword">Senha</label>
+      <div class="password-input-wrap">
+  <input type="password" id="loginPassword" name="password" placeholder="Senha" required autocomplete="current-password">
+  <button type="button" id="toggleLoginPassword" tabindex="-1" aria-label="Mostrar ou ocultar senha">
+    <i class="fa-solid fa-eye-slash"></i>
+  </button>
+</div>
+      <button class="login-btn" type="submit">Entrar</button>
+      <div style="text-align:right;margin-top:0.3em;">
+        <a href="#" id="showForgot" style="color:#ff69b4;text-decoration:underline;font-size:0.98em;">Recuperar senha</a>
+      </div>
+    </form>
+    <form id="formRegister" style="display:none" autocomplete="on">
+      <label for="registerEmail">Email*</label>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <input type="email" id="registerEmail" name="email" placeholder="Email" required autocomplete="email" readonly style="flex:1; background:#f4f4f4; color:#888;">
+        <button type="button" id="clearEmailBtn" title="Limpar e-mail" style="background:none;border:none;font-size:1.2em;color:#b8b8b8;cursor:pointer;display:none;"><i class="fas fa-times"></i></button>
+      </div>
+      <label for="registerName">Nome*</label>
+      <input type="text" id="registerName" name="name" placeholder="Nome" required autocomplete="given-name">
+      <label for="registerSurname">Sobrenome*</label>
+      <input type="text" id="registerSurname" name="surname" placeholder="Sobrenome" required autocomplete="family-name">
+      <label for="registerCPF">CPF*</label>
+      <input type="text" id="registerCPF" name="cpf" placeholder="CPF" required maxlength="14" autocomplete="off">
+      <label for="registerBirth">Data de Nascimento*</label>
+      <input type="date" id="registerBirth" name="birth" required>
+      <label for="registerPhone">Celular*</label>
+      <input type="tel" id="registerPhone" name="phone" placeholder="(99) 99999-9999" required maxlength="16" autocomplete="tel">
+      <label for="registerPassword">Senha*</label>
+      <div style="position:relative;">
+        <input type="password" id="registerPassword" name="password" placeholder="Senha" required autocomplete="new-password" style="padding-right:2.5em;">
+        <button type="button" id="toggleRegisterPassword" tabindex="-1" style="position:absolute;right:0.6em;top:50%;transform:translateY(-50%);background:none;border:none;font-size:1.1em;color:#b8b8b8;cursor:pointer;">
+          <i class="fas fa-eye-slash"></i>
+        </button>
+      </div>
+      <div id="passwordRules" style="background:#faf7fd;border:1px solid #eee;border-radius:8px;padding:0.7em 1em;margin:0.7em 0 1em 0;font-size:0.97em;color:#555;">
+        <div id="ruleSpecial"><i class="fas fa-times" style="color:#ff69b4"></i> Mínimo um caractere especial (Ex.: "@" "/" "!" "%")</div>
+        <div id="ruleNumber"><i class="fas fa-times" style="color:#ff69b4"></i> Mínimo um número</div>
+        <div id="ruleUpper"><i class="fas fa-times" style="color:#ff69b4"></i> Mínimo uma letra maiúscula</div>
+        <div id="ruleLower"><i class="fas fa-times" style="color:#ff69b4"></i> Mínimo uma letra minúscula</div>
+        <div id="ruleLength"><i class="fas fa-times" style="color:#ff69b4"></i> Mínimo 6 caracteres</div>
+      </div>
+      <div style="margin-bottom:0.6em;">
+        <div style="margin-bottom:0.3em;">Com qual gênero você se identifica?</div>
+        <label style="margin-right:1.1em;"><input type="radio" name="gender" value="Feminino" required> Feminino</label>
+        <label><input type="radio" name="gender" value="Masculino" required> Masculino</label>
+      </div>
+      <div style="font-size:0.91em;color:#888;margin-bottom:0.7em;">Ao se cadastrar, você receberá comunicações por email com ofertas especiais e vantagens. Saiba mais acessando nossa <a href="#" style="color:#ff69b4;text-decoration:underline;">Política de Privacidade</a>.</div>
+      <button class="login-btn" type="submit" style="background:#8f4be9;">Criar Conta</button>
+    </form>
+    <form id="formForgot" style="display:none">
+      <label for="forgotEmail">Digite seu e-mail para redefinir a senha</label>
+      <input type="email" id="forgotEmail" name="email" placeholder="Email" required autocomplete="email">
+      <button class="login-btn" type="submit">Enviar link</button>
+    </form>
+    <div class="essenza-login-divider"><span>ou utilize sua conta</span></div>
+    <button class="essenza-login-google" type="button" id="googleLoginBtn">
+      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google"> Google
+    </button>
+    <div class="recaptcha">Protegido por reCAPTCHA • Privacidade</div>
+    <div id="loginMsg" style="margin-top:0.7rem;width:100%;text-align:center;font-size:1.05em;color:#ff69b4;"></div>
+  </div>
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.1.0/firebase-app.js';
+    import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup, updateProfile } from 'https://www.gstatic.com/firebasejs/10.1.0/firebase-auth.js';
+    const firebaseConfig = window.firebaseConfig || {
+      apiKey: "SUA_API_KEY",
+      authDomain: "SUA_AUTH_DOMAIN",
+      projectId: "SUA_PROJECT_ID",
+      storageBucket: "SUA_STORAGE_BUCKET",
+      messagingSenderId: "SUA_MESSAGING_SENDER_ID",
+      appId: "SUA_APP_ID"
+    };
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const provider = new GoogleAuthProvider();
+    // Alternância de abas
+    const tabLogin = document.getElementById('tabLogin');
+    const tabRegister = document.getElementById('tabRegister');
+    const tabForgot = document.getElementById('tabForgot');
+    const formLogin = document.getElementById('formLogin');
+    const formRegister = document.getElementById('formRegister');
+    const formForgot = document.getElementById('formForgot');
+    const loginMsg = document.getElementById('loginMsg');
+    function showTab(tab) {
+      formLogin.style.display = tab === 'login' ? '' : 'none';
+      formRegister.style.display = tab === 'register' ? '' : 'none';
+      formForgot.style.display = tab === 'forgot' ? '' : 'none';
+      tabLogin.setAttribute('aria-selected', tab === 'login');
+      tabRegister.setAttribute('aria-selected', tab === 'register');
+      tabForgot.setAttribute('aria-selected', tab === 'forgot');
+      loginMsg.textContent = '';
+    }
+    tabLogin.onclick = () => showTab('login');
+    tabRegister.onclick = () => showTab('register');
+    tabForgot.onclick = () => showTab('forgot');
+    // Mostrar/ocultar senha login
+window.addEventListener('DOMContentLoaded', function() {
+  const toggleLoginPassword = document.getElementById('toggleLoginPassword');
+  const loginPassword = document.getElementById('loginPassword');
+  if(toggleLoginPassword && loginPassword) {
+    toggleLoginPassword.onclick = function(e) {
+      e.preventDefault();
+      const icon = toggleLoginPassword.querySelector('i');
+      if(loginPassword.type === 'password') {
+        loginPassword.type = 'text';
+        icon.classList.remove('fa-eye-slash');
+        icon.classList.add('fa-eye');
+        toggleLoginPassword.classList.add('active');
+      } else {
+        loginPassword.type = 'password';
+        icon.classList.remove('fa-eye');
+        icon.classList.add('fa-eye-slash');
+        toggleLoginPassword.classList.remove('active');
+      }
+    };
+  }
+});
+// Login
+    formLogin.onsubmit = async (e) => {
+      e.preventDefault();
+      loginMsg.textContent = '';
+      const email = formLogin.loginEmail.value;
+      const password = formLogin.loginPassword.value;
+      try {
+        const userCred = await signInWithEmailAndPassword(auth, email, password);
+        // Atualiza estado do usuário
+        localStorage.setItem('essenzaUser', JSON.stringify({email: userCred.user.email, name: userCred.user.displayName, uid: userCred.user.uid}));
+        loginMsg.style.color = '#3ec486';
+        loginMsg.textContent = 'Login realizado com sucesso! Redirecionando...';
+        setTimeout(() => { window.location.href = '/'; }, 1200);
+      } catch (e) {
+        loginMsg.style.color = '#ff69b4';
+        loginMsg.textContent = 'Erro: ' + (e.code === 'auth/wrong-password' ? 'Senha incorreta.' : e.code === 'auth/user-not-found' ? 'Usuário não encontrado.' : e.message);
+      }
+    };
+    // Cadastro
+    formRegister.onsubmit = async (e) => {
+      e.preventDefault();
+      loginMsg.textContent = '';
+      const name = formRegister.registerName.value;
+      const email = formRegister.registerEmail.value;
+      const password = formRegister.registerPassword.value;
+      try {
+        const userCred = await createUserWithEmailAndPassword(auth, email, password);
+        await updateProfile(userCred.user, { displayName: name });
+        localStorage.setItem('essenzaUser', JSON.stringify({email: userCred.user.email, name, uid: userCred.user.uid}));
+        loginMsg.style.color = '#3ec486';
+        loginMsg.textContent = 'Cadastro realizado com sucesso! Redirecionando...';
+        setTimeout(() => { window.location.href = '/'; }, 1200);
+      } catch (e) {
+        loginMsg.style.color = '#ff69b4';
+        loginMsg.textContent = 'Erro: ' + (e.code === 'auth/email-already-in-use' ? 'E-mail já cadastrado.' : e.message);
+      }
+    };
+    // Recuperação de senha
+    formForgot.onsubmit = async (e) => {
+      e.preventDefault();
+      loginMsg.textContent = '';
+      const email = formForgot.forgotEmail.value;
+      try {
+        await sendPasswordResetEmail(auth, email);
+        loginMsg.style.color = '#3ec486';
+        loginMsg.textContent = 'E-mail de recuperação enviado!';
+      } catch (e) {
+        loginMsg.style.color = '#ff69b4';
+        loginMsg.textContent = 'Erro: ' + (e.code === 'auth/user-not-found' ? 'E-mail não cadastrado.' : e.message);
+      }
+    };
+    // Google
+    document.getElementById('googleLoginBtn').onclick = async () => {
+      loginMsg.textContent = '';
+      try {
+        const userCred = await signInWithPopup(auth, provider);
+        localStorage.setItem('essenzaUser', JSON.stringify({email: userCred.user.email, name: userCred.user.displayName, uid: userCred.user.uid}));
+        loginMsg.style.color = '#3ec486';
+        loginMsg.textContent = 'Login realizado com sucesso! Redirecionando...';
+        setTimeout(() => { window.location.href = '/'; }, 1200);
+      } catch (e) {
+        if (e.code !== 'auth/popup-closed-by-user') {
+          loginMsg.style.color = '#ff69b4';
+          loginMsg.textContent = 'Erro ao logar com Google: ' + e.message;
+        }
+      }
+    };
+    // Atalho: Enter em qualquer campo envia o formulário correto
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        if (formLogin.style.display !== 'none' && document.activeElement.form === formLogin) formLogin.requestSubmit();
+        if (formRegister.style.display !== 'none' && document.activeElement.form === formRegister) formRegister.requestSubmit();
+        if (formForgot.style.display !== 'none' && document.activeElement.form === formForgot) formForgot.requestSubmit();
+      }
+    });
+  </script>
+</body>
+</html>

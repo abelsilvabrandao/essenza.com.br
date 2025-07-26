@@ -1,4 +1,112 @@
 import { loadProducts } from './products.js';
+import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.1.0/firebase-auth.js';
+// Import único do Firestore, sem duplicidade
+import { collection, onSnapshot, addDoc, getDocs, query, where, getDoc, doc, setDoc, updateDoc, increment, writeBatch, runTransaction, serverTimestamp, arrayUnion } from 'https://www.gstatic.com/firebasejs/10.1.0/firebase-firestore.js';
+
+const auth = getAuth();
+const db = window.db || getFirestore();
+const provider = new GoogleAuthProvider();
+
+// Estado global do usuário
+let currentUser = null;
+
+function updateAccountUI(user) {
+  // Integra Essenza localStorage e Firebase Auth
+  if (!user) {
+    // Tenta pegar do localStorage
+    try {
+      const localUser = JSON.parse(localStorage.getItem('essenzaUser'));
+      if (localUser && localUser.email) {
+        user = { displayName: localUser.name, email: localUser.email, uid: localUser.uid };
+      }
+    } catch {}
+  }
+  const btn = document.getElementById('accountBtn');
+  const loginBtn = document.querySelector('.account-login-btn');
+  if (user && user.email) {
+    btn.innerHTML = `<i class="fa-regular fa-user"></i> Olá, ${(user.displayName||user.name||'Usuário').split(' ')[0]} <i class="fa-solid fa-chevron-down"></i>`;
+    if (loginBtn) {
+      loginBtn.textContent = 'Sair';
+      loginBtn.onclick = () => {
+        // Limpa localStorage Essenza e faz signOut
+        localStorage.removeItem('essenzaUser');
+        if (typeof signOut === 'function') signOut(auth);
+        window.location.reload();
+      };
+    }
+  } else {
+    btn.innerHTML = `<i class="fa-regular fa-user"></i> Minha Conta <i class="fa-solid fa-chevron-down"></i>`;
+    if (loginBtn) {
+      loginBtn.textContent = 'Acessar minha conta';
+      loginBtn.onclick = () => window.location.href = '/login.html';
+    }
+  }
+}
+
+function loginWithGoogle() {
+  signInWithPopup(auth, provider).catch(e => {
+    Swal.fire({title:'Erro ao logar', text:e.message, icon:'error'});
+  });
+}
+
+onAuthStateChanged(auth, user => {
+  currentUser = user;
+  updateAccountUI(user);
+  renderProductList(); // Atualiza favoritos/estrelas do usuário
+});
+
+// Funções de favoritos e avaliações
+async function toggleFavorite(productId) {
+  if (!currentUser) {
+    Swal.fire({
+      title: 'Você precisa fazer login para adicionar o produto aos favoritos',
+      icon: 'info',
+      width: 320,
+      padding: '1.2em 1.2em 1.6em',
+      showCloseButton: true,
+      showCancelButton: false,
+      confirmButtonText: '<b>Fazer login</b>',
+      confirmButtonColor: '#ff69b4',
+      customClass: {
+        popup: 'essenza-swal essenza-swal-login',
+        confirmButton: 'essenza-swal-btn',
+        title: 'essenza-swal-title swal-title-small',
+        icon: 'essenza-swal-icon'
+      },
+      background: '#fff',
+      allowOutsideClick: true
+    }).then(result => {
+      if (result.isConfirmed) {
+        window.location.href = '/login.html';
+      }
+    });
+    return;
+  }
+  const favRef = doc(db, 'users', currentUser.uid);
+  let userDoc = await getDoc(favRef);
+  let favorites = (userDoc.exists() && userDoc.data().favorites) || [];
+  let newFavs;
+  if (favorites.includes(productId)) {
+    newFavs = favorites.filter(id => id !== productId);
+  } else {
+    newFavs = [...favorites, productId];
+  }
+  await setDoc(favRef, { favorites: newFavs }, { merge: true });
+  renderProductList();
+}
+
+async function setRating(productId, rating) {
+  if (!currentUser) {
+    Swal.fire({title:'Faça login para avaliar', icon:'info', confirmButtonColor:'#ff1493'});
+    return;
+  }
+  const userRef = doc(db, 'users', currentUser.uid);
+  let userDoc = await getDoc(userRef);
+  let ratings = (userDoc.exists() && userDoc.data().ratings) || {};
+  ratings[productId] = rating;
+  await setDoc(userRef, { ratings }, { merge: true });
+  renderProductList();
+}
 
 /**
  * Formata a descrição do produto para exibição (título com * e sublinhado colorido, texto justificado)
@@ -68,8 +176,6 @@ export async function refreshProducts() {
     window.products = await loadProducts();
     if (typeof renderProductList === 'function') renderProductList();
 }
-import { collection, onSnapshot, addDoc, getDocs, query, where, getDoc, doc, updateDoc, increment, writeBatch, runTransaction, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.1.0/firebase-firestore.js';
-
 // Estado global
 let cart = [];  // Carrinho de compras
 let products = [];  // Lista de produtos
@@ -427,7 +533,7 @@ async function renderProductList() {
 
     try {
         // Exibir todos os produtos, inclusive desativados
-        const allProducts = window.products.slice();
+        const allProducts = Array.isArray(window.products) ? window.products.slice() : [];
         
         // Verificar se houve mudanças no carrinho
         const currentCartState = JSON.stringify(cart.map(item => ({
@@ -443,6 +549,7 @@ async function renderProductList() {
         lastCartState = currentCartState;
         console.log('Atualizando lista de produtos. Total:', allProducts.length);
 
+
         // Ordenar produtos pelo ID numérico
         allProducts.sort((a, b) => {
             const idA = parseInt(a.id);
@@ -450,8 +557,24 @@ async function renderProductList() {
             return idA - idB;
         });
 
+        // Skeleton loader: se não há produtos carregados, mostra 6 skeletons
+        if (!Array.isArray(window.products) || window.products.length === 0) {
+            productsGrid.innerHTML = Array.from({length: 6}).map(() => `
+                <div class="skeleton-card">
+                    <div class="skeleton-heart"></div>
+                    <div class="skeleton-image"></div>
+                    <div class="skeleton-title"></div>
+                    <div class="skeleton-stars"></div>
+                    <div class="skeleton-desc"></div>
+                    <div class="skeleton-price"></div>
+                    <div class="skeleton-btn"></div>
+                </div>
+            `).join('');
+            return;
+        }
         // Limpar o grid antes de adicionar os novos produtos
         productsGrid.innerHTML = '';
+
 
         // Adicionar cada produto ao grid
         for (const product of allProducts) {
@@ -507,8 +630,16 @@ async function renderProductList() {
             } else {
                 // Se não estiver em cache, criar o HTML
                 productHTML = `
-                <img src="${product.imageUrl || '/img/placeholder.png'}" alt="${product.name}" onerror="this.onerror=null; this.src='/img/placeholder.png'">
+                <div class="product-img-area">
+                  <button class="favorite-btn" aria-label="Favoritar produto" data-product-id="${product.id}">
+                    <i class="fa${product.isFavorite ? 's' : 'r'} fa-heart"></i>
+                  </button>
+                  <img src="${product.imageUrl || '/img/placeholder.png'}" alt="${product.name}" onerror="this.onerror=null; this.src='/img/placeholder.png'">
+                </div>
             <h3>${product.name}</h3>
+            <div class="star-rating" data-product-id="${product.id}">
+              ${[1,2,3,4,5].map(star => `<i class="fa${product.userRating && product.userRating >= star ? 's' : 'r'} fa-star" data-star="${star}"></i>`).join('')}
+            </div>
             <div class="product-category-label" style="font-size:0.93em;color:#888;margin-top:-0.15em;margin-bottom:0.6em;">
                 ${typeof product.category === 'string' && product.category.trim() ? product.category : '<span style=\"color:#bbb;\">Sem categoria</span>'}
             </div>
@@ -647,10 +778,19 @@ async function renderProductList() {
             productElement.innerHTML = productHTML;
             productsGrid.appendChild(productElement);
         }
+        // Adicionar evento de clique para todos os botões de favorito
+        const favBtns = productsGrid.querySelectorAll('.favorite-btn');
+        favBtns.forEach(btn => {
+          btn.onclick = (e) => {
+            e.preventDefault();
+            const productId = btn.getAttribute('data-product-id');
+            if (productId) toggleFavorite(productId);
+          };
+        });
 
-    // Add event delegation for 'Ver mais' after rendering all products
-    productsGrid.removeEventListener('click', handleSeeMoreClick);
-    productsGrid.addEventListener('click', handleSeeMoreClick);
+        // Add event delegation for 'Ver mais' after rendering all products
+        productsGrid.removeEventListener('click', handleSeeMoreClick);
+        productsGrid.addEventListener('click', handleSeeMoreClick);
 
     } catch (error) {
         console.error('Erro ao renderizar lista de produtos:', error);
@@ -2416,12 +2556,22 @@ function renderSpecialOffersCarousel() {
         html += `<div class="special-offer-card" data-index="${i}">
     <div class="special-offer-img-area">
         <span class="special-offer-badge">Oferta Especial</span>
+        <button class="favorite-btn" data-id="${p.id}" aria-label="Favoritar produto">
+            <i class="fa-regular fa-heart"></i>
+        </button>
         <div class="special-offer-img-wrap">
             <img src="${p.imageUrl || p.image || '/img/placeholder.png'}" alt="${p.name}" loading="lazy" />
         </div>
     </div>
     <div class="special-offer-info">
         <h3 class="special-offer-title">${p.name}</h3>
+        <div class="rating-stars" data-product="${p.id}">
+            <i class="fa-regular fa-star"></i>
+            <i class="fa-regular fa-star"></i>
+            <i class="fa-regular fa-star"></i>
+            <i class="fa-regular fa-star"></i>
+            <i class="fa-regular fa-star"></i>
+        </div>
         <div class="offer-prices">
             ${p.oldPrice ? `<span class='old-price'>De: ${Number(p.oldPrice).toLocaleString('pt-BR', {minimumFractionDigits:2})}</span>` : ''}
             <span class="current-price">Por: R$ ${Number(p.price).toLocaleString('pt-BR', {minimumFractionDigits:2})}</span>
@@ -2433,6 +2583,14 @@ function renderSpecialOffersCarousel() {
     });
     track.innerHTML = html;
     setupCarouselLogic(offers.length, extendedOffers.length);
+    // Integrar botões favoritos no carrossel
+    document.querySelectorAll('.special-offer-card .favorite-btn').forEach(btn => {
+        btn.onclick = (e) => {
+            e.preventDefault();
+            const productId = btn.getAttribute('data-id');
+            if (productId) toggleFavorite(productId);
+        };
+    });
     // Integrar botões comprar
     document.querySelectorAll('.btn-buy-offer').forEach(btn => {
         btn.addEventListener('click', function() {
