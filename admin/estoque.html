@@ -14,9 +14,10 @@
 <body>
     <div class="admin-container">
         <header class="admin-header">
-            <h1>Gerenciamento de Estoque</h1>
-            <a href="../index.html" class="btn-back">Voltar para Loja</a>
-        </header>
+    <h1>Gerenciamento de Estoque</h1>
+    <div id="admin-login-status" class="admin-login-status"></div>
+    <a href="../index.html" class="btn-back">Voltar para Loja</a>
+</header>
 
         <div class="container">            
             <div class="actions">
@@ -487,6 +488,9 @@
             })
         });
     </script>
+    <!-- Proteção de autenticação Firebase Auth -->
+    <script type="module" src="./auth-protect.js"></script>
+    <script>window.addEventListener('DOMContentLoaded',()=>window.setupAuthProtection&&window.setupAuthProtection());</script>
 
     <!-- Script de Métricas -->
     <script src="js/sales-metrics.js"></script>
