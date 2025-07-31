@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Minha Conta | Essenza</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://www.gstatic.com/firebasejs/10.1.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.1.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.1.0/firebase-firestore-compat.js"></script>
+  <style>
+    .account-box {
+      max-width: 480px;
+      margin: 3.5rem auto 2rem auto;
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: 0 2px 16px #ff69b41a;
+      padding: 2.2rem 2.2rem 1.2rem 2.2rem;
+      font-family: 'Poppins', sans-serif;
+    }
+    .account-title {
+      font-family: 'Playfair Display', serif;
+      color: #8f4be9;
+      font-size: 2.1rem;
+      font-weight: 700;
+      margin-bottom: 0.8em;
+      text-align: center;
+    }
+    .account-section {
+      margin-bottom: 1.5em;
+    }
+    .account-label {
+      color: #b8b8b8;
+      font-size: 0.97em;
+      margin-bottom: 0.1em;
+      display: block;
+    }
+    .account-value {
+      color: #444;
+      font-size: 1.13em;
+      margin-bottom: 0.5em;
+      font-weight: 500;
+    }
+    .account-actions {
+      display: flex;
+      gap: 1.3em;
+      justify-content: flex-end;
+      margin-top: 1.5em;
+    }
+    .account-action-btn {
+      background: #ff69b4;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 0.7em 1.3em;
+      font-size: 1em;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.18s;
+    }
+    .account-action-btn.logout {
+      background: #b8b8b8;
+    }
+    @media (max-width: 600px) {
+      .account-box {
+        padding: 1.2rem 0.5rem 1.2rem 0.5rem;
+      }
+    }
+  </style>
+</head>
+<body style="background:#faf7fd;">
+  <div class="account-box" id="accountBox">
+    <div class="account-title">Minha Conta</div>
+    <div style="display:flex;gap:1.2em;justify-content:center;margin-bottom:1.2em;">
+      <button class="account-action-btn" id="tabDadosBtn" style="background:#8f4be9;">Meus Dados</button>
+      <button class="account-action-btn" id="tabPedidosBtn">Meus Pedidos</button>
+      <button class="account-action-btn" id="tabFavoritosBtn">Favoritos</button>
+    </div>
+    <div id="sectionDados" class="account-section">
+      <span class="account-label">Nome</span>
+      <span class="account-value" id="userName">Carregando...</span>
+      <span class="account-label">E-mail</span>
+      <span class="account-value" id="userEmail">Carregando...</span>
+      <span class="account-label">CPF</span>
+      <span class="account-value" id="userCPF">Carregando...</span>
+    </div>
+    <div id="sectionPedidos" class="account-section" style="display:none">
+      <span class="account-label">Pedidos</span>
+      <div style="color:#888;font-size:0.98em;">Em breve você verá seus pedidos aqui.</div>
+    </div>
+    <div id="sectionFavoritos" class="account-section" style="display:none">
+      <span class="account-label">Favoritos</span>
+      <div style="color:#888;font-size:0.98em;">Em breve você verá seus favoritos aqui.</div>
+    </div>
+    <div class="account-actions">
+      <button class="account-action-btn logout" id="logoutBtn"><i class="fa-solid fa-arrow-right-from-bracket"></i> Sair</button>
+    </div>
+  </div>
+  <script>
+    function showSection(tab) {
+      document.getElementById('sectionDados').style.display = tab === 'dados' ? '' : 'none';
+      document.getElementById('sectionPedidos').style.display = tab === 'meus-pedidos' ? '' : 'none';
+      document.getElementById('sectionFavoritos').style.display = tab === 'favoritos' ? '' : 'none';
+      document.getElementById('tabDadosBtn').style.background = tab === 'dados' ? '#8f4be9' : '#ff69b4';
+      document.getElementById('tabPedidosBtn').style.background = tab === 'meus-pedidos' ? '#8f4be9' : '#ff69b4';
+      document.getElementById('tabFavoritosBtn').style.background = tab === 'favoritos' ? '#8f4be9' : '#ff69b4';
+    }
+    function getTabFromUrl() {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('aba') || 'dados';
+    }
+    function setTab(tab) {
+      const url = tab === 'dados' ? 'minha-conta.html' : `minha-conta.html?aba=${tab}`;
+      window.history.replaceState({}, '', url);
+      showSection(tab);
+    }
+    document.getElementById('tabDadosBtn').onclick = () => setTab('dados');
+    document.getElementById('tabPedidosBtn').onclick = () => setTab('meus-pedidos');
+    document.getElementById('tabFavoritosBtn').onclick = () => setTab('favoritos');
+    showSection(getTabFromUrl());
+  </script>
+  <script>
+    // Config Firebase (copiar igual do login.html)
+    const firebaseConfig = {
+      apiKey: "SUA_API_KEY",
+      authDomain: "SUA_AUTH_DOMAIN",
+      projectId: "SUA_PROJECT_ID",
+      storageBucket: "SUA_STORAGE_BUCKET",
+      messagingSenderId: "SUA_MESSAGING_SENDER_ID",
+      appId: "SUA_APP_ID"
+    };
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    // Proteção de acesso: só entra autenticado
+    function redirectToLogin() {
+      window.location.href = 'login.html';
+    }
+    auth.onAuthStateChanged(async (user) => {
+      if (!user) {
+        // Tenta localStorage (caso login por email/senha)
+        const local = localStorage.getItem('essenzaUser');
+        if (!local) return redirectToLogin();
+        const data = JSON.parse(local);
+        document.getElementById('userName').textContent = data.name || '-';
+        document.getElementById('userEmail').textContent = data.email || '-';
+        // Buscar CPF do Firestore
+        try {
+          const snap = await db.collection('clientes').where('email','==',data.email).limit(1).get();
+          if (!snap.empty) {
+            document.getElementById('userCPF').textContent = snap.docs[0].data().cpf || '-';
+          } else {
+            document.getElementById('userCPF').textContent = '-';
+          }
+        } catch {
+          document.getElementById('userCPF').textContent = '-';
+        }
+      } else {
+        document.getElementById('userName').textContent = user.displayName || '-';
+        document.getElementById('userEmail').textContent = user.email || '-';
+        // Buscar CPF do Firestore
+        try {
+          const snap = await db.collection('clientes').where('email','==',user.email).limit(1).get();
+          if (!snap.empty) {
+            document.getElementById('userCPF').textContent = snap.docs[0].data().cpf || '-';
+          } else {
+            document.getElementById('userCPF').textContent = '-';
+          }
+        } catch {
+          document.getElementById('userCPF').textContent = '-';
+        }
+      }
+    });
+    // Logout
+    document.getElementById('logoutBtn').onclick = async () => {
+      await auth.signOut();
+      localStorage.removeItem('essenzaUser');
+      window.location.href = 'login.html';
+    };
+  </script>
+
+</html>

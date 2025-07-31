@@ -1311,11 +1311,61 @@ body {
 }
 
 /* Mostrar apenas em mobile */
-@media (max-width: 768px) {
-    .back-to-top {
-        display: flex !important; /* Sobrescreve o !important se necessário */
-    }
+@media (max-width: 1024px) {
+  .back-to-top {
+    display: flex !important;
+    position: fixed;
+    justify-content: center;
+    align-items: center;
+    background-color: var(--color-primary);
+    color: white;
+    border: none;
+    cursor: pointer;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(40px);
+    transition: opacity 0.3s, transform 0.3s;
+    z-index: 999;
+    width: 48px;
+    height: 48px;
+    font-size: 1.5rem;
+    bottom: 24px;
+    right: 24px;
+    border-radius: 50%;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  }
+  .back-to-top.show {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+  }
 }
+
+
+@media (max-width: 1024px) {
+  .back-to-top.show {
+    display: flex !important;
+    position: fixed;
+    justify-content: center;
+    align-items: center;
+    background-color: var(--color-primary);
+    color: white;
+    border: none;
+    cursor: pointer;
+    transform: translateY(20px);
+    transition: opacity 0.3s, transform 0.3s;
+    z-index: 999;
+    width: 48px;
+    height: 48px;
+    font-size: 1.5rem;
+    bottom: 24px;
+    right: 24px;
+    border-radius: 50%;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  }
+}
+
+
 
 /* Waitlist Orphan Styles */
 .waitlist-orphan-row {
@@ -1824,6 +1874,41 @@ body.login-bg {
 .essenza-login-box .password-input-wrap {
   position: relative;
   width: 100%;
+  display: flex;
+  align-items: center;
+}
+.essenza-login-box .password-input-wrap input[type="password"] {
+  width: 100%;
+  padding-right: 2.5em;
+}
+.essenza-login-box #toggleRegisterPassword {
+  position: absolute;
+  right: 0.8em;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  font-size: 1.18em;
+  color: #b8b8b8;
+  cursor: pointer;
+  z-index: 2;
+  padding: 0 0.3em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.18s;
+  height: 2.2rem;
+}
+.essenza-login-box #toggleRegisterPassword.active {
+  color: #ff69b4;
+}
+.essenza-login-box #toggleRegisterPassword:focus {
+  outline: none;
+  color: #ff69b4;
+}
+.essenza-login-box .input-error {
+  border-color: #d32f2f !important;
+  box-shadow: 0 0 0 2px #ffcdd2 !important;
 }
 .essenza-login-box #toggleLoginPassword {
   position: absolute;
@@ -1850,9 +1935,7 @@ body.login-bg {
   outline: none;
   color: #ff69b4;
 }
-.essenza-login-box input[type="password"] {
-  padding-right: 2.5em;
-}
+
 .essenza-login-box .forgot {
   color: #ff69b4;
   font-size: 0.96rem;

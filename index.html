@@ -43,19 +43,156 @@
             <h1>ESSENZA</h1>
             </div>
             <div class="header-actions">
-    <div class="account-dropdown" id="accountDropdown">
-        <button class="account-btn" id="accountBtn" aria-haspopup="true" aria-expanded="false">
-            <i class="fa-regular fa-user"></i> Minha Conta <i class="fa-solid fa-chevron-down"></i>
-        </button>
-        <div class="account-menu" id="accountMenu" role="menu" aria-labelledby="accountBtn">
-            <button class="account-login-btn">Acessar minha conta</button>
-            <div class="account-divider"></div>
-            <div class="account-register">Não tem conta? <a href="#" class="account-register-link">Cadastrar.</a></div>
-            <a href="#" class="account-menu-link"><i class="fa-regular fa-id-card"></i> Meus Dados</a>
-            <a href="#" class="account-menu-link"><i class="fa-regular fa-clipboard-list"></i> Meus Pedidos</a>
-            <a href="#" class="account-menu-link"><i class="fa-regular fa-ticket"></i> Vale-Beleza</a>
-            <a href="#" class="account-menu-link"><i class="fa-regular fa-heart"></i> Favoritos</a>
-        </div>
+    <div class="account-dropdown" id="accountDropdown" style="position:relative;">
+  <button id="accountBtnEssenza" aria-haspopup="true" aria-expanded="false" tabindex="0" style="all:unset!important;display:flex!important;flex-direction:column!important;align-items:flex-start!important;gap:0!important;min-width:150px!important;cursor:pointer!important;background:none!important;border:none!important;box-shadow:none!important;padding:0!important;margin:0!important;outline:none!important;transition:box-shadow 0.22s cubic-bezier(.4,0,.2,1),background 0.22s cubic-bezier(.4,0,.2,1)!important;">
+  <span style="display:flex!important;align-items:center!important;gap:7px!important;background:none!important;border:none!important;box-shadow:none!important;padding:0!important;margin:0!important;">
+    <i class="fa-regular fa-user" style="font-size:1.28em!important;color:#6b6b9d!important;background:none!important;border:none!important;"></i>
+    <span id="accountGreeting" style="font-size:0.92em!important;color:#6b6b9d!important;font-weight:500!important;line-height:1!important;margin-bottom:-0.2em!important;background:none!important;border:none!important;">Olá! Entrar na</span>
+  </span>
+  <span style="display:flex!important;align-items:center!important;gap:5px!important;margin-top:0.13em!important;background:none!important;border:none!important;box-shadow:none!important;padding:0!important;margin:0!important;">
+    <span id="accountName" style="font-size:1.12em!important;font-weight:600!important;color:#222!important;line-height:1.1!important;background:none!important;border:none!important;">Minha Conta</span>
+    <i id="accountChevron" class="fa-solid fa-chevron-down" style="margin-left:2px!important;font-size:1em!important;color:#6b6b9d!important;background:none!important;border:none!important;transition:transform 0.28s cubic-bezier(.4,0,.2,1)!important;"></i>
+  </span>
+</button>
+  <div class="account-menu" id="accountMenu" role="menu" aria-labelledby="accountBtn" style="display:none;position:absolute;top:110%;right:0;min-width:320px;background:#fff;border-radius:14px;box-shadow:0 4px 24px #8f4be91a;padding:0.7em 0 0.4em 0;z-index:30;">
+    <div id="accountMenuLoggedOutBlock" style="display:none;">
+      <a href="login.html" class="account-login-btn" style="display:flex;justify-content:center;align-items:center;width:calc(100% - 2em);background:var(--color-primary);color:#fff;font-weight:600;border-radius:9px;padding:0.9em 0;margin:0 1em 0.7em 1em;text-decoration:none;font-size:1.08em;box-shadow:none;transition:background .18s;">Acessar minha conta</a>
+      <div style="border-top:1px solid #eee;margin:0.3em 0 0.2em 0;"></div>
+      <div style="font-size:1em;color:#333;padding:0.6em 1em 0.3em 1em;text-align:left;">Não tem conta? <a href="login.html#register" class="account-register-link" style="color:var(--color-primary);font-weight:600;">Cadastrar.</a></div>
+      <div style="border-top:1px solid #eee;margin:0.5em 0 0.2em 0;"></div>
+      <a href="minha-conta.html" class="account-menu-link" style="display:flex;align-items:center;gap:0.7em;padding:0.9em 1.3em;color:var(--color-primary-dark);font-weight:500;text-decoration:none;font-size:1.04em;transition:color .18s;"><i class="fa-regular fa-id-card"></i> Meus Dados</a>
+      <a href="minha-conta.html?aba=meus-pedidos" class="account-menu-link" style="display:flex;align-items:center;gap:0.7em;padding:0.9em 1.3em;color:var(--color-primary-dark);font-weight:500;text-decoration:none;font-size:1.04em;transition:color .18s;"><i class="fa-regular fa-clipboard"></i> Meus Pedidos</a>
+      <a href="minha-conta.html?aba=favoritos" class="account-menu-link" style="display:flex;align-items:center;gap:0.7em;padding:0.9em 1.3em;color:var(--color-primary-dark);font-weight:500;text-decoration:none;font-size:1.04em;transition:color .18s;"><i class="fa-regular fa-heart"></i> Favoritos</a>
+      <a href="#" class="account-menu-link" style="display:flex;align-items:center;gap:0.7em;padding:0.9em 1.3em;color:var(--color-primary-dark);font-weight:500;text-decoration:none;font-size:1.04em;transition:color .18s;"><i class="fa-regular fa-comments"></i> Atendimento</a>
+    </div>
+    <div id="accountMenuLoggedInBlock" style="display:none;">
+      <div style="display:flex;align-items:center;gap:1em;padding:0.7em 1.3em 0.7em 1.3em;border-bottom:1px solid #eee;">
+        <div id="accountAvatar" style="width:44px;height:44px;border-radius:50%;background:#faf7fd;border:2px solid #8f4be9;display:flex;align-items:center;justify-content:center;font-size:1.25em;color:#8f4be9;font-weight:600;">AS</div>
+        <span id="accountFullName" style="font-size:1.11em;color:#222;font-weight:500;">Usuário</span>
+      </div>
+      <a href="minha-conta.html" class="account-menu-link" style="display:flex;align-items:center;gap:0.7em;padding:0.9em 1.3em;color:var(--color-primary-dark);font-weight:500;text-decoration:none;font-size:1.04em;transition:color .18s;"><i class="fa-regular fa-id-card"></i> Meus Dados</a>
+      <a href="minha-conta.html?aba=meus-pedidos" class="account-menu-link" style="display:flex;align-items:center;gap:0.7em;padding:0.9em 1.3em;color:var(--color-primary-dark);font-weight:500;text-decoration:none;font-size:1.04em;transition:color .18s;"><i class="fa-regular fa-clipboard"></i> Meus Pedidos</a>
+      <a href="minha-conta.html?aba=favoritos" class="account-menu-link" style="display:flex;align-items:center;gap:0.7em;padding:0.9em 1.3em;color:var(--color-primary-dark);font-weight:500;text-decoration:none;font-size:1.04em;transition:color .18s;"><i class="fa-regular fa-heart"></i> Favoritos</a>
+      <a href="#" class="account-menu-link" style="display:flex;align-items:center;gap:0.7em;padding:0.9em 1.3em;color:var(--color-primary-dark);font-weight:500;text-decoration:none;font-size:1.04em;transition:color .18s;"><i class="fa-regular fa-comments"></i> Atendimento</a>
+      <div style="border-top:1px solid #eee;margin:0.5em 0 0.2em 0;"></div>
+      <div style="padding:0.6em 1.3em 0.5em 1.3em;font-size:0.99em;color:#888;">
+        <span id="accountNotUser">Não é <span style="font-weight:600;color:#8f4be9;">Usuário</span>? </span><a href="#" id="logoutMenuLink" style="color:#7a3ff2;font-weight:600;">Sair</a>
+      </div>
+    </div>
+  </div>
+  <script>
+    // Saudação personalizada no menu e avatar
+    function getInitials(name) {
+      if (!name) return 'US';
+      const parts = name.trim().split(' ');
+      if (parts.length === 1) return parts[0][0].toUpperCase();
+      return (parts[0][0] + parts[parts.length-1][0]).toUpperCase();
+    }
+    function updateAccountMenu() {
+      var user = localStorage.getItem('essenzaUser');
+      var greet = document.getElementById('accountGreeting');
+      var nameSpan = document.getElementById('accountName');
+      var avatar = document.getElementById('accountAvatar');
+      var fullName = document.getElementById('accountFullName');
+      var notUser = document.getElementById('accountNotUser');
+      var menu = document.getElementById('accountMenu');
+      var blockLoggedIn = document.getElementById('accountMenuLoggedInBlock');
+      var blockLoggedOut = document.getElementById('accountMenuLoggedOutBlock');
+      if (user) {
+        try {
+          var data = JSON.parse(user);
+          var firstName = (data.name||'').split(' ')[0] || '';
+          var full = (data.name||'') + (data.surname ? ' ' + data.surname : '');
+          if (greet) greet.textContent = firstName ? `Olá, ${firstName}` : 'Minha Conta';
+          if (nameSpan) nameSpan.textContent = 'Minha Conta';
+          if (avatar) avatar.textContent = getInitials(full || data.name);
+          if (fullName) fullName.textContent = full || data.name || 'Usuário';
+          if (notUser) notUser.innerHTML = `Não é <span style=\"font-weight:600;color:#8f4be9;\">${firstName||'Usuário'}</span>? `;
+          if (blockLoggedIn) blockLoggedIn.style.display = '';
+          if (blockLoggedOut) blockLoggedOut.style.display = 'none';
+        } catch {
+          if (greet) greet.textContent = 'Olá! Entrar na';
+          if (nameSpan) nameSpan.textContent = 'Minha Conta';
+          if (blockLoggedIn) blockLoggedIn.style.display = 'none';
+          if (blockLoggedOut) blockLoggedOut.style.display = '';
+        }
+      } else {
+        if (greet) greet.textContent = 'Olá! Entrar na';
+        if (nameSpan) nameSpan.textContent = 'Minha Conta';
+        if (blockLoggedIn) blockLoggedIn.style.display = 'none';
+        if (blockLoggedOut) blockLoggedOut.style.display = '';
+      }
+    }
+    // Hover manual para botão de conta (reset all:unset)
+    document.addEventListener('DOMContentLoaded', function() {
+      var btnHover = document.getElementById('accountBtnEssenza');
+      if (btnHover) {
+        btnHover.addEventListener('mouseenter', function() {
+          btnHover.style.boxShadow = '0 4px 24px #ffb6d5a0';
+          btnHover.style.background = '#faf0f8';
+        });
+        btnHover.addEventListener('mouseleave', function() {
+          btnHover.style.boxShadow = 'none';
+          btnHover.style.background = 'none';
+        });
+      }
+      updateAccountMenu();
+      var btn = document.getElementById('accountBtnEssenza');
+      var menu = document.getElementById('accountMenu');
+      // Toggle menu
+      btn.onclick = function(e) {
+        e.stopPropagation();
+        var show = menu.style.display === 'block';
+        menu.style.display = show ? 'none' : 'block';
+        btn.setAttribute('aria-expanded', !show);
+        var chevron = document.getElementById('accountChevron');
+        if (!show) {
+          btn.classList.add('open');
+          if (chevron) chevron.style.transform = 'rotate(180deg)';
+        } else {
+          btn.classList.remove('open');
+          if (chevron) chevron.style.transform = 'rotate(0deg)';
+        }
+      };
+
+      // Fecha ao clicar fora
+      document.addEventListener('click', function(e) {
+        if (!btn.contains(e.target) && !menu.contains(e.target)) {
+          menu.style.display = 'none';
+          btn.setAttribute('aria-expanded', false);
+        }
+      });
+      // Logout
+      var logoutLink = document.getElementById('logoutMenuLink');
+      if (logoutLink) {
+        logoutLink.onclick = function(e) {
+          e.preventDefault();
+          localStorage.removeItem('essenzaUser');
+          var menu = document.getElementById('accountMenu');
+          var btn = document.getElementById('accountBtnEssenza');
+          if (menu) menu.style.display = 'none';
+          if (btn) btn.setAttribute('aria-expanded', false);
+          updateAccountMenu();
+        };
+
+      }
+    });
+  </script>
+        <div class="account-menu" id="accountMenuLoggedOut" style="display: none;">
+    <a href="minha-conta.html" class="account-login-btn">Acessar minha conta</a>
+    <div class="account-divider"></div>
+    <div class="account-register" id="accountRegisterBlock">Não tem conta? <a href="#" class="account-register-link">Cadastrar.</a></div>
+    <a href="minha-conta.html?aba=meus-pedidos" class="account-menu-link" id="meusPedidosLink"><i class="fa-regular fa-clipboard"></i> Meus Pedidos</a>
+    <a href="minha-conta.html?aba=favoritos" class="account-menu-link" id="favoritosLink"><i class="fa-regular fa-heart"></i> Favoritos</a>
+</div>
+<script>
+  // Esconde 'Não tem conta?' se estiver logado
+  document.addEventListener('DOMContentLoaded', function() {
+    var isLogged = !!localStorage.getItem('essenzaUser');
+    var regBlock = document.getElementById('accountRegisterBlock');
+    if (regBlock) regBlock.style.display = isLogged ? 'none' : '';
+  });
+</script>
     </div>
     <div class="cart-icon" id="cartIcon">
         <span class="cart-count"></span>
