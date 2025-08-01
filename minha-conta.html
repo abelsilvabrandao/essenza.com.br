@@ -113,16 +113,16 @@
         </div>
       </div>
     </section>
-    <section id="sectionPedidos" class="account-section" style="display:none;">
+    <section id="sectionPedidos" class="account-section" style="display:none">
       <h2 style="font-family:'Poppins',sans-serif;color:#ff69b4;font-size:2.1em;font-weight:700;margin-bottom:0.7em;text-align:center;">Meus Pedidos</h2>
-      <div class="account-data-box" style="background:#fff;border-radius:12px;box-shadow:0 2px 16px #ff69b41a;padding:2em 2.5em 2.2em 2em;max-width:980px;margin:0 auto 2em auto;display:flex;flex-direction:column;align-items:center;">
-        <p style="color:#888;font-size:1.06em;margin-top:0;">Em breve você verá seus pedidos aqui.</p>
+      <div class="account-data-box" style="background:#fff;border-radius:12px;box-shadow:0 2px 16px #ff69b41a;padding:2em 1.2em;max-width:980px;margin:0 auto 2em auto;display:flex;align-items:center;justify-content:center;">
+        <span style="color:#888;font-size:1.13em;">Em breve você verá seus pedidos aqui.</span>
       </div>
     </section>
-    <section id="sectionFavoritos" class="account-section" style="display:none;">
+    <section id="sectionFavoritos" class="account-section" style="display:none">
       <h2 style="font-family:'Poppins',sans-serif;color:#ff69b4;font-size:2.1em;font-weight:700;margin-bottom:0.7em;text-align:center;">Favoritos</h2>
-      <div class="account-data-box" style="background:#fff;border-radius:12px;box-shadow:0 2px 16px #ff69b41a;padding:2em 2.5em 2.2em 2em;max-width:980px;margin:0 auto 2em auto;display:flex;flex-direction:column;align-items:center;">
-        <p style="color:#888;font-size:1.06em;margin-top:0;">Em breve você verá seus produtos favoritos aqui.</p>
+      <div class="account-data-box" style="background:#fff;border-radius:12px;box-shadow:0 2px 16px #ff69b41a;padding:2em 1.2em;max-width:980px;margin:0 auto 2em auto;display:flex;align-items:center;justify-content:center;">
+        <span style="color:#888;font-size:1.13em;">Em breve você verá seus favoritos aqui.</span>
       </div>
     </section>
     <div class="account-actions" style="max-width:980px;margin:2.5em auto 0 auto;">
@@ -201,26 +201,11 @@
       document.getElementById('tabFavoritosBtn').style.background = tab === 'favoritos' ? '#8f4be9' : '#ff69b4';
     }
     function getTabFromUrl() {
-      // Extrai aba do path amigável
-      const path = window.location.pathname;
-      if (path.endsWith('/minha-conta') || path.endsWith('/minha-conta.html')) return 'dados';
-      if (path.endsWith('/minha-conta/meus-pedidos')) return 'meus-pedidos';
-      if (path.endsWith('/minha-conta/favoritos')) return 'favoritos';
-      // Retrocompatibilidade: query string
       const params = new URLSearchParams(window.location.search);
       return params.get('aba') || 'dados';
     }
     function setTab(tab) {
-      let url;
-      if (tab === 'dados') {
-        url = '/minha-conta';
-      } else if (tab === 'meus-pedidos') {
-        url = '/minha-conta/meus-pedidos';
-      } else if (tab === 'favoritos') {
-        url = '/minha-conta/favoritos';
-      } else {
-        url = '/minha-conta';
-      }
+      const url = tab === 'dados' ? 'minha-conta.html' : `minha-conta.html?aba=${tab}`;
       window.history.replaceState({}, '', url);
       showSection(tab);
     }
