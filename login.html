@@ -475,15 +475,16 @@ window.addEventListener('DOMContentLoaded', function() {
         }
         // Salva cadastro do cliente
         await setDoc(doc(db, 'clientes', cpf), {
-          uid: user.uid,
-          email: user.email,
-          nome: formRegister.registerName.value,
-          sobrenome: formRegister.registerSurname.value,
-          celular: formRegister.registerPhone.value,
-          genero: formRegister.gender.value,
-          dataNascimento: formRegister.registerBirth.value,
-          favoritos: [],
-          pedidos: []
+        cpf: cpf,
+        uid: user.uid,
+        email: user.email,
+        nome: formRegister.registerName.value,
+        sobrenome: formRegister.registerSurname.value,
+        celular: formRegister.registerPhone.value,
+        genero: formRegister.gender.value,
+        dataNascimento: formRegister.registerBirth.value,
+        favoritos: [],
+        pedidos: []
         });
         localStorage.setItem('essenzaUser', JSON.stringify({email: user.email, name: user.displayName, uid: user.uid, cpf}));
         loginMsg.style.color = '#3ec486';

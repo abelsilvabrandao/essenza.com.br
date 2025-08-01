@@ -16,5 +16,11 @@ if (typeof module !== 'undefined' && module.exports) {
 } else {
     // Para navegador
     window.firebaseConfig = firebaseConfig;
+    if (window.firebase && window.firebase.apps && !window.firebase.apps.length) {
+        window.firebase.initializeApp(firebaseConfig);
+    }
+    if (window.firebase) {
+        window.db = window.firebase.firestore();
+        window.auth = window.firebase.auth();
+    }
 }
-

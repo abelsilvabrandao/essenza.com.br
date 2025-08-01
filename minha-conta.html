@@ -71,33 +71,126 @@
   </style>
 </head>
 <body style="background:#faf7fd;">
-  <div class="account-box" id="accountBox">
-    <div class="account-title">Minha Conta</div>
-    <div style="display:flex;gap:1.2em;justify-content:center;margin-bottom:1.2em;">
-      <button class="account-action-btn" id="tabDadosBtn" style="background:#8f4be9;">Meus Dados</button>
-      <button class="account-action-btn" id="tabPedidosBtn">Meus Pedidos</button>
-      <button class="account-action-btn" id="tabFavoritosBtn">Favoritos</button>
+  <header style="background:transparent;padding:1.2em 0 0.4em 0;margin-bottom:0.2em;">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:0.5em;">
+      <div style="display:flex;align-items:center;gap:1em;justify-content:center;">
+        <span style="font-family:'Poppins',sans-serif;font-size:1.45em;color:#222;">Sua conta</span>
+        <img src="img/logo.png" alt="Essenza" style="height:2.1em;vertical-align:middle;">
+        <span style="font-family:'Playfair Display',serif;font-size:2em;color:#222;">ESSENZA</span>
+      </div>
     </div>
-    <div id="sectionDados" class="account-section">
-      <span class="account-label">Nome</span>
-      <span class="account-value" id="userName">Carregando...</span>
-      <span class="account-label">E-mail</span>
-      <span class="account-value" id="userEmail">Carregando...</span>
-      <span class="account-label">CPF</span>
-      <span class="account-value" id="userCPF">Carregando...</span>
-    </div>
-    <div id="sectionPedidos" class="account-section" style="display:none">
-      <span class="account-label">Pedidos</span>
-      <div style="color:#888;font-size:0.98em;">Em breve você verá seus pedidos aqui.</div>
-    </div>
-    <div id="sectionFavoritos" class="account-section" style="display:none">
-      <span class="account-label">Favoritos</span>
-      <div style="color:#888;font-size:0.98em;">Em breve você verá seus favoritos aqui.</div>
-    </div>
-    <div class="account-actions">
+  </header>
+  <div class="account-tabs" style="display:flex;justify-content:center;gap:1.1em;margin-top:0.7em;margin-bottom:2.2em;">
+    <button class="account-tab-btn" id="tabDadosBtn">Meus Dados</button>
+    <button class="account-tab-btn" id="tabPedidosBtn">Meus Pedidos</button>
+    <button class="account-tab-btn" id="tabFavoritosBtn">Favoritos</button>
+  </div>
+  <main>
+    <section id="sectionDados" class="account-section">
+      <h2 style="font-family:'Poppins',sans-serif;color:#ff69b4;font-size:2.1em;font-weight:700;margin-bottom:0.7em;text-align:center;">Dados Pessoais</h2>
+      <div class="account-data-box" style="background:#fff;border-radius:12px;box-shadow:0 2px 16px #ff69b41a;padding:1.3em 2em 1.1em 1.1em;display:flex;align-items:center;gap:1.5em;justify-content:space-between;max-width:980px;margin-bottom:2em;">
+        <div style="display:flex;align-items:center;gap:1em;">
+          <div id="userAvatar" style="width:68px;height:68px;border-radius:50%;background:#faf7fd;border:2px solid #8f4be9;display:flex;align-items:center;justify-content:center;font-size:2em;color:#8f4be9;font-weight:600;">AS</div>
+          <div>
+            <div style="font-size:1.18em;color:#ff69b4;font-weight:600;" id="userName">carregando...</div>
+            <div style="font-size:1em;color:#222;" id="userEmail">carregando...</div>
+            <div style="font-size:0.98em;color:#222;"><b>Aniversário:</b> <span id="userBirthday">carregando...</span></div>
+          </div>
+        </div>
+        <div style="flex:1;min-width:220px;max-width:380px;display:flex;flex-direction:column;gap:0.3em;">
+          <div style="font-size:1em;color:#222;"><b>CPF:</b> <span id="userCPF">carregando...</span></div>
+          <div style="font-size:1em;color:#222;"><b>Telefone:</b> <span id="userPhone">carregando...</span></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:0.5em;">
+          <a href="#" id="editUserData" style="color:#ff69b4;font-weight:600;font-size:1em;text-decoration:none;">Alterar Dados <i class="fa-regular fa-pen-to-square"></i></a>
+        </div>
+      </div>
+      <h2 style="font-family:'Poppins',sans-serif;color:#ff69b4;font-size:2em;font-weight:700;margin-bottom:0.7em;text-align:center;">Endereços</h2>
+      <div class="account-address-box" style="background:#fff;border-radius:12px;box-shadow:0 2px 16px #ff69b41a;padding:2em 1em 1.2em 1em;display:flex;align-items:center;gap:1.5em;max-width:980px;">
+        <div style="width:110px;height:110px;border:2px dashed #ff69b4;border-radius:14px;display:flex;align-items:center;justify-content:center;background:#faf7fd;flex-direction:column;gap:0.7em;">
+          <i class="fa-solid fa-plus" style="color:#ff69b4;font-size:2.1em;"></i>
+          <span style="font-size:1.1em;color:#222;">Adicionar novo endereço</span>
+        </div>
+      </div>
+    </section>
+    <section id="sectionPedidos" class="account-section" style="display:none;">
+      <h2 style="font-family:'Poppins',sans-serif;color:#ff69b4;font-size:2.1em;font-weight:700;margin-bottom:0.7em;text-align:center;">Meus Pedidos</h2>
+      <div class="account-data-box" style="background:#fff;border-radius:12px;box-shadow:0 2px 16px #ff69b41a;padding:2em 2.5em 2.2em 2em;max-width:980px;margin:0 auto 2em auto;display:flex;flex-direction:column;align-items:center;">
+        <p style="color:#888;font-size:1.06em;margin-top:0;">Em breve você verá seus pedidos aqui.</p>
+      </div>
+    </section>
+    <section id="sectionFavoritos" class="account-section" style="display:none;">
+      <h2 style="font-family:'Poppins',sans-serif;color:#ff69b4;font-size:2.1em;font-weight:700;margin-bottom:0.7em;text-align:center;">Favoritos</h2>
+      <div class="account-data-box" style="background:#fff;border-radius:12px;box-shadow:0 2px 16px #ff69b41a;padding:2em 2.5em 2.2em 2em;max-width:980px;margin:0 auto 2em auto;display:flex;flex-direction:column;align-items:center;">
+        <p style="color:#888;font-size:1.06em;margin-top:0;">Em breve você verá seus produtos favoritos aqui.</p>
+      </div>
+    </section>
+    <div class="account-actions" style="max-width:980px;margin:2.5em auto 0 auto;">
       <button class="account-action-btn logout" id="logoutBtn"><i class="fa-solid fa-arrow-right-from-bracket"></i> Sair</button>
     </div>
-  </div>
+  </main>
+  <style>
+    .account-tab-btn {
+      border:none;background:#ff69b4;color:#fff;padding:1.1em 2.4em;font-size:1.18em;font-family:'Poppins',sans-serif;font-weight:600;border-radius:13px;box-shadow:0 2px 10px #ff69b430;transition:background .18s, color .17s, box-shadow .18s;cursor:pointer;outline:none;margin:0;}
+    .account-tab-btn.active, .account-tab-btn:focus {background:#8f4be9!important;color:#fff!important;box-shadow:0 2px 16px #8f4be930!important;}
+    .account-tab-btn:not(.active):hover {background:#ff85c2;color:#fff;box-shadow:0 2px 16px #ffb6d5a0;}
+    .account-data-box, .account-address-box {
+      max-width: 980px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    @media (max-width: 900px) {
+      .account-data-box, .account-address-box {
+        max-width: 98vw;
+        padding-left: 0.5em;
+        padding-right: 0.5em;
+      }
+    }
+    @media (max-width: 700px) {
+      .account-tabs {
+        flex-direction: column;
+        gap: 0.5em;
+        margin-bottom: 1.1em;
+      }
+      .account-tab-btn {
+        width: 100%;
+        padding: 0.85em 0.5em;
+        font-size: 1em;
+      }
+      .account-data-box, .account-address-box {
+        flex-direction: column;
+        gap: 1.1em;
+        padding: 1.1em 0.7em 1.1em 0.7em;
+        align-items: flex-start;
+      }
+      .account-data-box > div, .account-address-box > div {
+        width: 100%!important;
+        min-width: unset!important;
+        max-width: unset!important;
+        justify-content: flex-start!important;
+        text-align: left!important;
+      }
+      #userAvatar {
+        margin: 0 auto 0.7em auto;
+        width: 54px!important;
+        height: 54px!important;
+        font-size: 1.3em!important;
+      }
+    }
+    @media (max-width: 480px) {
+      .account-data-box, .account-address-box {
+        padding: 0.7em 0.3em 0.8em 0.3em;
+        border-radius: 8px;
+      }
+      h2 {
+        font-size: 1.18em!important;
+      }
+      .account-tab-btn {
+        font-size: 0.98em;
+        padding: 0.7em 0.2em;
+      }
+    }
+  </style>
   <script>
     function showSection(tab) {
       document.getElementById('sectionDados').style.display = tab === 'dados' ? '' : 'none';
@@ -108,11 +201,26 @@
       document.getElementById('tabFavoritosBtn').style.background = tab === 'favoritos' ? '#8f4be9' : '#ff69b4';
     }
     function getTabFromUrl() {
+      // Extrai aba do path amigável
+      const path = window.location.pathname;
+      if (path.endsWith('/minha-conta') || path.endsWith('/minha-conta.html')) return 'dados';
+      if (path.endsWith('/minha-conta/meus-pedidos')) return 'meus-pedidos';
+      if (path.endsWith('/minha-conta/favoritos')) return 'favoritos';
+      // Retrocompatibilidade: query string
       const params = new URLSearchParams(window.location.search);
       return params.get('aba') || 'dados';
     }
     function setTab(tab) {
-      const url = tab === 'dados' ? 'minha-conta.html' : `minha-conta.html?aba=${tab}`;
+      let url;
+      if (tab === 'dados') {
+        url = '/minha-conta';
+      } else if (tab === 'meus-pedidos') {
+        url = '/minha-conta/meus-pedidos';
+      } else if (tab === 'favoritos') {
+        url = '/minha-conta/favoritos';
+      } else {
+        url = '/minha-conta';
+      }
       window.history.replaceState({}, '', url);
       showSection(tab);
     }
@@ -120,20 +228,78 @@
     document.getElementById('tabPedidosBtn').onclick = () => setTab('meus-pedidos');
     document.getElementById('tabFavoritosBtn').onclick = () => setTab('favoritos');
     showSection(getTabFromUrl());
+
+    // Carregar dados do cliente do Firestore
+    document.addEventListener('DOMContentLoaded', function() {
+       async function carregarDadosUsuario(user) {
+         console.log('[Essenza] Usuário autenticado:', user);
+         if (user) {
+          // Tenta obter CPF do localStorage (gravado no cadastro)
+           let cpf = localStorage.getItem('essenzaUserCPF');
+           console.log('[Essenza] CPF do localStorage:', cpf);
+          let clienteDoc = null;
+           if (cpf) {
+             clienteDoc = await db.collection('clientes').doc(cpf).get();
+             console.log('[Essenza] Documento Firestore por CPF:', clienteDoc);
+           } else {
+             // Se não tem CPF salvo, tenta buscar pelo e-mail
+             const snap = await db.collection('clientes').where('email', '==', user.email).get();
+             console.log('[Essenza] Snap Firestore por email:', snap);
+             if (!snap.empty) {
+               clienteDoc = snap.docs[0];
+               cpf = clienteDoc.id;
+               localStorage.setItem('essenzaUserCPF', cpf);
+             }
+           }
+           if (clienteDoc && clienteDoc.exists) {
+             console.log('[Essenza] Dados carregados do Firestore:', clienteDoc.data());
+            const dados = clienteDoc.data();
+            // Nome completo: prioriza Firestore, depois Google
+            let nomeCompleto = '';
+            if (dados.nome && dados.sobrenome) {
+              nomeCompleto = dados.nome + ' ' + dados.sobrenome;
+            } else if (dados.nome) {
+              nomeCompleto = dados.nome;
+            } else if (user.displayName) {
+              nomeCompleto = user.displayName;
+            } else {
+              nomeCompleto = user.email;
+            }
+            document.getElementById('userName').textContent = nomeCompleto;
+            document.getElementById('userEmail').textContent = dados.email || user.email;
+            let cpfExibir = (dados.cpf || cpf || '').replace(/\D/g, '');
+             document.getElementById('userCPF').textContent = cpfExibir && cpfExibir.length === 11 ? `${cpfExibir.substr(0,3)}.***.***-**` : '-';
+            document.getElementById('userPhone').textContent = dados.celular || '-';
+            document.getElementById('userBirthday').textContent = dados.dataNascimento || '-';
+            // Avatar com iniciais
+            let iniciais = nomeCompleto.split(' ').map(p => p[0]).join('').substring(0,2).toUpperCase();
+            document.getElementById('userAvatar').textContent = iniciais;
+          } else {
+            document.getElementById('userName').textContent = user.displayName || user.email;
+            document.getElementById('userEmail').textContent = user.email;
+            document.getElementById('userCPF').textContent = '-';
+            document.getElementById('userPhone').textContent = '-';
+            document.getElementById('userBirthday').textContent = '-';
+            document.getElementById('userAvatar').textContent = (user.displayName||user.email).substring(0,2).toUpperCase();
+            // Mensagem para completar cadastro
+            Swal.fire({
+              icon: 'warning',
+              title: 'Complete seu cadastro',
+              text: 'Para acessar todos os recursos, preencha seu CPF, celular e data de nascimento.',
+              confirmButtonColor: '#ff69b4',
+              confirmButtonText: 'Ok'
+            });
+          }
+         }
+       }
+       auth.onAuthStateChanged(carregarDadosUsuario);
+    });
   </script>
+  <script src="js/config.js"></script>
   <script>
-    // Config Firebase (copiar igual do login.html)
-    const firebaseConfig = {
-      apiKey: "SUA_API_KEY",
-      authDomain: "SUA_AUTH_DOMAIN",
-      projectId: "SUA_PROJECT_ID",
-      storageBucket: "SUA_STORAGE_BUCKET",
-      messagingSenderId: "SUA_MESSAGING_SENDER_ID",
-      appId: "SUA_APP_ID"
-    };
-    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-    const auth = firebase.auth();
-    const db = firebase.firestore();
+    // Usa window.db e window.auth definidos em config.js
+    const db = window.db;
+    const auth = window.auth;
 
     // Proteção de acesso: só entra autenticado
     function redirectToLogin() {
