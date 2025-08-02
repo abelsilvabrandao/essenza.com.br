@@ -82,17 +82,58 @@ async function toggleFavorite(productId) {
     });
     return;
   }
-  const favRef = doc(db, 'users', currentUser.uid);
-  let userDoc = await getDoc(favRef);
-  let favorites = (userDoc.exists() && userDoc.data().favorites) || [];
+  // Buscar CPF salvo no localStorage
+  let essenzaUser = null;
+  try {
+    essenzaUser = JSON.parse(localStorage.getItem('essenzaUser'));
+  } catch {}
+  if (!essenzaUser || !essenzaUser.cpf) {
+    Swal.fire({title:'Erro ao favoritar', text:'Não foi possível identificar o cliente.', icon:'error'});
+    return;
+  }
+  // Atualizar favoritos localmente (otimista)
+  let favorites = Array.isArray(essenzaUser.favoritos) ? essenzaUser.favoritos.slice() : [];
   let newFavs;
   if (favorites.includes(productId)) {
     newFavs = favorites.filter(id => id !== productId);
   } else {
     newFavs = [...favorites, productId];
   }
-  await setDoc(favRef, { favorites: newFavs }, { merge: true });
+  // Atualiza localStorage imediatamente
+  essenzaUser.favoritos = newFavs;
+  localStorage.setItem('essenzaUser', JSON.stringify(essenzaUser));
+  // Atualiza também o objeto window.products para UX instantânea
+  if (window.products && Array.isArray(window.products)) {
+    window.products.forEach(prod => {
+      if (String(prod.id) === String(productId)) {
+        prod.isFavorite = newFavs.includes(prod.id);
+      }
+    });
+  }
+  // Limpa o cache para forçar re-render
+  if (typeof productsCache !== 'undefined') {
+    productsCache.clear();
+  }
+  // Atualiza UI imediatamente
   renderProductList();
+  // Sincroniza com Firestore
+  try {
+    const clienteRef = doc(db, 'clientes', essenzaUser.cpf);
+    await setDoc(clienteRef, { favoritos: newFavs }, { merge: true });
+  } catch (e) {
+    // Se falhar, reverte localStorage e UI
+    Swal.fire({title:'Erro ao salvar favorito', text:'Tente novamente. Não foi possível sincronizar com o servidor.', icon:'error'});
+    // Opcional: refaz leitura do Firestore para garantir consistência
+    try {
+      const clienteRef = doc(db, 'clientes', essenzaUser.cpf);
+      const clienteDoc = await getDoc(clienteRef);
+      const serverFavs = (clienteDoc.exists() && clienteDoc.data().favoritos) || [];
+      essenzaUser.favoritos = serverFavs;
+      localStorage.setItem('essenzaUser', JSON.stringify(essenzaUser));
+      renderProductList();
+      if (typeof renderSpecialOffersCarousel === 'function') renderSpecialOffersCarousel();
+    } catch {}
+  }
 }
 
 async function setRating(productId, rating) {
@@ -532,6 +573,32 @@ async function renderProductList() {
     if (!productsGrid) return;
 
     try {
+        // Buscar favoritos do usuário logado e marcar nos produtos
+        let userFavorites = [];
+        // Buscar CPF do cliente logado salvo no localStorage
+        let essenzaUser = null;
+        try {
+            essenzaUser = JSON.parse(localStorage.getItem('essenzaUser'));
+        } catch {}
+        // Usar favoritos do localStorage para resposta instantânea
+        if (currentUser && essenzaUser && essenzaUser.cpf && Array.isArray(essenzaUser.favoritos)) {
+            userFavorites = essenzaUser.favoritos;
+        } else if (currentUser && essenzaUser && essenzaUser.cpf) {
+            // fallback: tenta buscar do Firestore se não houver no localStorage
+            try {
+                const clienteRef = doc(db, 'clientes', essenzaUser.cpf);
+                const clienteDoc = await getDoc(clienteRef);
+                userFavorites = (clienteDoc.exists() && clienteDoc.data().favoritos) || [];
+            } catch (e) {
+                console.warn('Não foi possível carregar favoritos do cliente:', e);
+            }
+        }
+        // Marcar isFavorite em cada produto
+        if (window.products && Array.isArray(window.products)) {
+            window.products.forEach(prod => {
+                prod.isFavorite = userFavorites.includes(prod.id);
+            });
+        }
         // Exibir todos os produtos, inclusive desativados
         const allProducts = Array.isArray(window.products) ? window.products.slice() : [];
         
@@ -2553,11 +2620,20 @@ function renderSpecialOffersCarousel() {
 
     let html = '';
     extendedOffers.forEach((p, i) => {
+        // Verificar favoritos do usuário logado (localStorage)
+        let isFavorite = false;
+        try {
+            const essenzaUser = JSON.parse(localStorage.getItem('essenzaUser'));
+            if (essenzaUser && Array.isArray(essenzaUser.favoritos)) {
+                isFavorite = essenzaUser.favoritos.includes(p.id);
+            }
+        } catch {}
+        const heartClass = isFavorite ? 'fa-solid fa-heart fas' : 'fa-regular fa-heart';
         html += `<div class="special-offer-card" data-index="${i}">
     <div class="special-offer-img-area">
         <span class="special-offer-badge">Oferta Especial</span>
         <button class="favorite-btn" data-id="${p.id}" aria-label="Favoritar produto">
-            <i class="fa-regular fa-heart"></i>
+            <i class="${heartClass}"></i>
         </button>
         <div class="special-offer-img-wrap">
             <img src="${p.imageUrl || p.image || '/img/placeholder.png'}" alt="${p.name}" loading="lazy" />
@@ -2588,7 +2664,8 @@ function renderSpecialOffersCarousel() {
         btn.onclick = (e) => {
             e.preventDefault();
             const productId = btn.getAttribute('data-id');
-            if (productId) toggleFavorite(productId);
+            if (!productId) return;
+            toggleFavorite(productId);
         };
     });
     // Integrar botões comprar

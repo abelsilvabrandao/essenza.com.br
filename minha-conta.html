@@ -10,6 +10,8 @@
   <script src="https://www.gstatic.com/firebasejs/10.1.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.1.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.1.0/firebase-firestore-compat.js"></script>
+  <!-- SweetAlert2 -->
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <style>
     .account-box {
       max-width: 480px;
@@ -102,15 +104,211 @@
           <div style="font-size:1em;color:#222;"><b>Telefone:</b> <span id="userPhone">carregando...</span></div>
         </div>
         <div style="display:flex;align-items:center;gap:0.5em;">
-          <a href="#" id="editUserData" style="color:#ff69b4;font-weight:600;font-size:1em;text-decoration:none;">Alterar Dados <i class="fa-regular fa-pen-to-square"></i></a>
+          <button id="editUserData" style="display:flex;align-items:center;gap:0.7em;background:transparent;border:none;cursor:pointer;padding:0;outline:none;">
+            <span style="color:#ff69b4;font-size:1.13em;font-weight:600;font-family:'Poppins',sans-serif;">Alterar Dados</span>
+            <span style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;background:#faf7fd;border-radius:50%;box-shadow:0 1px 4px #ff69b41a;">
+              <i class="fa-regular fa-pen-to-square" style="color:#444;font-size:1.18em;"></i>
+            </span>
+          </button>
+          <script>
+          document.addEventListener('DOMContentLoaded', function() {
+            const btn = document.getElementById('editUserData');
+            if (btn) {
+              btn.onclick = async function(e) {
+                e.preventDefault();
+                // Buscar dados atuais dos campos
+                const nome = document.getElementById('userName')?.textContent?.split(' ')[0] || '';
+                const sobrenome = document.getElementById('userName')?.textContent?.split(' ').slice(1).join(' ') || '';
+                const email = document.getElementById('userEmail')?.textContent || '';
+                const cpf = document.getElementById('userCPF')?.textContent || '';
+                const dataNascimento = document.getElementById('userBirthday')?.textContent || '';
+                const celular = document.getElementById('userPhone')?.textContent || '';
+                let genero = 'Masculino'; // default
+                // Montar HTML do formulário
+                const html = `
+                  <form id='formEditarDados' style='text-align:left;max-width:540px;margin:0 auto;'>
+                    <div style='display:flex;gap:1.3em;'>
+                      <div style='flex:1;'>
+                        <label style='color:#b8b8b8;font-size:0.97em;'>Email :</label>
+                        <input type='email' value='${email}' disabled style='width:100%;background:#f6f6f6;border:1px solid #eee;border-radius:6px;padding:0.7em 1em;margin-bottom:0.7em;font-size:1em;'>
+                      </div>
+                      <div style='flex:1;text-align:right;'>
+                        <a href='#' id='alterarSenhaLink' style='color:#ff69b4;font-weight:600;font-size:0.98em;text-decoration:none;'>ALTERAR SENHA</a>
+                      </div>
+                    </div>
+                    <div style='display:flex;gap:1em;'>
+                      <div style='flex:1;'>
+                        <label style='color:#b8b8b8;font-size:0.97em;'>Nome :</label>
+                        <input id='editNome' type='text' value='${nome}' style='width:100%;border:1.5px solid #ffb6d5;border-radius:6px;padding:0.7em 1em;margin-bottom:0.7em;font-size:1em;'>
+                      </div>
+                      <div style='flex:1;'>
+                        <label style='color:#b8b8b8;font-size:0.97em;'>Sobrenome :</label>
+                        <input id='editSobrenome' type='text' value='${sobrenome}' style='width:100%;border:1.5px solid #ffb6d5;border-radius:6px;padding:0.7em 1em;margin-bottom:0.7em;font-size:1em;'>
+                      </div>
+                    </div>
+                    <div style='display:flex;gap:1em;'>
+                      <div style='flex:1;'>
+                        <label style='color:#b8b8b8;font-size:0.97em;'>Apelido :</label>
+                        <input id='editApelido' type='text' placeholder='' style='width:100%;border:1.5px solid #ffb6d5;border-radius:6px;padding:0.7em 1em;margin-bottom:0.7em;font-size:1em;'>
+                      </div>
+                      <div style='flex:1;'>
+                        <label style='color:#b8b8b8;font-size:0.97em;'>Com qual gênero você se identifica?</label>
+                        <div style='display:flex;gap:1em;align-items:center;margin-bottom:0.7em;'>
+                          <label style='font-weight:500;color:#ff69b4;'><input type='radio' name='editGenero' value='Feminino' style='accent-color:#ff69b4;' ${genero==='Feminino'?'checked':''}> Feminino</label>
+                          <label style='font-weight:500;color:#ff69b4;'><input type='radio' name='editGenero' value='Masculino' style='accent-color:#ff69b4;' ${genero==='Masculino'?'checked':''}> Masculino</label>
+                        </div>
+                      </div>
+                    </div>
+                    <div style='display:flex;gap:1em;'>
+                      <div style='flex:1;'>
+                        <label style='color:#b8b8b8;font-size:0.97em;'>CPF :</label>
+                        <input type='text' value='${cpf}' disabled style='width:100%;background:#f6f6f6;border:1px solid #eee;border-radius:6px;padding:0.7em 1em;margin-bottom:0.7em;font-size:1em;'>
+                      </div>
+                      <div style='flex:1;'>
+                        <label style='color:#b8b8b8;font-size:0.97em;'>Data de Nascimento :</label>
+                        <input id='editDataNascimento' type='text' value='${dataNascimento}' style='width:100%;border:1.5px solid #ffb6d5;border-radius:6px;padding:0.7em 1em;margin-bottom:0.7em;font-size:1em;'>
+                      </div>
+                    </div>
+                    <div style='display:flex;gap:1em;'>
+                      <div style='flex:1;'>
+                        <label style='color:#b8b8b8;font-size:0.97em;'>Celular :</label>
+                        <input id='editCelular' type='text' value='${celular}' style='width:100%;border:1.5px solid #ffb6d5;border-radius:6px;padding:0.7em 1em;margin-bottom:0.7em;font-size:1em;'>
+                      </div>
+                    </div>
+                    <div style='display:flex;gap:1em;'>
+                      <label style='font-weight:400;font-size:0.97em;'><input type='checkbox' style='accent-color:#ff69b4;margin-right:0.5em;'> Acompanhar meus pedidos por WhatsApp</label>
+                      <label style='font-weight:400;font-size:0.97em;'><input type='checkbox' checked style='accent-color:#ff69b4;margin-right:0.5em;'> Desejo receber promoções e novidades</label>
+                    </div>
+                  </form>
+                `;
+                const result = await Swal.fire({
+                  title: '<span style="color:#ff69b4;font-family:Poppins,sans-serif;font-size:1.5em;font-weight:600;">Editar dados pessoais</span>',
+                  html: html,
+                  showCancelButton: true,
+                  confirmButtonText: 'Salvar Alterações',
+                  cancelButtonText: 'Cancelar',
+                  customClass: {
+                    popup: 'swal2-edit-dados-modal'
+                  },
+                  focusConfirm: false,
+                  width: 650,
+                  preConfirm: () => {
+                    // Captura os dados do formulário
+                    const nome = document.getElementById('editNome').value.trim();
+                    const sobrenome = document.getElementById('editSobrenome').value.trim();
+                    const apelido = document.getElementById('editApelido').value.trim();
+                    const dataNascimento = document.getElementById('editDataNascimento').value.trim();
+                    const celular = document.getElementById('editCelular').value.trim();
+                    const genero = document.querySelector('input[name="editGenero"]:checked')?.value || '';
+                    return { nome, sobrenome, apelido, dataNascimento, celular, genero };
+                  }
+                });
+
+                // Ativa o fluxo de alteração de senha
+                setTimeout(() => {
+                  const link = document.getElementById('alterarSenhaLink');
+                  if (link) {
+                    link.onclick = async function(ev) {
+                      ev.preventDefault();
+                      const { value: formValues } = await Swal.fire({
+                        title: 'Alterar Senha',
+                        html:
+                          '<input id="swalSenhaNova" type="password" class="swal2-input" placeholder="Nova senha" autocomplete="new-password">' +
+                          '<input id="swalSenhaConfirma" type="password" class="swal2-input" placeholder="Confirme a nova senha" autocomplete="new-password">',
+                        focusConfirm: false,
+                        showCancelButton: true,
+                        confirmButtonText: 'Salvar Nova Senha',
+                        cancelButtonText: 'Cancelar',
+                        preConfirm: () => {
+                          const senha = document.getElementById('swalSenhaNova').value;
+                          const confirma = document.getElementById('swalSenhaConfirma').value;
+                          if (!senha || senha.length < 6) {
+                            Swal.showValidationMessage('A senha deve ter pelo menos 6 caracteres.');
+                            return false;
+                          }
+                          if (!/[A-Z]/.test(senha) || !/[a-z]/.test(senha) || !/\d/.test(senha) || !/[^A-Za-z0-9]/.test(senha)) {
+                            Swal.showValidationMessage('A senha deve conter letra maiúscula, minúscula, número e caractere especial.');
+                            return false;
+                          }
+                          if (senha !== confirma) {
+                            Swal.showValidationMessage('As senhas não coincidem.');
+                            return false;
+                          }
+                          return senha;
+                        }
+                      });
+                      if (formValues) {
+                        try {
+                          if (!auth.currentUser) throw new Error('Usuário não autenticado!');
+                          await auth.currentUser.updatePassword(formValues);
+                          await Swal.fire({
+                            icon: 'success',
+                            title: 'Senha alterada com sucesso!',
+                            confirmButtonColor: '#ff69b4',
+                            timer: 1800
+                          });
+                        } catch (err) {
+                          await Swal.fire({
+                            icon: 'error',
+                            title: 'Erro ao alterar senha',
+                            text: err.message || 'Tente novamente.',
+                            confirmButtonColor: '#ff69b4'
+                          });
+                        }
+                      }
+                    }
+                  }
+                }, 100);
+
+                if (result.isConfirmed && result.value) {
+                  // Atualizar Firestore
+                  try {
+                    // Buscar CPF completo do localStorage
+                    const userCPF = localStorage.getItem('essenzaUserCPF');
+                    if (!userCPF || userCPF.length < 11) throw new Error('CPF completo não encontrado. Faça login novamente.');
+                    await db.collection('clientes').doc(userCPF).update({
+                      nome: result.value.nome,
+                      sobrenome: result.value.sobrenome,
+                      apelido: result.value.apelido,
+                      dataNascimento: result.value.dataNascimento,
+                      celular: result.value.celular,
+                      genero: result.value.genero
+                    });
+                    // Atualizar campos na tela
+                    document.getElementById('userName').textContent = result.value.nome + ' ' + result.value.sobrenome;
+                    document.getElementById('userBirthday').textContent = result.value.dataNascimento;
+                    document.getElementById('userPhone').textContent = result.value.celular;
+                    // Mensagem de sucesso
+                    await Swal.fire({
+                      icon: 'success',
+                      title: 'Dados atualizados!',
+                      text: 'Seus dados foram salvos com sucesso.',
+                      confirmButtonColor: '#ff69b4',
+                      timer: 1800
+                    });
+                  } catch (err) {
+                    await Swal.fire({
+                      icon: 'error',
+                      title: 'Erro ao salvar',
+                      text: err.message || 'Ocorreu um erro ao atualizar seus dados. Tente novamente.',
+                      confirmButtonColor: '#ff69b4'
+                    });
+                  }
+                }
+              }
+            }
+          });
+          </script>
         </div>
       </div>
       <h2 style="font-family:'Poppins',sans-serif;color:#ff69b4;font-size:2em;font-weight:700;margin-bottom:0.7em;text-align:center;">Endereços</h2>
-      <div class="account-address-box" style="background:#fff;border-radius:12px;box-shadow:0 2px 16px #ff69b41a;padding:2em 1em 1.2em 1em;display:flex;align-items:center;gap:1.5em;max-width:980px;">
-        <div style="width:110px;height:110px;border:2px dashed #ff69b4;border-radius:14px;display:flex;align-items:center;justify-content:center;background:#faf7fd;flex-direction:column;gap:0.7em;">
-          <i class="fa-solid fa-plus" style="color:#ff69b4;font-size:2.1em;"></i>
-          <span style="font-size:1.1em;color:#222;">Adicionar novo endereço</span>
-        </div>
+      <div class="account-address-box" style="background:#fff;border-radius:12px;box-shadow:0 2px 16px #ff69b41a;padding:2em 1em 1.2em 1em;display:flex;justify-content:center;align-items:center;max-width:980px;margin:0 auto;">
+        <button id="addAddressBtn" style="display:flex;flex-direction:column;align-items:center;gap:0.7em;background:transparent;border:none;cursor:pointer;outline:none;">
+          <span style="display:flex;align-items:center;justify-content:center;width:58px;height:58px;background:#faf7fd;border-radius:50%;box-shadow:0 2px 8px #ff69b41a;">
+            <i class="fa-solid fa-plus" style="color:#ff69b4;font-size:2em;"></i>
+          </span>
+          <span style="font-size:1.09em;color:#222;font-weight:500;">Adicionar novo endereço</span>
+        </button>
       </div>
     </section>
     <section id="sectionPedidos" class="account-section" style="display:none">
@@ -333,4 +531,12 @@
     };
   </script>
 
+  <script type="module">
+    import { loadProducts } from './js/products.js';
+    window.products = [];
+    loadProducts().then(() => {
+      if (window.renderFavoritosConta) window.renderFavoritosConta();
+    });
+  </script>
+  <script src="js/render-favoritos.js"></script>
 </html>

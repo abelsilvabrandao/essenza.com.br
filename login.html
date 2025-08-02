@@ -177,16 +177,19 @@
     <form id="formLogin" autocomplete="on">
       <label for="loginEmail">E-mail</label>
       <input type="email" id="loginEmail" name="email" placeholder="Email" required autocomplete="email">
-      <label for="loginPassword">Senha</label>
-      <div class="password-input-wrap">
-  <input type="password" id="loginPassword" name="password" placeholder="Senha" required autocomplete="current-password">
-  <button type="button" id="toggleLoginPassword" tabindex="-1" aria-label="Mostrar ou ocultar senha">
-    <i class="fa-solid fa-eye-slash"></i>
-  </button>
-</div>
-      <button class="login-btn" type="submit">Entrar</button>
-      <div style="text-align:right;margin-top:0.3em;">
-        <a href="#" id="showForgot" style="color:#ff69b4;text-decoration:underline;font-size:0.98em;">Recuperar senha</a>
+      <button class="login-btn" id="btnContinuarEmail" type="button" style="margin-bottom:1.1em;">Continuar</button>
+      <div id="loginPasswordArea" style="display:none;">
+        <label for="loginPassword">Senha</label>
+        <div class="password-input-wrap">
+          <input type="password" id="loginPassword" name="password" placeholder="Senha" required autocomplete="current-password">
+          <button type="button" id="toggleLoginPassword" tabindex="-1" aria-label="Mostrar ou ocultar senha">
+            <i class="fa-solid fa-eye-slash"></i>
+          </button>
+        </div>
+        <button class="login-btn" type="submit">Entrar</button>
+        <div style="text-align:right;margin-top:0.3em;">
+          <a href="#" id="showForgot" style="color:#ff69b4;text-decoration:underline;font-size:0.98em;">Recuperar senha</a>
+        </div>
       </div>
     </form>
     <div class="essenza-login-divider"><span>ou</span></div>
@@ -244,7 +247,7 @@
   </div>
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.1.0/firebase-app.js';
-    import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup, updateProfile } from 'https://www.gstatic.com/firebasejs/10.1.0/firebase-auth.js';
+    import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup, updateProfile, fetchSignInMethodsForEmail } from 'https://www.gstatic.com/firebasejs/10.1.0/firebase-auth.js';
     import { getFirestore, doc, getDoc, setDoc, collection, query, where, getDocs } from 'https://www.gstatic.com/firebasejs/10.1.0/firebase-firestore.js';
     const firebaseConfig = window.firebaseConfig || {
       apiKey: "SUA_API_KEY",
@@ -266,6 +269,77 @@
     const formRegister = document.getElementById('formRegister');
     const formForgot = document.getElementById('formForgot');
     const loginMsg = document.getElementById('loginMsg');
+    // --- FLUXO INTELIGENTE LOGIN/CADASTRO POR E-MAIL ---
+    const loginEmail = document.getElementById('loginEmail');
+    const btnContinuarEmail = document.getElementById('btnContinuarEmail');
+    const loginPasswordArea = document.getElementById('loginPasswordArea');
+    const registerEmail = document.getElementById('registerEmail');
+    const googleBtn = document.getElementById('googleLoginBtn');
+const googleDivider = document.querySelector('.essenza-login-divider');
+
+if (btnContinuarEmail && loginEmail && loginPasswordArea && formRegister && registerEmail && googleBtn && googleDivider) {
+      btnContinuarEmail.onclick = async function(ev) {
+        ev.preventDefault();
+        loginMsg.textContent = '';
+        const email = loginEmail.value.trim().toLowerCase();
+        if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+          loginMsg.style.color = '#ff69b4';
+          loginMsg.textContent = 'Digite um e-mail válido.';
+          return;
+        }
+        btnContinuarEmail.disabled = true;
+        btnContinuarEmail.textContent = 'Verificando...';
+        try {
+          const methods = await fetchSignInMethodsForEmail(auth, email);
+          console.log('Métodos de login encontrados:', methods);
+          if (methods.includes('password')) {
+            // Exibir campo de senha apenas se o método password estiver presente
+            loginPasswordArea.style.display = '';
+            loginEmail.readOnly = true;
+            btnContinuarEmail.style.display = 'none';
+            formRegister.style.display = 'none';
+            formLogin.style.display = '';
+          } else if (methods.includes('google.com')) {
+            // Mensagem para login Google
+            loginMsg.style.color = '#ff69b4';
+            loginMsg.textContent = 'Este e-mail utiliza login com o Google. Use o botão do Google.';
+          } else {
+            // Usuário não existe: mostrar cadastro
+            formLogin.style.display = 'none';
+            formRegister.style.display = '';
+            registerEmail.value = email;
+            registerEmail.readOnly = true;
+            const clearBtn = document.getElementById('clearEmailBtn');
+            if (clearBtn) clearBtn.style.display = '';
+            if (googleBtn) googleBtn.style.display = 'none';
+            if (googleDivider) googleDivider.style.display = 'none';
+          }
+        } catch (err) {
+          loginMsg.style.color = '#ff69b4';
+          loginMsg.textContent = 'Erro ao verificar e-mail. Tente novamente.';
+        } finally {
+          btnContinuarEmail.disabled = false;
+          btnContinuarEmail.textContent = 'Continuar';
+        }
+      };
+      // Botão limpar e-mail no cadastro
+      const clearBtn = document.getElementById('clearEmailBtn');
+      if (clearBtn) {
+        clearBtn.onclick = function() {
+          formRegister.style.display = 'none';
+          formLogin.style.display = '';
+          loginEmail.value = '';
+          loginEmail.readOnly = false;
+          btnContinuarEmail.style.display = '';
+          loginPasswordArea.style.display = 'none';
+          loginMsg.textContent = '';
+          // Restaura Google
+          if (googleBtn) googleBtn.style.display = '';
+          if (googleDivider) googleDivider.style.display = '';
+        }
+      }
+    }
+    // --- FIM FLUXO INTELIGENTE ---
     function showTab(tab) {
       formLogin.style.display = tab === 'login' ? '' : 'none';
       formRegister.style.display = tab === 'register' ? '' : 'none';
@@ -437,17 +511,60 @@ window.addEventListener('DOMContentLoaded', function() {
 });
 // Login
     formLogin.onsubmit = async (e) => {
+  // Se o campo de senha não está visível, aciona o fluxo do botão 'Continuar' do e-mail
+  const loginPasswordArea = document.getElementById('loginPasswordArea');
+  if (loginPasswordArea && loginPasswordArea.style.display === 'none') {
+    e.preventDefault();
+    const btnContinuarEmail = document.getElementById('btnContinuarEmail');
+    if (btnContinuarEmail) btnContinuarEmail.click();
+    return;
+  }
+
       e.preventDefault();
       loginMsg.textContent = '';
       const email = formLogin.loginEmail.value;
       const password = formLogin.loginPassword.value;
       try {
         const userCred = await signInWithEmailAndPassword(auth, email, password);
-        // Atualiza estado do usuário
-        localStorage.setItem('essenzaUser', JSON.stringify({email: userCred.user.email, name: userCred.user.displayName, uid: userCred.user.uid}));
-        loginMsg.style.color = '#3ec486';
-        loginMsg.textContent = 'Login realizado com sucesso! Redirecionando...';
-        setTimeout(() => { window.location.href = '/'; }, 1200);
+        const uid = userCred.user.uid;
+        // Buscar dados do cliente na coleção 'clientes' usando o UID
+        let clienteDoc = null;
+        let clienteData = null;
+        // Busca por UID (campo 'uid' nos docs, pois ID do doc é o CPF)
+        const q = query(collection(db, 'clientes'), where('uid', '==', uid));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          clienteDoc = snap.docs[0];
+          clienteData = clienteDoc.data();
+        } else {
+          // Fallback: buscar por e-mail
+          const qEmail = query(collection(db, 'clientes'), where('email', '==', email));
+          const snapEmail = await getDocs(qEmail);
+          if (!snapEmail.empty) {
+            clienteDoc = snapEmail.docs[0];
+            clienteData = clienteDoc.data();
+          }
+        }
+        if (clienteData) {
+          // Salva dados completos no localStorage
+          localStorage.setItem('essenzaUser', JSON.stringify({
+            email: clienteData.email,
+            name: clienteData.nome,
+            uid: clienteData.uid,
+            cpf: clienteData.cpf,
+            sobrenome: clienteData.sobrenome,
+            celular: clienteData.celular,
+            genero: clienteData.genero,
+            dataNascimento: clienteData.dataNascimento
+          }));
+          loginMsg.style.color = '#3ec486';
+          loginMsg.textContent = 'Login realizado com sucesso! Redirecionando...';
+          setTimeout(() => { window.location.href = '/'; }, 1200);
+        } else {
+          // Usuário autenticado mas não achou cliente no Firestore
+          loginMsg.style.color = '#ff69b4';
+          loginMsg.textContent = 'Login realizado, mas não encontramos seus dados de cliente. Por favor, entre em contato com o suporte.';
+        }
       } catch (e) {
         loginMsg.style.color = '#ff69b4';
         loginMsg.textContent = 'Erro: ' + (e.code === 'auth/wrong-password' ? 'Senha incorreta.' : e.code === 'auth/user-not-found' ? 'Usuário não encontrado.' : e.message);
@@ -496,14 +613,41 @@ window.addEventListener('DOMContentLoaded', function() {
       const name = formRegister.registerName.value;
       const email = formRegister.registerEmail.value;
       const password = formRegister.registerPassword.value;
+      const cpf = formRegister.registerCPF.value.replace(/\D/g, '');
+      if (!cpf || !/^\d{11}$/.test(cpf)) {
+        loginMsg.style.color = '#ff69b4';
+        loginMsg.textContent = 'CPF inválido ou não informado.';
+        return;
+      }
+      // Verifica se já existe cadastro com este CPF
+      const cpfDoc = await getDoc(doc(db, 'clientes', cpf));
+      if (cpfDoc.exists()) {
+        loginMsg.style.color = '#ff69b4';
+        loginMsg.textContent = 'Já existe um cadastro com este CPF. Faça login normalmente.';
+        return;
+      }
       try {
         const userCred = await createUserWithEmailAndPassword(auth, email, password);
         await updateProfile(userCred.user, { displayName: name });
-        localStorage.setItem('essenzaUser', JSON.stringify({email: userCred.user.email, name, uid: userCred.user.uid}));
+        // Usa diretamente userCred.user para criar o documento do cliente
+        await setDoc(doc(db, 'clientes', cpf), {
+          cpf: cpf,
+          uid: userCred.user.uid,
+          email: userCred.user.email,
+          nome: name,
+          sobrenome: formRegister.registerSurname.value,
+          celular: formRegister.registerPhone.value,
+          genero: formRegister.gender.value,
+          dataNascimento: formRegister.registerBirth.value,
+          favoritos: [],
+          pedidos: []
+        });
+        localStorage.setItem('essenzaUser', JSON.stringify({email: userCred.user.email, name, uid: userCred.user.uid, cpf}));
         loginMsg.style.color = '#3ec486';
         loginMsg.textContent = 'Cadastro realizado com sucesso! Redirecionando...';
         setTimeout(() => { window.location.href = '/'; }, 1200);
       } catch (e) {
+        console.error('Erro no cadastro:', e);
         loginMsg.style.color = '#ff69b4';
         loginMsg.textContent = 'Erro: ' + (e.code === 'auth/email-already-in-use' ? 'E-mail já cadastrado.' : e.message);
       }
