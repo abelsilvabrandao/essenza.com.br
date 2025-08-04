@@ -2035,6 +2035,21 @@ if (checkoutForm) {
                 customerName,
                 customerPhone,
                 customerEmail,
+                // Vínculo do pedido ao usuário logado
+                ...(function() {
+                  let extras = {};
+                  try {
+                    const essenzaUser = JSON.parse(localStorage.getItem('essenzaUser'));
+                    if (essenzaUser && essenzaUser.cpf) {
+                      extras.clienteCpf = String(essenzaUser.cpf).replace(/\D/g, '');
+                    }
+                  } catch {}
+                  if (typeof currentUser === 'object' && currentUser) {
+                    if (currentUser.uid) extras.clienteUid = currentUser.uid;
+                    if (currentUser.email) extras.clienteEmail = currentUser.email;
+                  }
+                  return extras;
+                })(),
                 items: cart.map(item => ({
                     productId: item.id,
                     name: item.name,
@@ -2082,7 +2097,18 @@ if (checkoutForm) {
                 transaction.set(doc(ordersCol), orderData);
             });
             console.log('Pedido criado e estoque atualizado com sucesso!');
-            
+            // Atualizar array de pedidos no cliente (clientes/{cpf})
+            if (orderData.clienteCpf && orderData.orderNumber) {
+              try {
+                const clienteRef = doc(db, 'clientes', orderData.clienteCpf);
+                await updateDoc(clienteRef, {
+                  pedidos: arrayUnion(orderData.orderNumber)
+                });
+              } catch (e) {
+                console.warn('Não foi possível atualizar array de pedidos do cliente:', e);
+              }
+            }
+
             // Atualizar a interface do usuário
             updateOrderConfirmationUI(orderData, whatsappMessage);
             

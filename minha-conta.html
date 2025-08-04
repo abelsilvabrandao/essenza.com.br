@@ -91,6 +91,7 @@
     <section id="sectionDados" class="account-section">
       <h2 style="font-family:'Poppins',sans-serif;color:#ff69b4;font-size:2.1em;font-weight:700;margin-bottom:0.7em;text-align:center;">Dados Pessoais</h2>
       <div class="account-data-box" style="background:#fff;border-radius:12px;box-shadow:0 2px 16px #ff69b41a;padding:1.3em 2em 1.1em 1.1em;display:flex;align-items:center;gap:1.5em;justify-content:space-between;max-width:980px;margin-bottom:2em;">
+  <span id="userGenero" style="display:none;"></span>
         <div style="display:flex;align-items:center;gap:1em;">
           <div id="userAvatar" style="width:68px;height:68px;border-radius:50%;background:#faf7fd;border:2px solid #8f4be9;display:flex;align-items:center;justify-content:center;font-size:2em;color:#8f4be9;font-weight:600;">AS</div>
           <div>
@@ -123,19 +124,33 @@
                 const cpf = document.getElementById('userCPF')?.textContent || '';
                 const dataNascimento = document.getElementById('userBirthday')?.textContent || '';
                 const celular = document.getElementById('userPhone')?.textContent || '';
-                let genero = 'Masculino'; // default
+                // Buscar gênero salvo do Firestore (se disponível)
+                let genero = '-';
+                try {
+                  // Busca valor do DOM (populado pelo carregarDadosUsuario)
+                  genero = document.getElementById('userGenero')?.textContent || '-';
+                } catch {}
+                if (!genero || genero === '-') {
+                  genero = 'Masculino'; // fallback
+                }
                 // Montar HTML do formulário
                 const html = `
-                  <form id='formEditarDados' style='text-align:left;max-width:540px;margin:0 auto;'>
-                    <div style='display:flex;gap:1.3em;'>
-                      <div style='flex:1;'>
-                        <label style='color:#b8b8b8;font-size:0.97em;'>Email :</label>
-                        <input type='email' value='${email}' disabled style='width:100%;background:#f6f6f6;border:1px solid #eee;border-radius:6px;padding:0.7em 1em;margin-bottom:0.7em;font-size:1em;'>
-                      </div>
-                      <div style='flex:1;text-align:right;'>
-                        <a href='#' id='alterarSenhaLink' style='color:#ff69b4;font-weight:600;font-size:0.98em;text-decoration:none;'>ALTERAR SENHA</a>
-                      </div>
-                    </div>
+  <form id='formEditarDados' style='text-align:left;max-width:540px;margin:0 auto;'>
+    <div style='display:flex;gap:1.3em;'>
+      <div style='flex:1;'>
+        <label style='color:#b8b8b8;font-size:0.97em;'>Email :</label>
+        <input type='email' value='${email}' disabled style='width:100%;background:#f6f6f6;border:1px solid #eee;border-radius:6px;padding:0.7em 1em;margin-bottom:0.7em;font-size:1em;'>
+      </div>
+      <div style='flex:1;text-align:right;'>
+        <a href='#' id='alterarSenhaLink' style='color:#ff69b4;font-weight:600;font-size:0.98em;text-decoration:none;'>ALTERAR SENHA</a>
+      </div>
+    </div>
+    <div id='senhaFields' style='display:none;flex-direction:column;gap:0.7em;margin-bottom:0.6em;'>
+      <label style='color:#b8b8b8;font-size:0.97em;'>Nova senha :</label>
+      <input id='editSenha' type='password' placeholder='Nova senha' style='width:100%;border:1.5px solid #ffb6d5;border-radius:6px;padding:0.7em 1em;font-size:1em;'>
+      <label style='color:#b8b8b8;font-size:0.97em;'>Confirme a nova senha :</label>
+      <input id='editSenhaConfirma' type='password' placeholder='Confirme a nova senha' style='width:100%;border:1.5px solid #ffb6d5;border-radius:6px;padding:0.7em 1em;font-size:1em;'>
+    </div>
                     <div style='display:flex;gap:1em;'>
                       <div style='flex:1;'>
                         <label style='color:#b8b8b8;font-size:0.97em;'>Nome :</label>
@@ -182,17 +197,32 @@
                   </form>
                 `;
                 const result = await Swal.fire({
-                  title: '<span style="color:#ff69b4;font-family:Poppins,sans-serif;font-size:1.5em;font-weight:600;">Editar dados pessoais</span>',
-                  html: html,
-                  showCancelButton: true,
-                  confirmButtonText: 'Salvar Alterações',
-                  cancelButtonText: 'Cancelar',
-                  customClass: {
-                    popup: 'swal2-edit-dados-modal'
-                  },
-                  focusConfirm: false,
-                  width: 650,
-                  preConfirm: () => {
+  title: '<span style="color:#ff69b4;font-family:Poppins,sans-serif;font-size:1.5em;font-weight:600;">Editar dados pessoais</span>',
+  html: html,
+  showCancelButton: true,
+  confirmButtonText: 'Salvar Alterações',
+  cancelButtonText: 'Cancelar',
+  customClass: {
+    popup: 'swal2-edit-dados-modal'
+  },
+  focusConfirm: false,
+  width: 650,
+  didOpen: () => {
+    const link = document.getElementById('alterarSenhaLink');
+    if (link) {
+      link.onclick = function(ev) {
+        ev.preventDefault();
+        const senhaFields = document.getElementById('senhaFields');
+        if (senhaFields) {
+          senhaFields.style.display = senhaFields.style.display === 'none' ? 'flex' : 'none';
+          if (senhaFields.style.display === 'flex') {
+            document.getElementById('editSenha').focus();
+          }
+        }
+      };
+    }
+  },
+  preConfirm: () => {
                     // Captura os dados do formulário
                     const nome = document.getElementById('editNome').value.trim();
                     const sobrenome = document.getElementById('editSobrenome').value.trim();
@@ -200,65 +230,13 @@
                     const dataNascimento = document.getElementById('editDataNascimento').value.trim();
                     const celular = document.getElementById('editCelular').value.trim();
                     const genero = document.querySelector('input[name="editGenero"]:checked')?.value || '';
-                    return { nome, sobrenome, apelido, dataNascimento, celular, genero };
+                    const senha = document.getElementById('editSenha')?.value || '';
+const senhaConfirma = document.getElementById('editSenhaConfirma')?.value || '';
+return { nome, sobrenome, apelido, dataNascimento, celular, genero, senha, senhaConfirma };
                   }
                 });
 
-                // Ativa o fluxo de alteração de senha
-                setTimeout(() => {
-                  const link = document.getElementById('alterarSenhaLink');
-                  if (link) {
-                    link.onclick = async function(ev) {
-                      ev.preventDefault();
-                      const { value: formValues } = await Swal.fire({
-                        title: 'Alterar Senha',
-                        html:
-                          '<input id="swalSenhaNova" type="password" class="swal2-input" placeholder="Nova senha" autocomplete="new-password">' +
-                          '<input id="swalSenhaConfirma" type="password" class="swal2-input" placeholder="Confirme a nova senha" autocomplete="new-password">',
-                        focusConfirm: false,
-                        showCancelButton: true,
-                        confirmButtonText: 'Salvar Nova Senha',
-                        cancelButtonText: 'Cancelar',
-                        preConfirm: () => {
-                          const senha = document.getElementById('swalSenhaNova').value;
-                          const confirma = document.getElementById('swalSenhaConfirma').value;
-                          if (!senha || senha.length < 6) {
-                            Swal.showValidationMessage('A senha deve ter pelo menos 6 caracteres.');
-                            return false;
-                          }
-                          if (!/[A-Z]/.test(senha) || !/[a-z]/.test(senha) || !/\d/.test(senha) || !/[^A-Za-z0-9]/.test(senha)) {
-                            Swal.showValidationMessage('A senha deve conter letra maiúscula, minúscula, número e caractere especial.');
-                            return false;
-                          }
-                          if (senha !== confirma) {
-                            Swal.showValidationMessage('As senhas não coincidem.');
-                            return false;
-                          }
-                          return senha;
-                        }
-                      });
-                      if (formValues) {
-                        try {
-                          if (!auth.currentUser) throw new Error('Usuário não autenticado!');
-                          await auth.currentUser.updatePassword(formValues);
-                          await Swal.fire({
-                            icon: 'success',
-                            title: 'Senha alterada com sucesso!',
-                            confirmButtonColor: '#ff69b4',
-                            timer: 1800
-                          });
-                        } catch (err) {
-                          await Swal.fire({
-                            icon: 'error',
-                            title: 'Erro ao alterar senha',
-                            text: err.message || 'Tente novamente.',
-                            confirmButtonColor: '#ff69b4'
-                          });
-                        }
-                      }
-                    }
-                  }
-                }, 100);
+                // Evento do link de senha agora é anexado pelo didOpen do Swal.fire
 
                 if (result.isConfirmed && result.value) {
                   // Atualizar Firestore
@@ -278,6 +256,10 @@
                     document.getElementById('userName').textContent = result.value.nome + ' ' + result.value.sobrenome;
                     document.getElementById('userBirthday').textContent = result.value.dataNascimento;
                     document.getElementById('userPhone').textContent = result.value.celular;
+                    // Atualizar campo oculto de gênero imediatamente
+                    if (document.getElementById('userGenero')) {
+                      document.getElementById('userGenero').textContent = result.value.genero;
+                    }
                     // Mensagem de sucesso
                     await Swal.fire({
                       icon: 'success',
@@ -457,6 +439,12 @@
             // Avatar com iniciais
             let iniciais = nomeCompleto.split(' ').map(p => p[0]).join('').substring(0,2).toUpperCase();
             document.getElementById('userAvatar').textContent = iniciais;
+            // Preencher campo oculto de gênero
+            if (document.getElementById('userGenero')) {
+              console.log('[Essenza][DEBUG] Valor de gênero vindo do Firestore:', dados.genero);
+              document.getElementById('userGenero').textContent = dados.genero || '-';
+              console.log('[Essenza][DEBUG] Valor de gênero no DOM após setar:', document.getElementById('userGenero').textContent);
+            }
           } else {
             document.getElementById('userName').textContent = user.displayName || user.email;
             document.getElementById('userEmail').textContent = user.email;
@@ -533,10 +521,12 @@
 
   <script type="module">
     import { loadProducts } from './js/products.js';
+    import { renderPedidosConta } from './js/render-pedidos.js';
+    import './js/render-favoritos.js';
     window.products = [];
     loadProducts().then(() => {
       if (window.renderFavoritosConta) window.renderFavoritosConta();
+      if (window.renderPedidosConta) window.renderPedidosConta();
     });
-  </script>
-  <script src="js/render-favoritos.js"></script>
+</script>
 </html>
