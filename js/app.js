@@ -1729,6 +1729,43 @@ if (couponInput && applyCouponBtn) {
 // Torna a função disponível globalmente
 window.togglePaymentMethod = togglePaymentMethod;
 
+// Preenche o formulário de checkout com dados do localStorage
+function autofillCheckoutForm() {
+    try {
+        const user = JSON.parse(localStorage.getItem('essenzaUser'));
+        if (user) {
+            const nameField = document.getElementById('customerName');
+            const phoneField = document.getElementById('customerPhone');
+            const emailField = document.getElementById('customerEmail');
+            if (nameField) nameField.value = user.name ? user.name + (user.sobrenome ? ' ' + user.sobrenome : '') : '';
+            if (phoneField) {
+    // Limpa caracteres não numéricos
+    let phoneValue = (user.celular || '').replace(/\D/g, '');
+    let formattedValue = '';
+    if (phoneValue.length > 2) {
+        formattedValue += '(' + phoneValue.substring(0, 2) + ') ';
+        if (phoneValue.length > 7) {
+            // Para 11 dígitos, coloca espaço após o 9º
+            if (phoneValue.length === 11) {
+                formattedValue += phoneValue.substring(2, 3) + ' ' + phoneValue.substring(3, 7) + '-' + phoneValue.substring(7);
+            } else {
+                formattedValue += phoneValue.substring(2, 7) + '-' + phoneValue.substring(7);
+            }
+        } else {
+            formattedValue += phoneValue.substring(2);
+        }
+    } else {
+        formattedValue = phoneValue;
+    }
+    phoneField.value = formattedValue;
+    // Dispara evento input para garantir máscara
+    phoneField.dispatchEvent(new Event('input', { bubbles: true }));
+}
+            if (emailField) emailField.value = user.email || '';
+        }
+    } catch {}
+}
+
 // Toggle cart modal
 function toggleCart() {
     // Garante exibição correta dos métodos de pagamento
@@ -1760,6 +1797,8 @@ function toggleCart() {
         } else {
             cartModal.classList.add('open');
             cartOverlay.classList.add('open');
+            // Preencher formulário do checkout ao abrir o carrinho
+            autofillCheckoutForm();
         }
         cartOpen = !cartOpen;
     }
@@ -1830,6 +1869,8 @@ function generateOrderNumber() {
 // Handle checkout
 const checkoutForm = document.getElementById('checkoutForm');
 if (checkoutForm) {
+    // Preencher automaticamente ao carregar
+    autofillCheckoutForm();
     checkoutForm.addEventListener('submit', async function(e) {
         e.preventDefault();
         
