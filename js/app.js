@@ -24,7 +24,18 @@ function updateAccountUI(user) {
   const btn = document.getElementById('accountBtn');
   const loginBtn = document.querySelector('.account-login-btn');
   if (user && user.email) {
-    btn.innerHTML = `<i class="fa-regular fa-user"></i> Olá, ${(user.displayName||user.name||'Usuário').split(' ')[0]} <i class="fa-solid fa-chevron-down"></i>`;
+    if (btn) {
+      // Exibir nome completo (nome + sobrenome) se disponível
+      let nomeCompleto = '';
+      if (user.name && user.sobrenome) {
+        nomeCompleto = user.name + ' ' + user.sobrenome;
+      } else if (user.nome && user.sobrenome) {
+        nomeCompleto = user.nome + ' ' + user.sobrenome;
+      } else {
+        nomeCompleto = user.displayName || user.name || user.nome || 'Usuário';
+      }
+      btn.innerHTML = `<i class="fa-regular fa-user"></i> Olá, ${nomeCompleto} <i class="fa-solid fa-chevron-down"></i>`;
+    }
     if (loginBtn) {
       loginBtn.textContent = 'Sair';
       loginBtn.onclick = () => {
@@ -35,7 +46,9 @@ function updateAccountUI(user) {
       };
     }
   } else {
-    btn.innerHTML = `<i class="fa-regular fa-user"></i> Minha Conta <i class="fa-solid fa-chevron-down"></i>`;
+    if (btn) {
+      btn.innerHTML = `<i class="fa-regular fa-user"></i> Minha Conta <i class="fa-solid fa-chevron-down"></i>`;
+    }
     if (loginBtn) {
       loginBtn.textContent = 'Acessar minha conta';
       loginBtn.onclick = () => window.location.href = '/login.html';
@@ -49,9 +62,58 @@ function loginWithGoogle() {
   });
 }
 
-onAuthStateChanged(auth, user => {
+// Sincroniza perfil do usuário do Firestore após login/autenticação
+async function syncEssenzaUserFromFirestore(user) {
+  console.log('[Essenza][sync] Entrou na função');
+  if (!user || !user.email) {
+    console.warn('[Essenza][sync] Usuário ou email ausente, abortando sync');
+    return;
+  }
+  // Tenta obter CPF do localStorage
+  let cpf = null;
+  try {
+    const localUser = JSON.parse(localStorage.getItem('essenzaUser'));
+    if (localUser && localUser.cpf) cpf = localUser.cpf;
+  } catch (e) {
+    console.warn('[Essenza][sync] Erro ao recuperar essenzaUser do localStorage:', e);
+  }
+  // Para teste: se não houver CPF, usar fixo
+  if (!cpf) {
+    cpf = '03950372555';
+    console.warn('[Essenza][sync] CPF não encontrado no localStorage, usando CPF fixo para teste:', cpf);
+  }
+
+  try {
+    const clienteRef = doc(db, 'clientes', cpf);
+    const clienteDoc = await getDoc(clienteRef);
+    if (clienteDoc.exists()) {
+      const data = clienteDoc.data();
+      console.log('[Essenza][sync] Dados retornados do Firestore:', data);
+      // Mapeia celular para phone para compatibilidade
+      const celular = data.celular || data.phone || data.telefone || '';
+      const essenzaUser = {
+        ...data,
+        phone: celular,
+        celular: celular, // garante que o campo 'celular' esteja disponível também
+        email: user.email,
+        name: data.name || data.nome || user.displayName || '',
+        cpf: cpf
+      };
+      localStorage.setItem('essenzaUser', JSON.stringify(essenzaUser));
+      console.log('[Essenza][sync] essenzaUser salvo no localStorage:', essenzaUser);
+    } else {
+      console.warn('[Essenza][sync] Documento do cliente NÃO existe para CPF:', cpf);
+    }
+  } catch (e) {
+    console.warn('[Essenza] Erro ao sincronizar perfil do Firestore:', e);
+  }
+}
+
+onAuthStateChanged(auth, async user => {
   currentUser = user;
   updateAccountUI(user);
+  console.log('[Essenza][debug] Chamando syncEssenzaUserFromFirestore');
+  await syncEssenzaUserFromFirestore(user);
   renderProductList(); // Atualiza favoritos/estrelas do usuário
 });
 
@@ -1731,36 +1793,37 @@ window.togglePaymentMethod = togglePaymentMethod;
 
 // Preenche o formulário de checkout com dados do localStorage
 function autofillCheckoutForm() {
+    // DEBUG: Exibe o objeto user carregado do localStorage
     try {
         const user = JSON.parse(localStorage.getItem('essenzaUser'));
+        console.log('[autofillCheckoutForm] user carregado do localStorage:', user);
         if (user) {
             const nameField = document.getElementById('customerName');
             const phoneField = document.getElementById('customerPhone');
             const emailField = document.getElementById('customerEmail');
-            if (nameField) nameField.value = user.name ? user.name + (user.sobrenome ? ' ' + user.sobrenome : '') : '';
-            if (phoneField) {
-    // Limpa caracteres não numéricos
-    let phoneValue = (user.celular || '').replace(/\D/g, '');
-    let formattedValue = '';
-    if (phoneValue.length > 2) {
-        formattedValue += '(' + phoneValue.substring(0, 2) + ') ';
-        if (phoneValue.length > 7) {
-            // Para 11 dígitos, coloca espaço após o 9º
-            if (phoneValue.length === 11) {
-                formattedValue += phoneValue.substring(2, 3) + ' ' + phoneValue.substring(3, 7) + '-' + phoneValue.substring(7);
-            } else {
-                formattedValue += phoneValue.substring(2, 7) + '-' + phoneValue.substring(7);
+            if (nameField) {
+                // Preencher nome completo (nome + sobrenome)
+                let nomeCompleto = '';
+                if (user.name && user.sobrenome) {
+                    nomeCompleto = user.name + ' ' + user.sobrenome;
+                } else if (user.nome && user.sobrenome) {
+                    nomeCompleto = user.nome + ' ' + user.sobrenome;
+                } else {
+                    nomeCompleto = user.name || user.nome || '';
+                }
+                nameField.value = nomeCompleto;
             }
-        } else {
-            formattedValue += phoneValue.substring(2);
-        }
-    } else {
-        formattedValue = phoneValue;
-    }
-    phoneField.value = formattedValue;
-    // Dispara evento input para garantir máscara
-    phoneField.dispatchEvent(new Event('input', { bubbles: true }));
-}
+            if (phoneField) {
+                let phoneValue = user.phone || user.telefone || user.celular || '';
+                // Ajuste para formato (71) 9 9142-7989 se vier como (71) 99142-7989
+                phoneValue = phoneValue.replace(/(\(\d{2}\))\s?(9)(\d{4}-\d{4})/, function(_, ddd, nine, rest) {
+                  if (rest[0] !== ' ') return `${ddd} ${nine} ${rest}`;
+                  return `${ddd} ${nine}${rest}`;
+                });
+                console.log('[autofillCheckoutForm] Valor encontrado para telefone (ajustado):', phoneValue);
+                phoneField.value = phoneValue;
+                phoneField.dispatchEvent(new Event('input', { bubbles: true }));
+            }
             if (emailField) emailField.value = user.email || '';
         }
     } catch {}
