@@ -84,11 +84,21 @@
   </div>
   <script>
     // Saudação personalizada no menu e avatar
-    function getInitials(name) {
-      if (!name) return 'US';
-      const parts = name.trim().split(' ');
-      if (parts.length === 1) return parts[0][0].toUpperCase();
-      return (parts[0][0] + parts[parts.length-1][0]).toUpperCase();
+    function getInitials(name, sobrenome = '') {
+      if (!name && !sobrenome) return 'US';
+      const nomeParts = (name || '').trim().split(/\s+/).filter(Boolean);
+      // Se houver sobrenome separado, use a inicial dele
+      let secondInitial = '';
+      if (sobrenome) {
+        const sobrenomeParts = sobrenome.trim().split(/\s+/).filter(Boolean);
+        secondInitial = sobrenomeParts[0] ? sobrenomeParts[0][0] : '';
+      } else if (nomeParts.length > 1) {
+        secondInitial = nomeParts[nomeParts.length - 1][0];
+      } else {
+        secondInitial = nomeParts[0] ? nomeParts[0][0] : '';
+      }
+      const firstInitial = nomeParts[0] ? nomeParts[0][0] : '';
+      return (firstInitial + secondInitial).toUpperCase();
     }
     function updateAccountMenu() {
       var user = localStorage.getItem('essenzaUser');
@@ -110,7 +120,7 @@
            var firstName = nome.split(' ')[0] || '';
            if (greet) greet.textContent = firstName ? `Olá, ${firstName}` : 'Minha Conta';
            if (nameSpan) nameSpan.textContent = 'Minha Conta';
-           if (avatar) avatar.textContent = getInitials(full || nome);
+           if (avatar) avatar.textContent = getInitials(nome, sobrenome);
            if (fullName) fullName.textContent = full || nome || 'Usuário';
           if (notUser) notUser.innerHTML = `Não é <span style=\"font-weight:600;color:#8f4be9;\">${firstName||'Usuário'}</span>? `;
           if (blockLoggedIn) blockLoggedIn.style.display = '';
