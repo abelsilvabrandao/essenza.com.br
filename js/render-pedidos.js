@@ -24,7 +24,11 @@ export async function renderPedidosConta() {
 
   const db = window.db || firebase.firestore();
   const pedidosCol = db.collection('orders');
-  box.innerHTML = '<span style="color:#888;font-size:1.13em;">Carregando pedidos...</span>';
+  box.innerHTML = `<div style='display:flex;flex-direction:column;align-items:center;justify-content:center;height:220px;width:100%;padding:40px 0 20px 0;'>
+  <img src='img/logo.png' alt='Logo' style='width:64px;height:64px;animation:spinLogoY 1.2s linear infinite;display:block;margin-bottom:18px;' />
+  <span style='color:#7b1fa2;font-size:1.22em;font-weight:700;margin-top:0.5em;letter-spacing:0.04em;text-shadow:0 2px 8px #e1bee7;'>Carregando Pedidos...</span>
+  <style>@keyframes spinLogoY{0%{transform:rotateY(0deg);}100%{transform:rotateY(360deg);}}</style>
+</div>`;
 
   try {
     // Monta todas as queries possíveis
@@ -124,21 +128,21 @@ export async function renderPedidosConta() {
       }
       html += `<div class="pedido-card" style="background:#fff;border-radius:12px;box-shadow:0 2px 8px #0001;padding:1.25em 1.5em;display:flex;flex-direction:column;gap:0.7em;max-width:600px;width:100%;margin:auto;">
         <div class="order-header" style="display:flex;justify-content:space-between;align-items:flex-start;gap:1em;flex-wrap:wrap;margin-bottom:0.3rem;">
-  <div style="display:flex;flex-direction:column;align-items:flex-start;min-width:0;">
-    <span style="background:#f4f6fb;color:#223;border:1px solid #e0e4ee;font-size:1.07em;font-weight:800;padding:0.38em 1.2em;display:inline-block;border-radius:1em;letter-spacing:0.02em;margin-bottom:0.18em;max-width:100%;word-break:break-all;box-shadow:0 1px 4px #0001;">#${(pedido.orderNumber||pedido.id||'-').toString().padStart(4,'0')}</span>
-    <div style="display:flex;flex-direction:column;gap:0.19em;">
-      <span style="display:inline-flex;align-items:center;padding:0.3em 1.1em;border-radius:1.3em;font-weight:700;font-size:0.98em;gap:0.38em;line-height:1.2;${pedido.status==='Concluído'?'background:#e6f9e6;color:#227a2a;border:1.5px solid #a0e7b2;':pedido.status==='Cancelado'?'background:#fdeaea;color:#c00;border:1.5px solid #ffb3b3;':'background:#fffbe6;color:#b38b00;border:1.5px solid #ffe082;'}margin-bottom:2px;">
-        <i class="fa ${pedido.status==='Concluído'?'fa-truck':pedido.status==='Cancelado'?'fa-times-circle':'fa-box-open'}" style="opacity:0.85;"></i> ${pedido.status==='Concluído'?'Entregue':pedido.status==='Cancelado'?'Cancelado':'Pendente Entrega'}
-      </span>
-      <span style="display:inline-flex;align-items:center;padding:0.3em 1.1em;border-radius:1.3em;font-weight:700;font-size:0.98em;gap:0.38em;line-height:1.2;${statusPagamento==='Pago'?'background:#e3f7e9;color:#0d6832;border:1.5px solid #a3e6b8;':statusPagamento==='Parcial'?'background:#fffbe6;color:#d97706;border:1.5px solid #ffeeba;':'background:#fdeaea;color:#b91c1c;border:1.5px solid #fecaca;'}">
-        <i class="fa fa-credit-card" style="opacity:0.85;"></i> ${statusPagamento}
-      </span>
-    </div>
-  </div>
-  <div style="color:#888;font-size:0.98em;display:flex;align-items:center;gap:0.33em;min-width:110px;text-align:right;"><i class="fa fa-calendar" style="opacity:0.82;"></i> ${pedido.createdAt ? (() => {
+  <div style="display:flex;justify-content:space-between;align-items:center;min-width:0;width:100%;gap:10px;">
+  <span style="background:#f4f6fb;color:#223;border:1px solid #e0e4ee;font-size:1.07em;font-weight:800;padding:0.38em 1.2em;display:inline-block;border-radius:1em;letter-spacing:0.02em;max-width:100%;word-break:break-all;box-shadow:0 1px 4px #0001;">#${(pedido.orderNumber||pedido.id||'-').toString().padStart(4,'0')}</span>
+  <span style="color:#888;font-size:0.98em;display:flex;align-items:center;gap:0.33em;min-width:110px;text-align:right;"><i class='fa fa-calendar' style='opacity:0.82;'></i> ${pedido.createdAt ? (() => {
     let d = pedido.createdAt.seconds ? new Date(pedido.createdAt.seconds*1000) : new Date(pedido.createdAt);
     return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
-  })() : '-'}</div>
+  })() : '-'}</span>
+</div>
+<div style="display:flex;flex-direction:row;gap:10px;flex-wrap:wrap;align-items:center;margin-top:4px;">
+  <span style="display:inline-flex;align-items:center;padding:0.3em 1.1em;border-radius:1.3em;font-weight:700;font-size:0.98em;gap:0.38em;line-height:1.2;${pedido.status==='Concluído'?'background:#e6f9e6;color:#227a2a;border:1.5px solid #a0e7b2;':pedido.status==='Cancelado'?'background:#fdeaea;color:#c00;border:1.5px solid #ffb3b3;':'background:#fffbe6;color:#b38b00;border:1.5px solid #ffe082;'}margin-bottom:2px;">
+    <i class="fa ${pedido.status==='Concluído'?'fa-truck':pedido.status==='Cancelado'?'fa-times-circle':'fa-box-open'}" style="opacity:0.85;"></i> ${pedido.status==='Concluído'?'Entregue':pedido.status==='Cancelado'?'Cancelado':'Pendente Entrega'}
+  </span>
+  <span style="display:inline-flex;align-items:center;padding:0.3em 1.1em;border-radius:1.3em;font-weight:700;font-size:0.98em;gap:0.38em;line-height:1.2;${statusPagamento==='Pago'?'background:#e3f7e9;color:#0d6832;border:1.5px solid #a3e6b8;':statusPagamento==='Parcial'?'background:#fffbe6;color:#d97706;border:1.5px solid #ffeeba;':'background:#fdeaea;color:#b91c1c;border:1.5px solid #fecaca;'}">
+    <i class="fa fa-credit-card" style="opacity:0.85;"></i> ${statusPagamento}
+  </span>
+</div>
 </div>
         <div style="display:flex;flex-direction:column;gap:3px 0;margin-bottom:5px;">
   <!-- Forma de pagamento -->
@@ -181,37 +185,34 @@ export async function renderPedidosConta() {
     </span>
   </div>
 </div>
-<div style="display:flex;flex-wrap:wrap;gap:1.5em 2.5em;align-items:center;">
-  <div style="display:flex;flex-direction:row;align-items:center;justify-content:space-between;gap:1em;flex-wrap:wrap;">
-  <b style="display:flex;align-items:center;"><i class='fa fa-box-open' style='margin-right:6px;color:#555;'></i>Itens do Pedido</b>
-  <!-- Cupom/Desconto unificados -->
-  ${(() => {
-    // Cupom
-    let cupomCode = '';
-    if (pedido.cupom && typeof pedido.cupom === 'object') cupomCode = pedido.cupom.code;
-    else if (pedido.coupon && typeof pedido.coupon === 'object') cupomCode = pedido.coupon.code;
-    else if (typeof pedido.cupom === 'string') cupomCode = pedido.cupom;
-    else if (typeof pedido.coupon === 'string') cupomCode = pedido.coupon;
-    // Desconto
-    let desconto = pedido.couponDiscount || (pedido.coupon && pedido.coupon.value) || pedido.valorDesconto || pedido.discountValue || '';
-    if (!cupomCode && !desconto) return '';
-    return `<span style="display:inline-flex;align-items:center;gap:0.5em;background:#f4f6fb;padding:0.32em 0.95em;border-radius:1.1em;font-size:0.99em;font-weight:600;color:#7b1fa2;box-shadow:0 1px 4px #0001;">
-      ${cupomCode ? `<i class='fa fa-ticket-alt' style='color:#7b1fa2;margin-right:2px;'></i> ${cupomCode}` : ''}
-      ${cupomCode && desconto ? '<span style="color:#aaa;font-size:1.1em;">|</span>' : ''}
-      ${desconto ? `<i class='fa fa-tag' style='color:#e65100;margin-right:2px;'></i> -R$ ${Number(desconto).toLocaleString('pt-BR', {minimumFractionDigits:2})}` : ''}
-    </span>`;
-  })()}
 
-            <div style="width:100%;">
-  <table style="width:100%;border-collapse:separate;border-spacing:0;background:#fafbfc;font-size:1.04em;">
-    <thead>
-      <tr style="background:#f5f6f7;text-align:left;">
-        <th style="padding:11px 14px 11px 14px;font-weight:700;color:#888;min-width:180px;width:45%;">PRODUTO</th>
-        <th style="padding:11px 8px;text-align:center;font-weight:700;color:#888;min-width:45px;width:8%;">QTD</th>
-        <th style="padding:11px 8px;text-align:right;font-weight:700;color:#888;min-width:90px;width:18%;">UNITÁRIO</th>
-        <th style="padding:11px 8px;text-align:right;font-weight:700;color:#888;min-width:90px;width:18%;">SUBTOTAL</th>
-      </tr>
-    </thead>
+
+            <div style="margin:18px 0 0 0;padding:15px 12px 12px 12px;background:#f8fafd;border-radius:10px;box-shadow:0 1px 4px #0001;">
+              <b style='color:#7b1fa2;font-size:1.08em;'><i class="fa fa-shopping-bag" style="margin-right:6px;"></i>Itens do Pedido</b>
+              ${(function(){
+                let cupomCode = '';
+                if (pedido.cupom && typeof pedido.cupom === 'object') cupomCode = pedido.cupom.code;
+                else if (pedido.coupon && typeof pedido.coupon === 'object') cupomCode = pedido.coupon.code;
+                else if (typeof pedido.cupom === 'string') cupomCode = pedido.cupom;
+                else if (typeof pedido.coupon === 'string') cupomCode = pedido.coupon;
+                let desconto = pedido.couponDiscount || (pedido.coupon && pedido.coupon.value) || pedido.valorDesconto || pedido.discountValue || '';
+                if (!cupomCode && !desconto) return '';
+                return `<span style="display:inline-flex;align-items:center;gap:0.5em;background:#f4f6fb;padding:0.32em 0.95em;border-radius:1.1em;font-size:0.99em;font-weight:600;color:#7b1fa2;box-shadow:0 1px 4px #0001;margin-left:10px;">
+                  ${cupomCode ? `<i class='fa fa-tag' style='color:#e65100;margin-right:2px;'></i> ${cupomCode}` : ''}
+                  ${cupomCode && desconto ? '<span style="color:#aaa;font-size:1.1em;">|</span>' : ''}
+                  ${desconto ? `<span style='color:#c2185b;font-weight:700;'>- R$ ${Number(desconto).toLocaleString('pt-BR', {minimumFractionDigits:2})}</span>` : ''}
+                </span>`;
+              })()}
+              <div class="pedido-itens-scroll" style="width:100%;overflow-x:auto;">
+                <table style="width:100%;margin-top:7px;background:none;border-collapse:collapse;font-size:0.99em;">
+                  <thead>
+                    <tr style="background:#f3e5f5;color:#7b1fa2;">
+                      <th style="padding:11px 14px 11px 14px;font-weight:700;min-width:180px;width:45%;">PRODUTO</th>
+                      <th style="padding:11px 8px;text-align:center;font-weight:700;min-width:45px;width:8%;">QTD</th>
+                      <th style="padding:11px 8px;text-align:right;font-weight:700;min-width:90px;width:18%;">UNITÁRIO</th>
+                      <th style="padding:11px 8px;text-align:right;font-weight:700;min-width:90px;width:18%;">SUBTOTAL</th>
+                    </tr>
+                  </thead>
     <tbody>
                   ${(Array.isArray(pedido.items) && pedido.items.length > 0) ? pedido.items.map(item => {
                     const img = item.image || item.img || item.foto || '';
@@ -275,7 +276,56 @@ export async function renderPedidosConta() {
                 </tfoot>
               </table>
             </div>
-          </div>
+              <!-- Detalhes do acordo/parcelamento dentro do mesmo container -->
+              ${(function(){
+                if (pedido.paymentAgreement && Array.isArray(pedido.paymentAgreement.installments) && pedido.paymentAgreement.installments.length > 0) {
+                  const parcelas = pedido.paymentAgreement.installments;
+                  const totalAcordo = parcelas.reduce((soma, p) => soma + (Number(p.valor) || 0), 0);
+                  const totalPagoAcordo = parcelas.reduce((soma, p) => soma + (Number(p.totalPagoParcela) || 0), 0);
+                  const saldoPendente = Math.max(0, totalAcordo - totalPagoAcordo);
+                  return `<div style='margin-top:18px;'>
+                    <b style='color:#7b1fa2;font-size:1.08em;'><i class="fa fa-handshake" style="margin-right:6px;"></i>Detalhes do Acordo/Parcelamento</b>
+                    <div class="pedido-itens-scroll" style="width:100%;overflow-x:auto;">
+                      <table style="width:100%;margin-top:7px;background:none;border-collapse:collapse;font-size:0.99em;">
+                        <thead>
+                          <tr style="background:#f3e5f5;color:#7b1fa2;">
+                            <th style="padding: 8px 6px; text-align:left;">Parcela</th>
+                            <th style="padding: 8px 6px; text-align:center;">Vencimento</th>
+                            <th style="padding: 8px 6px; text-align:right;">Valor</th>
+                            <th style="padding: 8px 6px; text-align:right;">Pago</th>
+                            <th style="padding: 8px 6px; text-align:right;">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          ${parcelas.map((p, idx) => {
+                            const dataFormatada = p.vencimento ? new Date(p.vencimento).toLocaleDateString('pt-BR') : '-';
+                            let linhasParciais = '';
+                            if (Array.isArray(p.pagamentos) && p.pagamentos.length > 0) {
+                              linhasParciais = p.pagamentos.map(pg => `<tr><td colspan='5' style='padding:2px 8px 2px 36px;font-size:0.97em;color:#888;'>Pagamento: R$ ${Number(pg.valor).toLocaleString('pt-BR', {minimumFractionDigits:2})} em ${new Date(pg.data).toLocaleDateString('pt-BR')}</td></tr>`).join('');
+                            }
+                            return `<tr>
+                              <td style="padding: 2px 6px;">${p.numero || (idx+1)} / ${parcelas.length}</td>
+                              <td style="padding: 2px 6px; text-align:center;">${dataFormatada}</td>
+                              <td style="padding: 2px 6px; text-align:right;">R$ ${Number(p.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                              <td style="padding: 2px 6px; text-align:right;">R$ ${Number(p.totalPagoParcela).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                              <td style="padding: 2px 6px; text-align:right;">
+                                <span style="padding: 2px 10px; border-radius: 10px; font-size: 0.9em; background: ${p.cor}; color: ${p.txt}; border: 1px solid ${p.borda};">
+                                  ${p.status}
+                                </span>
+                              </td>
+                            </tr>${linhasParciais}`;
+                          }).join('')}
+                        </tbody>
+                      </table>
+                    </div>
+                     <div style="margin-top:13px;text-align:right;font-size:1.08em;font-weight:700;color:#c2185b;background:#fffbe6;padding:8px 14px;border-radius:7px;display:inline-block;">
+                       Saldo pendente: R$ ${saldoPendente.toLocaleString('pt-BR', {minimumFractionDigits:2})}
+                     </div>
+                  </div>`;
+                }
+                return '';
+              })()}
+          
         </div>
         
   
@@ -314,6 +364,7 @@ export async function renderPedidosConta() {
          const saldoPendente = Math.max(0, totalAcordo - totalPagoAcordo);
         return `<div style="margin:18px 0 0 0;padding:15px 12px 12px 12px;background:#f8fafd;border-radius:10px;box-shadow:0 1px 4px #0001;">
           <b style='color:#7b1fa2;font-size:1.08em;'><i class="fa fa-handshake" style="margin-right:6px;"></i>Detalhes do Acordo/Parcelamento</b>
+          <div class="pedido-itens-scroll" style="width:100%;overflow-x:auto;">
           <table style="width:100%;margin-top:7px;background:none;border-collapse:collapse;font-size:0.99em;">
             <thead>
               <tr style="background:#f3e5f5;color:#7b1fa2;">
@@ -358,6 +409,7 @@ export async function renderPedidosConta() {
 }).join('')}
             </tbody>
           </table>
+          </div>
            <div style="margin-top:13px;text-align:right;font-size:1.08em;font-weight:700;color:#c2185b;background:#fffbe6;padding:8px 14px;border-radius:7px;display:inline-block;">
              Saldo pendente: R$ ${saldoPendente.toLocaleString('pt-BR', {minimumFractionDigits:2})}
            </div>
@@ -366,15 +418,14 @@ export async function renderPedidosConta() {
     }
     return '';
   })()}
-  <div style="display:flex;flex-wrap:wrap;gap:1.1em 1.3em;align-items:center;justify-content:flex-start;margin-top:0.7em;">
+  <div style="display:flex;flex-wrap:wrap;gap:1.1em 1.3em;align-items:center;justify-content:center;margin-top:0.7em;">
   <!-- Botão Cancelar Pedido -->
   ${pedido.status && pedido.status.toLowerCase() !== 'concluído' ? `<button class="btn" style="background:#ffe0f3;color:#c2185b;font-weight:700;padding:7px 18px;border-radius:7px;border:none;box-shadow:0 1px 4px #0001;cursor:pointer;display:flex;align-items:center;gap:7px;" onclick="cancelarPedido('${pedido.id || pedido.orderNumber}')"><i class='fa fa-times-circle'></i> Cancelar Pedido</button>` : ''}
   <!-- Linha única PIX e ações -->
   <div style="display:flex;align-items:center;gap:0.6em;background:#f4f6fb;padding:6px 14px 6px 11px;border-radius:8px;box-shadow:0 1px 4px #0001;">
-    <b style="color:#555;margin-right:2px;">Chave PIX:</b>
-    <span style="font-family:monospace;font-size:1.07em;color:#222;">71991427989</span>
+    <b style="color:#555;margin-right:2px;">Pagar via PIX</b>
     <button class="btn btn-outline-secondary btn-sm" style="color:#7b1fa2;border:1.5px solid #e1bee7;padding:4px 10px;border-radius:7px;font-weight:600;margin-left:2px;" onclick="copiarChavePix('71991427989')"><i class='fa fa-copy'></i> Copiar</button>
-    <button class="btn" style="background:#e0fbe7;color:#25d366;font-weight:700;padding:5px 14px;border-radius:7px;border:none;box-shadow:0 1px 4px #0001;cursor:pointer;display:flex;align-items:center;gap:6px;margin-left:7px;" onclick="whatsappPedido('${pedido.orderNumber || pedido.id}')"><i class='fab fa-whatsapp'></i> WhatsApp</button>
+    <button class="btn" style="background:#25d366;color:#fff;font-weight:600;padding:7px 18px;border-radius:7px;border:none;box-shadow:0 1px 4px #0001;cursor:pointer;display:flex;align-items:center;gap:10px;margin-left:7px;font-size:1.13em;letter-spacing:0.5px;" onclick="whatsappPedido('${pedido.orderNumber || pedido.id}')"><i class='fab fa-whatsapp' style='color:#fff;font-size:1.35em;'></i> <span style='color:#fff;font-weight:600;'>WhatsApp</span></button>
   </div>
 </div>
       </div>`;

@@ -1,0 +1,133 @@
+/* CSS mobile Essenza - Minha Conta */
+@media (max-width: 700px) {
+  .account-box, .account-data-box, .account-address-box, .pedido-card {
+    padding: 0.85rem 0.5rem 1rem 0.5rem !important;
+    border-radius: 10px !important;
+    box-shadow: 0 2px 10px #ff69b41a !important;
+    margin-bottom: 0.7em !important;
+  }
+  .account-tabs {
+    flex-direction: column !important;
+    gap: 0.5em !important;
+    margin-bottom: 1.1em !important;
+    width: 100%;
+    padding: 0 10px !important;
+    box-sizing: border-box;
+  }
+  .account-tab-btn {
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .account-tab-btn {
+    width: 100%;
+    padding: 0.7em 0.2em !important;
+    font-size: 0.97em !important;
+    border-radius: 8px !important;
+  }
+  .btn-voltar-loja {
+    font-size: 0.98em !important;
+    padding: 0.5em 0.8em !important;
+    border-radius: 8px !important;
+  }
+  .account-section h2, .account-title {
+    font-size: 1.18em !important;
+    margin-bottom: 0.6em !important;
+  }
+  .account-action-btn, .btn, button {
+    padding: 0.5em 0.9em !important;
+    font-size: 0.97em !important;
+    border-radius: 8px !important;
+    min-width: 0;
+    min-height: 0;
+  }
+  .pedido-status, .pedido-selo {
+    padding: 2px 8px !important;
+    font-size: 0.85em !important;
+    border-radius: 6px !important;
+  }
+  .pedido-produto-nome {
+    font-size: 1em !important;
+  }
+  .pedido-produto-preco, .pedido-desconto, .pedido-total {
+    font-size: 0.97em !important;
+  }
+  .pedido-itens {
+    gap: 6px !important;
+  }
+  .pedido-chave {
+    font-size: 0.85em !important;
+    word-break: break-all;
+  }
+  .account-data-box {
+    flex-direction: column !important;
+    gap: 1em !important;
+    align-items: flex-start !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+  #userAvatar {
+    width: 48px !important;
+    height: 48px !important;
+    font-size: 1.25em !important;
+  }
+  .account-data-box > div, .account-data-box > span {
+    max-width: 100% !important;
+  }
+}
+
+.pedido-itens-scroll {
+  width: 100%;
+  overflow-x: auto;
+  display: block;
+  box-sizing: border-box;
+  padding-bottom: 2px;
+  margin-left: -8px;
+  margin-right: -8px;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+.pedido-itens-scroll table {
+  min-width: 420px;
+  width: 100%;
+  border-collapse: separate;
+  background: none !important;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.pedido-itens-scroll thead {
+  border-radius: 10px 10px 0 0;
+  overflow: hidden;
+}
+@media (max-width: 600px) {
+  .pedido-card, .account-box, .account-data-box {
+    overflow: visible !important;
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+    box-sizing: border-box !important;
+  }
+}
+.voltar-loja-btn, .btn-voltar-loja {
+  margin-left: 16px !important;
+  margin-top: 12px !important;
+  display: inline-flex !important;
+}
+.pedido-status-list, .status-list, .status-badges {
+  display: flex !important;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+/* Ajustes extras para telas muito pequenas */
+@media (max-width: 400px) {
+  .account-box, .account-data-box, .pedido-card {
+    padding: 0.5rem 0.2rem 0.7rem 0.2rem !important;
+  }
+  .account-section h2, .account-title {
+    font-size: 1.08em !important;
+  }
+  .btn-voltar-loja {
+    font-size: 0.93em !important;
+    padding: 0.4em 0.5em !important;
+  }
+}

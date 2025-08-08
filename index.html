@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
+<link rel="icon" href="logo-light.png" media="(prefers-color-scheme: light)">
+<link rel="icon" href="logo-dark.png" media="(prefers-color-scheme: dark)">
     <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
@@ -101,12 +103,15 @@
       if (user) {
         try {
           var data = JSON.parse(user);
-          var firstName = (data.name||'').split(' ')[0] || '';
-          var full = (data.name||'') + (data.surname ? ' ' + data.surname : '');
-          if (greet) greet.textContent = firstName ? `Olá, ${firstName}` : 'Minha Conta';
-          if (nameSpan) nameSpan.textContent = 'Minha Conta';
-          if (avatar) avatar.textContent = getInitials(full || data.name);
-          if (fullName) fullName.textContent = full || data.name || 'Usuário';
+           // Monta nome completo considerando campos separados ou juntos
+           var nome = data.name || data.nome || '';
+           var sobrenome = data.sobrenome || data.surname || '';
+           var full = (nome + (sobrenome ? ' ' + sobrenome : '')).trim();
+           var firstName = nome.split(' ')[0] || '';
+           if (greet) greet.textContent = firstName ? `Olá, ${firstName}` : 'Minha Conta';
+           if (nameSpan) nameSpan.textContent = 'Minha Conta';
+           if (avatar) avatar.textContent = getInitials(full || nome);
+           if (fullName) fullName.textContent = full || nome || 'Usuário';
           if (notUser) notUser.innerHTML = `Não é <span style=\"font-weight:600;color:#8f4be9;\">${firstName||'Usuário'}</span>? `;
           if (blockLoggedIn) blockLoggedIn.style.display = '';
           if (blockLoggedOut) blockLoggedOut.style.display = 'none';
