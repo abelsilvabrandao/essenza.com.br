@@ -98,10 +98,38 @@ body {
 .tab-content {
     display: none;
     opacity: 0;
-    visibility: hidden;
-    transition: opacity 0.3s ease, visibility 0.3s ease;
-    width: 100%;
 }
+
+/* Ajustes responsivos para mobile */
+@media (max-width: 600px) {
+  .admin-container {
+    padding: 0.5rem;
+  }
+  .tab-buttons {
+    gap: 0.3rem;
+    flex-wrap: wrap;
+    padding-bottom: 0.5rem;
+    font-size: 0.98rem;
+  }
+  .tab-button {
+    padding: 0.6rem 1.1rem;
+    font-size: 0.98rem;
+    min-width: 90px;
+  }
+  .dashboard-table-wrapper {
+    margin: 0 -8px;
+  }
+  .filter-group {
+    min-width: 100%;
+    margin-bottom: 0.7rem;
+  }
+  .dashboard-table th.hide-mobile,
+  .dashboard-table td.hide-mobile {
+    display: none;
+  }
+}
+
+
 
 .tab-content.active {
     display: block;
@@ -1465,6 +1493,132 @@ input[type="checkbox"] {
 }
 
 /* ------------------- FIM PEDIDOS ------------------- */
+
+/* Bloco de status/admin login alinhado ao visual Essenza */
+
+.google-login-btn {
+    width: 100%;
+    background: #fff;
+    color: #222;
+    border: 1.5px solid #ff69b4;
+    border-radius: 8px;
+    font-size: 1.05rem;
+    font-weight: 600;
+    padding: 0.7rem 0;
+    margin-top: 1rem;
+    margin-bottom: 0.7rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6em;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s, border-color 0.2s;
+    box-shadow: 0 2px 8px #ff69b41a;
+}
+.google-login-btn img {
+    height: 1.2em;
+    vertical-align: middle;
+    margin-right: 0.6em;
+}
+.google-login-btn:hover {
+    background: #ffe0f7;
+    border-color: #ff69b4;
+    color: #ff1493;
+}
+
+.admin-login-status, .login-status-box {
+    display: flex;
+    align-items: center;
+    gap: 1.1em;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    padding: 0.2em 0.3em 0.2em 0;
+    margin: 0;
+    box-shadow: none;
+    min-width: 0;
+    max-width: none;
+}
+.avatar-admin-wrapper {
+    position: relative;
+    display: inline-block;
+}
+.admin-crown {
+    position: absolute;
+    top: -12px;
+    right: -4px;
+    z-index: 2;
+    width: 32px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    filter: drop-shadow(0 1px 2px #d4af3740);
+}
+.admin-crown-img {
+    width: 32px;
+    height: 26px;
+    object-fit: contain;
+    display: block;
+}
+
+.admin-crown-img {
+    width: 22px;
+    height: 18px;
+    object-fit: contain;
+    display: block;
+}
+
+.login-status-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #ff69b4;
+    background: #fff0fa;
+}
+.login-status-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+.login-status-name {
+    color: #222;
+    font-weight: 700;
+    font-size: 1.08rem;
+    font-family: 'Poppins', sans-serif;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.login-status-email {
+    color: #ff69b4;
+    font-size: 0.97rem;
+    font-family: 'Poppins', serif;
+    margin-top: 0.1em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.login-status-logout {
+    background: #ff69b4;
+    color: #fff;
+    border: 1.5px solid #ff69b4;
+    border-radius: 7px;
+    font-size: 0.97rem;
+    font-weight: 600;
+    padding: 0.35em 1.1em;
+    margin-left: 1em;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s, border 0.2s;
+}
+.login-status-logout:hover {
+    background: #fff;
+    color: #ff69b4;
+    border-color: #ff69b4;
+}
 
 /* Lista de Espera (Waitlist) - Tabela Moderna */
 

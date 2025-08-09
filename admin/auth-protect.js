@@ -154,15 +154,18 @@ function updateLoginStatus(user) {
     const email = user.email;
     const foto = user.photoURL || 'https://www.gravatar.com/avatar/?d=mp&s=60';
     statusEl.innerHTML = `
-      <div class="login-status-box">
-        <img src="${foto}" alt="Avatar" class="login-status-avatar" />
-        <div class="login-status-info">
-          <div class="login-status-name">${nome}</div>
-          <div class="login-status-email">${email}</div>
-        </div>
-        <button id="logout-btn" class="login-status-logout">Sair</button>
-      </div>
-    `;
+    <span class="avatar-admin-wrapper">
+      <img src="${foto}" alt="Avatar" class="login-status-avatar" />
+      <span class="admin-crown" title="Administrador">
+        <img src="../img/coroa.png" alt="Coroa de administrador" class="admin-crown-img" />
+      </span>
+    </span>
+    <div class="login-status-info">
+      <div class="login-status-name">${nome}</div>
+      <div class="login-status-email">${email}</div>
+    </div>
+    <button id="logout-btn" class="login-status-logout">Sair</button>
+  `;
     document.getElementById('logout-btn').onclick = async () => {
       await getAuth().signOut();
       window.location.reload();
@@ -190,55 +193,6 @@ try {
 // Estilos para o overlay
 const style = document.createElement('style');
 style.innerHTML = `
-.admin-login-status, .login-status-box {
-  display: flex; align-items: center; gap: 1.1em;
-  background: #19191a; border: 1.5px solid #D4AF37; border-radius: 12px;
-  padding: 0.6em 1.2em 0.6em 0.7em; margin: 0.8em 0 0.8em 2em;
-  box-shadow: 0 2px 10px rgba(212,175,55,0.07);
-  min-width: 260px; max-width: 350px;
-}
-.login-status-avatar {
-  width: 44px; height: 44px; border-radius: 50%; object-fit: cover;
-  border: 2px solid #D4AF37; background: #232326;
-}
-.login-status-info {
-  flex: 1; display: flex; flex-direction: column; min-width: 0;
-}
-.login-status-name {
-  color: #fff; font-weight: 700; font-size: 1.08rem; font-family: 'Playfair Display', serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.login-status-email {
-  color: #D4AF37; font-size: 0.97rem; font-family: 'Poppins', serif; margin-top: 0.1em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.login-status-logout {
-  background: #19191a; color: #D4AF37; border: 1.5px solid #D4AF37; border-radius: 7px;
-  font-size: 0.97rem; font-weight: 600; padding: 0.35em 1.1em; margin-left: 1em; cursor: pointer;
-  transition: background 0.2s, color 0.2s, border 0.2s;
-}
-.login-status-logout:hover {
-  background: #D4AF37; color: #19191a; border-color: #bfa14a;
-}
-
-.google-login-btn {
-  width: 100%; background: #fff; color: #19191a; border: 1.5px solid #D4AF37;
-  border-radius: 8px; font-size: 1.05rem; font-weight: 600;
-  padding: 0.7rem 0; margin-top: 1rem; margin-bottom: 0.7rem;
-  display: flex; align-items: center; justify-content: center;
-  gap: 0.5em; cursor: pointer; transition: background 0.2s, color 0.2s, border-color 0.2s;
-  box-shadow: 0 2px 8px rgba(212,175,55,0.07);
-}
-.google-login-btn:hover {
-  background: #fffbe7;
-  border-color: #bfa14a;
-  color: #a8891a;
-}
-.login-separator {
-  display: flex; align-items: center; text-align: center; margin: 1rem 0 0.2rem 0;
-}
-.login-separator span {
-  color: #fff; font-size: 0.93rem; font-family: 'Poppins', 'Playfair Display', serif;
-  margin: 0 0.7em;
-}
 .login-separator:before, .login-separator:after {
   content: ""; flex: 1; border-bottom: 1.5px solid #D4AF37; opacity: 0.7;
 }

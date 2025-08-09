@@ -14,11 +14,13 @@ async function renderSalesMetrics() {
     const pedidosPendentes = orders.filter(o => {
       const status = (o.status || '').toLowerCase();
       const paymentStatus = (o.paymentStatus || '').toLowerCase();
+      const valorTotal = Number(o.total) || 0;
       const isPago = status.includes('pago') || status.includes('paid') ||
                      paymentStatus.includes('pago') || paymentStatus.includes('paid');
       const isCancelado = status.includes('cancelado') || status.includes('cancelled') ||
                           paymentStatus.includes('cancelado') || paymentStatus.includes('cancelled');
-      return !isPago && !isCancelado;
+      // Exclui pedidos com valor total zero
+      return !isPago && !isCancelado && valorTotal > 0;
     }).length;
     const pedidosCancelados = orders.filter(o => {
       const status = (o.status || '').toLowerCase();
