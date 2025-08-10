@@ -4869,6 +4869,9 @@ function renderSpecialOffers() {
                 </div>
             </div>
             <div class="offer-controls">
+    <button class="btn btn-secondary export-offer-png-btn" type="button" style="margin-left:8px;margin-bottom:5px;float:right;" title="Exportar card como PNG">
+      <i class="fas fa-file-image"></i> Exportar PNG
+    </button>
                 <label class="checkbox-container">
                 <label class="offer-toggle">
                     <input type="checkbox" 
@@ -5564,6 +5567,107 @@ async function setupEventListeners() {
     throw error;
   }
 }
+
+// Exportar card de oferta especial como PNG
+if (!window._exportOfferPngBtnDelegationAttached) {
+  document.addEventListener('click', async function(e) {
+    const btn = e.target.closest('.export-offer-png-btn');
+    if (!btn) return;
+    e.preventDefault();
+    // O card é o ancestral com .offer-item
+    const card = btn.closest('.offer-item');
+    if (!card) return;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Gerando PNG...';
+    try {
+      // Pega os dados do produto
+      const prodId = card.getAttribute('data-product-id');
+      const product = (window.products || []).find(p => String(p.id) === String(prodId));
+      if (!product) throw new Error('Produto não encontrado');
+
+      // Monta o HTML do card público
+      const exportContainer = document.getElementById('special-offer-export-container');
+      if (!exportContainer) throw new Error('Container de exportação não encontrado');
+      // --- NOVO BLOCO: exportação fiel ao carrossel ---
+      let essenzaUser = null;
+      try { essenzaUser = JSON.parse(localStorage.getItem('essenzaUser')); } catch { essenzaUser = null; }
+      let isFavorite = false;
+      if (essenzaUser && Array.isArray(essenzaUser.favoritos)) {
+        isFavorite = essenzaUser.favoritos.map(String).includes(String(product.id));
+      }
+      const heartClass = isFavorite ? 'fa-solid fa-heart fas' : 'fa-regular fa-heart';
+      exportContainer.innerHTML = `
+        <style id="special-offer-png-style">
+          .png-export-wrapper { background: transparent !important; padding: 24px !important; display: flex; justify-content: center; align-items: center; }
+          .special-offer-card { border-radius: 2.2rem !important; overflow: hidden !important; box-shadow: 0 8px 32px #ff149320,0 2px 8px #0001 !important; background: transparent !important; }
+          .special-offer-img-wrap { border-radius: 1rem !important; width: 100% !important; max-width: 260px !important; height: 260px !important; background: #fff5f9 !important; display: flex !important; align-items: center !important; justify-content: center !important; overflow: hidden !important; margin-bottom: 0.22rem !important; }
+          .special-offer-img-wrap img { border-radius: 0.7rem !important; width: auto !important; max-width: 100% !important; max-height: 100% !important; object-fit: contain !important; background: transparent !important; box-shadow: none !important; display: block !important; margin: 0 auto !important; }
+        </style>
+        <div class="png-export-wrapper">
+          <div class="special-offer-card" style="max-width:210px;width:100%;font-family:'Poppins',sans-serif;box-shadow:0 8px 32px #ff149320,0 2px 8px #0001;border-radius:2.2rem;overflow:hidden;padding:0.6rem 0.4rem 0.8rem 0.4rem;background:transparent;display:flex;flex-direction:column;align-items:center;position:relative;">
+            <div class="special-offer-img-area" style="width:100%;position:relative;display:flex;flex-direction:column;align-items:center;">
+              <span class="special-offer-badge" style="position:absolute;top:10px;left:10px;background:#ff1493;color:#fff;font-size:0.92rem;font-weight:bold;padding:0.28em 1em;border-radius:1.2em;box-shadow:0 2px 8px #ff149330;z-index:2;">Oferta Especial</span>
+            <div class="special-offer-img-wrap" style="width:100%;height:260px;max-width:260px;background:#fff5f9;border-radius:1rem;display:flex;align-items:center;justify-content:center;overflow:hidden;margin-bottom:0.25rem;">
+              <img src="${product.imageUrl || product.image || '/img/placeholder.png'}" alt="${product.name}" loading="lazy" style="width:auto;max-width:100%;max-height:100%;object-fit:contain;border-radius:0.7rem;background:transparent;box-shadow:none;display:block;margin:0 auto;" />
+            </div>
+          </div>
+          <div class="special-offer-info" style="width:100%;text-align:center;margin-top:0.05rem;">
+            <h3 class="special-offer-title" style="font-family:'Playfair Display',serif;font-size:1.09rem;color:#ff1493;font-weight:700;margin-bottom:0.18rem;letter-spacing:0.01em;">${product.name}</h3>
+            <div class="rating-stars" style="margin-bottom:0.13rem;font-size:1.08rem;color:#ffd700;">
+              <i class="fa-regular fa-star"></i>
+              <i class="fa-regular fa-star"></i>
+              <i class="fa-regular fa-star"></i>
+              <i class="fa-regular fa-star"></i>
+              <i class="fa-regular fa-star"></i>
+            </div>
+            <div class="offer-prices" style="margin-bottom:0.13rem;display:flex;flex-direction:column;gap:0.02rem;align-items:center;">
+              ${product.oldPrice ? `<span class='old-price' style='color:#bbb;text-decoration:line-through;font-size:0.97rem;margin-bottom:0.01rem;'>De: R$ ${Number(product.oldPrice).toLocaleString('pt-BR', {minimumFractionDigits:2})}</span>` : ''}
+              <span class="current-price" style="color:#ff1493;font-size:1.12rem;font-weight:bold;margin:0.03rem 0;">Por: R$ ${Number(product.price).toLocaleString('pt-BR', {minimumFractionDigits:2})}</span>
+              ${product.pixPrice && product.pixPrice < product.price ? `<span class="pix-price" style="color:#28a745;font-size:0.97rem;font-weight:600;margin-bottom:0.01rem;">PIX: R$ ${Number(product.pixPrice).toLocaleString('pt-BR', {minimumFractionDigits:2})}</span>` : ''}
+            </div>
+
+          </div>
+        </div>
+      `;
+      // Aguarda renderização
+      await new Promise(r => setTimeout(r, 80));
+      // Usa html2canvas no wrapper externo para garantir padding transparente
+      const cardEl = exportContainer.querySelector('.png-export-wrapper');
+      if (!cardEl) throw new Error('Erro interno: wrapper de exportação não encontrado.');
+      // Aguarda renderização extra se necessário
+      await new Promise(r => setTimeout(r, 120));
+      const canvas = await window.html2canvas(cardEl, {
+        backgroundColor: null,
+        useCORS: true,
+        scale: 2,
+        imageTimeout: 15000
+      });
+      const imgData = canvas.toDataURL('image/png');
+      // Nome do arquivo: oferta-nome-produto-id.png
+      const prodName = product.name?.trim()?.replace(/[^\w\d]+/g, '_') || 'oferta';
+      const fileName = `oferta_${prodName}_${product.id}.png`;
+      const a = document.createElement('a');
+      a.href = imgData;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      exportContainer.innerHTML = '';
+    } catch (err) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Erro ao exportar PNG',
+        text: err.message || 'Falha ao gerar imagem do card.',
+        confirmButtonColor: '#ff1493'
+      });
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-file-image"></i> Exportar PNG';
+    }
+  });
+  window._exportOfferPngBtnDelegationAttached = true;
+}
+
 
 // Exportar funções principais
 export {

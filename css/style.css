@@ -31,6 +31,23 @@
 body {
 
 /* Carrossel de Ofertas Especiais */
+
+.special-offer-badge {
+  display: inline-block;
+  background: #ff1493;
+  color: #fff;
+  font-size: 0.92rem;
+  font-weight: bold;
+  padding: 0.28em 1em;
+  border-radius: 1.2em;
+  box-shadow: 0 2px 8px #ff149330;
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 2;
+  letter-spacing: 0.5px;
+}
+
 .special-offers-carousel-section {
   padding: 2.1rem 0 0.5rem 0;
   background: linear-gradient(90deg, #fff5f9 0%, #fff 100%);
@@ -372,10 +389,6 @@ body {
   color: #ddd;
 }
 
-.special-offer-badge {
-  display: none !important;
-  /* Oculto temporariamente, pode reverter depois */
-}
 
 .special-offer-img-wrap {
   width: 100%;
@@ -541,6 +554,7 @@ body {
   box-shadow: 0 2px 8px #ff149340;
   letter-spacing: 0.5px;
 }
+
 .special-offer-info {
   width: 100%;
   text-align: center;
