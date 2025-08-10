@@ -68,7 +68,9 @@ import {
   setDoc,
   onSnapshot,
 } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-firestore.js";
-import "./print.js";
+import { getCategories, addCategory, editCategory, removeCategory } from './categories-data.js';
+
+  import "./print.js";
 
 // Função para formatar número de telefone
 function formatPhoneNumber(phoneNumber) {
@@ -141,6 +143,112 @@ function toggleFinancialDetails(button) {
 
 // Tornar a função disponível globalmente
 window.toggleFinancialDetails = toggleFinancialDetails;
+
+// Renderiza a lista de categorias no acordeon
+export async function renderCategoriesAccordion() {
+  const container = document.getElementById('categoriesAccordionContent');
+  if (!container) return;
+  const categories = await getCategories();
+  container.innerHTML = `
+    <div style="margin-bottom: 1em; display:flex; gap:0.5em;">
+      <input id="newCategoryInput" type="text" class="swal2-input" placeholder="Nova categoria" style="width:200px;max-width:60vw;">
+      <button id="addCategoryBtn" class="btn btn-primary" style="padding:8px 16px;">Adicionar</button>
+    </div>
+    <ul class="category-list" style="list-style:none;padding:0;margin:0;">
+      ${categories.map(cat => `
+        <li class="category-item" style="padding:8px 0;border-bottom:1px solid #eee;display:flex;align-items:center;gap:0.7em;">
+          <i class="fas fa-tag" style="color:#ff1493;"></i>
+          <span class="cat-name" style="flex:1;">${cat}</span>
+          <button class="btn-edit-category btn btn-secondary" data-cat="${cat}" style="padding:2px 10px;font-size:0.95em;">Editar</button>
+          <button class="btn-delete-category btn btn-danger" data-cat="${cat}" style="padding:2px 10px;font-size:0.95em;">Excluir</button>
+        </li>
+      `).join('')}
+    </ul>
+  `;
+
+  // Handlers para adicionar categoria
+  container.querySelector('#addCategoryBtn').onclick = async () => {
+    const input = container.querySelector('#newCategoryInput');
+    const val = input.value.trim();
+    if (val && !categories.includes(val)) {
+      await addCategory(val);
+      await renderCategoriesAccordion();
+      await renderCategorySelects();
+      input.value = '';
+    } else if (categories.includes(val)) {
+      Swal.fire('Atenção', 'Essa categoria já existe.', 'warning');
+    }
+  };
+
+  // Handlers para editar categoria
+  container.querySelectorAll('.btn-edit-category').forEach(btn => {
+    btn.onclick = async () => {
+      const oldName = btn.getAttribute('data-cat');
+      Swal.fire({
+        title: 'Editar Categoria',
+        input: 'text',
+        inputValue: oldName,
+        showCancelButton: true,
+        confirmButtonText: 'Salvar',
+        cancelButtonText: 'Cancelar',
+        inputValidator: (value) => {
+          if (!value) return 'Digite um nome válido';
+          if (categories.includes(value) && value !== oldName) return 'Já existe uma categoria com esse nome';
+        }
+      }).then(async result => {
+        if (result.isConfirmed && result.value && result.value !== oldName) {
+          await editCategory(oldName, result.value);
+          await renderCategoriesAccordion();
+          await renderCategorySelects();
+        }
+      });
+    };
+  });
+
+  // Handlers para excluir categoria
+  container.querySelectorAll('.btn-delete-category').forEach(btn => {
+    btn.onclick = async () => {
+      const name = btn.getAttribute('data-cat');
+      Swal.fire({
+        title: 'Excluir categoria?',
+        text: `Tem certeza que deseja excluir "${name}"?`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Sim, excluir',
+        cancelButtonText: 'Cancelar',
+      }).then(async result => {
+        if (result.isConfirmed) {
+          await removeCategory(name);
+          await renderCategoriesAccordion();
+          await renderCategorySelects();
+        }
+      });
+    };
+  });
+}
+
+// Atualiza todos os selects de categoria de produto (inclui editProduct)
+function renderCategorySelects() {
+  const categories = getCategories();
+  // Para cada select com id 'productCategory' (pode haver mais de um em modais)
+  document.querySelectorAll('select#productCategory').forEach(select => {
+    const current = select.value;
+    select.innerHTML = categories.map(cat => `<option value="${cat}">${cat}</option>`).join('');
+    // Se a categoria atual não existir mais, mantém selecionado vazio
+    if (categories.includes(current)) {
+      select.value = current;
+    } else {
+      select.value = '';
+    }
+  });
+}
+
+window.renderCategoriesAccordion = renderCategoriesAccordion;
+window.renderCategorySelects = renderCategorySelects;
+document.addEventListener('DOMContentLoaded', () => {
+  renderCategoriesAccordion();
+  renderCategorySelects();
+});
 
 // Função para normalizar textos para busca (remove acentos e caracteres especiais)
 function normalizeSearchText(text) {
@@ -3970,12 +4078,7 @@ export async function editProduct(productId) {
     </div>
     <div class="price-field-row">
         <label for="productCategory">Categoria:</label>
-        <select id="productCategory" class="swal2-input">
-          <option value="Cuidados Capilares" ${product.category === "Cuidados Capilares" ? "selected" : ""}>Cuidados Capilares</option>
-          <option value="Tratamentos" ${product.category === "Tratamentos" ? "selected" : ""}>Tratamentos</option>
-          <option value="Kits" ${product.category === "Kits" ? "selected" : ""}>Kits</option>
-          <option value="Outros" ${product.category === "Outros" ? "selected" : ""}>Outros</option>
-        </select>
+        <select id="productCategory" class="swal2-input"></select>
       </div>
     <div style="display: flex; align-items: center; gap: 0.7rem;">
       <label for="productActive" style="min-width: 120px;">Ativo</label>
@@ -3985,6 +4088,17 @@ export async function editProduct(productId) {
 </form>
         `,
     focusConfirm: false,
+    willOpen: async () => {
+      const select = document.getElementById('productCategory');
+      if (!select) return;
+      const categories = await getCategories();
+      select.innerHTML = categories.map(cat => `<option value="${cat}">${cat}</option>`).join("");
+      if (product.category && categories.includes(product.category)) {
+        select.value = product.category;
+      } else {
+        select.value = '';
+      }
+    },
     showCancelButton: true,
     confirmButtonText: "Salvar",
     cancelButtonText: "Cancelar",

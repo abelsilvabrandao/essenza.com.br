@@ -104,7 +104,7 @@ body {
   background: #fff;
   border-radius: 1.3rem;
   box-shadow: 0 8px 32px #ff149320, 0 2px 8px #0001;
-  margin: 0 0.7rem;
+  margin: 18px 0.7rem; /* espaçamento vertical entre cards */
   min-width: 270px;
   max-width: 340px;
   width: 100%;
@@ -373,19 +373,8 @@ body {
 }
 
 .special-offer-badge {
-  position: absolute;
-  top: -18px;
-  left: 0;
-  background: var(--color-accent);
-  color: #fff;
-  font-size: 1rem;
-  font-weight: 700;
-  padding: 0.42em 1.25em 0.37em 1.25em;
-  border-radius: 1.2em;
-  box-shadow: 0 2px 12px #ff149340;
-  letter-spacing: 0.7px;
-  z-index: 2;
-  border: 2.5px solid #fff;
+  display: none !important;
+  /* Oculto temporariamente, pode reverter depois */
 }
 
 .special-offer-img-wrap {
