@@ -342,11 +342,22 @@
 </div>
                 </div>
                 <form id="checkoutForm" class="checkout-form">
-                <input type="text" id="customerName" placeholder="Nome completo" required>
-                <input type="tel" id="customerPhone" placeholder="Telefone" required>
-                <input type="email" id="customerEmail" placeholder="E-mail" required>
-                <button type="submit" class="btn-primary">Finalizar Pedido</button>
-                </form>
+  <div id="checkoutUserDataBlock" style="display:flex;flex-direction:column;gap:0.5em;margin-bottom:0.7em;">
+    <div style="display:flex;align-items:center;gap:0.7em;">
+      <i class="fa-solid fa-user" style="color:#ff69b4;"></i>
+      <span id="checkoutUserName" style="font-weight:500;font-size:1.08em;"></span>
+    </div>
+    <div style="display:flex;align-items:center;gap:0.7em;">
+      <i class="fa-solid fa-phone" style="color:#ff69b4;"></i>
+      <span id="checkoutUserPhone" style="font-size:1.05em;"></span>
+    </div>
+    <div style="display:flex;align-items:center;gap:0.7em;">
+      <i class="fa-solid fa-envelope" style="color:#ff69b4;"></i>
+      <span id="checkoutUserEmail" style="font-size:1.05em;"></span>
+    </div>
+  </div>
+  <button type="submit" class="btn-primary">Finalizar Pedido</button>
+</form>                </form>
             </div>
             <div id="orderConfirmation" class="order-confirmation">
                 <h4>Pedido Realizado com Sucesso!</h4>

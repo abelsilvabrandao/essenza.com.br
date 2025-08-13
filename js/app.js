@@ -42,7 +42,7 @@ function updateAccountUI(user) {
         // Limpa localStorage Essenza e faz signOut
         localStorage.removeItem('essenzaUser');
         if (typeof signOut === 'function') signOut(auth);
-        window.location.reload();
+        window.location.href = '/index.html';
       };
     }
   } else {
@@ -1209,7 +1209,19 @@ async function removeFromCart(productId) {
             
             // Atualizar contagem do carrinho na barra de navegação
             updateCartCount();
-            
+
+            // Se o carrinho ficou vazio, limpar cupom
+            if (cart.length === 0) {
+                if (typeof appliedCoupon !== 'undefined') appliedCoupon = null;
+                const couponInput = document.getElementById('couponInput');
+                if (couponInput) couponInput.value = '';
+                const couponFeedback = document.getElementById('couponFeedback');
+                if (couponFeedback) {
+                    couponFeedback.textContent = '';
+                    couponFeedback.className = 'coupon-feedback';
+                }
+            }
+
             // Forçar atualização da lista de produtos para refletir mudanças no estoque
             if (productsGrid) {
                 await renderProductList();
@@ -1414,24 +1426,8 @@ function calculateInstallment(total, installments) {
 }
 
 function updateInstallments() {
-    const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
-    const installments = parseInt(document.getElementById('installments').value);
-    const installmentValue = calculateInstallment(total, installments);
-    
-    let installmentText = '';
-    if (installments <= 6) {
-        installmentText = `ou ${installments}x de R$ ${installmentValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} sem juros`;
-    } else {
-        const totalWithInterest = installmentValue * installments;
-        installmentText = `ou ${installments}x de R$ ${installmentValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} com juros (total: R$ ${totalWithInterest.toFixed(2)})`;
-    }
-
-    document.getElementById('cartTotal').innerHTML = `
-        <div class="total-info">
-            <span class="total-with-items">Total (${totalItems} ${totalItems === 1 ? 'item' : 'itens'}): R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-            <span class="installment-info">${installmentText}</span>
-        </div>`;
+    // Apenas chama updateCartTotals para garantir que o desconto do cupom e o valor total estejam corretos
+    updateCartTotals();
 }
 
 // Função principal de atualização do carrinho
@@ -1548,6 +1544,23 @@ function updateCartItems() {
 
 // Atualiza os totais e parcelas do carrinho
 function updateCartTotals() {
+    // Atualizar badge Pix dinâmico
+    const pixDiscountBadge = document.getElementById('pixDiscountBadge');
+    if (pixDiscountBadge && cart.length > 0) {
+        let total = 0;
+        let pixTotal = 0;
+        cart.forEach(item => {
+            total += item.price * item.quantity;
+            pixTotal += (item.pixPrice || item.price) * item.quantity;
+        });
+        let percent = 0;
+        if (total > 0 && pixTotal < total) {
+            percent = Math.round(((total - pixTotal) / total) * 100);
+        }
+        pixDiscountBadge.textContent = percent > 0 ? `-${percent}%` : '';
+        pixDiscountBadge.style.display = percent > 0 ? '' : 'none';
+    }
+
     const elements = {
         cartTotal: document.getElementById('cartTotal'),
         paymentMethod: document.getElementById('paymentMethod'),
@@ -1587,26 +1600,35 @@ function updateCartTotals() {
 
     if (paymentMethod === 'pix') {
         const pixTotalValue = cart.reduce((sum, item) => sum + (item.pixPrice * item.quantity), 0);
-        const discountPercentage = Math.round(((total - pixTotalValue) / total) * 100);
-        let displayTotal = finalTotal;
+        let pixCouponDiscount = 0;
+        let pixFinalTotal = pixTotalValue;
+        let discountPercentage = Math.round(((total - pixTotalValue) / total) * 100);
         let pixBadge = '';
         if (appliedCoupon) {
-            displayTotal = Math.max(0, finalTotal); // Cupom já aplicado
+            if (appliedCoupon.type === 'percent') {
+                pixCouponDiscount = Math.round(pixTotalValue * (appliedCoupon.value / 100));
+                pixFinalTotal = pixTotalValue - pixCouponDiscount;
+            } else if (appliedCoupon.type === 'fixed') {
+                pixCouponDiscount = appliedCoupon.value;
+                pixFinalTotal = Math.max(0, pixTotalValue - pixCouponDiscount);
+            }
+            // Badge mostra cupom e desconto Pix
+            pixBadge = couponBadge ? couponBadge + `<div class="discount-badge">Economize ${discountPercentage}% no PIX</div>` : `<div class="discount-badge">Economize ${discountPercentage}% no PIX</div>`;
         } else {
-            displayTotal = pixTotalValue;
+            pixFinalTotal = pixTotalValue;
             pixBadge = `<div class="discount-badge">Economize ${discountPercentage}% no PIX</div>`;
         }
         elements.cartTotal.innerHTML = `
             <div class="total-info">
                 <div class="total-row">
-                    <span>Total (${cart.reduce((sum, item) => sum + item.quantity, 0)} itens):</span>
+                    <span>Total (${(() => { const q = cart.reduce((sum, item) => sum + item.quantity, 0); return q + ' ' + (q === 1 ? 'item' : 'itens'); })()}):</span>
                     <span class="old-price">R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
                 <div class="total-row highlight">
                     <span>Total com desconto:</span>
-                    <span class="total-amount">R$ ${displayTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    <span class="total-amount">R$ ${pixFinalTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
-                ${couponBadge || pixBadge}
+                ${pixBadge}
             </div>
         `;
     } else if (paymentMethod === 'agreement') {
@@ -1617,7 +1639,7 @@ function updateCartTotals() {
         elements.cartTotal.innerHTML = `
             <div class="total-info">
                 <div class="total-row">
-                    <span>Total (${cart.reduce((sum, item) => sum + item.quantity, 0)} itens):</span>
+                    <span>Total (${(() => { const q = cart.reduce((sum, item) => sum + item.quantity, 0); return q + ' ' + (q === 1 ? 'item' : 'itens'); })()}):</span>
                     <span class="total-amount">R$ ${finalTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
                 <div class="installment-info">
@@ -1632,7 +1654,7 @@ function updateCartTotals() {
         elements.cartTotal.innerHTML = `
             <div class="total-info">
                 <div class="total-row">
-                    <span>Total (${cart.reduce((sum, item) => sum + item.quantity, 0)} itens):</span>
+                    <span>Total (${(() => { const q = cart.reduce((sum, item) => sum + item.quantity, 0); return q + ' ' + (q === 1 ? 'item' : 'itens'); })()}):</span>
                     <span class="total-amount">R$ ${finalTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
                 <div class="installment-info">
@@ -1791,40 +1813,65 @@ if (couponInput && applyCouponBtn) {
 // Torna a função disponível globalmente
 window.togglePaymentMethod = togglePaymentMethod;
 
+// Listener global para logout no menu dropdown
+const logoutMenuLink = document.getElementById('logoutMenuLink');
+if (logoutMenuLink) {
+  logoutMenuLink.addEventListener('click', function(e) {
+    e.preventDefault();
+    localStorage.removeItem('essenzaUser');
+    if (typeof signOut === 'function') signOut(auth);
+    window.location.reload();
+  });
+}
+
+
 // Preenche o formulário de checkout com dados do localStorage
 function autofillCheckoutForm() {
     // DEBUG: Exibe o objeto user carregado do localStorage
     try {
         const user = JSON.parse(localStorage.getItem('essenzaUser'));
-        console.log('[autofillCheckoutForm] user carregado do localStorage:', user);
-        if (user) {
-            const nameField = document.getElementById('customerName');
-            const phoneField = document.getElementById('customerPhone');
-            const emailField = document.getElementById('customerEmail');
-            if (nameField) {
-                // Preencher nome completo (nome + sobrenome)
-                let nomeCompleto = '';
-                if (user.name && user.sobrenome) {
-                    nomeCompleto = user.name + ' ' + user.sobrenome;
-                } else if (user.nome && user.sobrenome) {
-                    nomeCompleto = user.nome + ' ' + user.sobrenome;
-                } else {
-                    nomeCompleto = user.name || user.nome || '';
-                }
-                nameField.value = nomeCompleto;
+        const nameField = document.getElementById('customerName');
+        const phoneField = document.getElementById('customerPhone');
+        const emailField = document.getElementById('customerEmail');
+        const userBlock = document.getElementById('checkoutUserDataBlock');
+        const inputsBlock = document.getElementById('checkoutInputsBlock');
+        const spanName = document.getElementById('checkoutUserName');
+        const spanPhone = document.getElementById('checkoutUserPhone');
+        const spanEmail = document.getElementById('checkoutUserEmail');
+        if (user && user.email) {
+            // Preencher nome completo
+            let nomeCompleto = '';
+            if (user.name && user.sobrenome) {
+                nomeCompleto = user.name + ' ' + user.sobrenome;
+            } else if (user.nome && user.sobrenome) {
+                nomeCompleto = user.nome + ' ' + user.sobrenome;
+            } else {
+                nomeCompleto = user.name || user.nome || '';
             }
-            if (phoneField) {
-                let phoneValue = user.phone || user.telefone || user.celular || '';
-                // Ajuste para formato (71) 9 9142-7989 se vier como (71) 99142-7989
+            if (spanName) spanName.textContent = nomeCompleto;
+            if (spanPhone) {
+                let phoneValue = user.phone || user.celular || '';
                 phoneValue = phoneValue.replace(/(\(\d{2}\))\s?(9)(\d{4}-\d{4})/, function(_, ddd, nine, rest) {
                   if (rest[0] !== ' ') return `${ddd} ${nine} ${rest}`;
                   return `${ddd} ${nine}${rest}`;
                 });
-                console.log('[autofillCheckoutForm] Valor encontrado para telefone (ajustado):', phoneValue);
-                phoneField.value = phoneValue;
-                phoneField.dispatchEvent(new Event('input', { bubbles: true }));
+                spanPhone.textContent = phoneValue;
             }
+            if (spanEmail) spanEmail.textContent = user.email || '';
+            // Esconder inputs, mostrar bloco visual
+            if (inputsBlock) inputsBlock.style.display = 'none';
+            if (userBlock) userBlock.style.display = 'flex';
+            // Preencher os inputs (invisíveis) para submit do pedido
+            if (nameField) nameField.value = nomeCompleto;
+            if (phoneField) phoneField.value = user.phone || user.celular || '';
             if (emailField) emailField.value = user.email || '';
+        } else {
+            // Mostrar inputs, esconder bloco visual
+            if (inputsBlock) inputsBlock.style.display = 'block';
+            if (userBlock) userBlock.style.display = 'none';
+            if (nameField) nameField.value = '';
+            if (phoneField) phoneField.value = '';
+            if (emailField) emailField.value = '';
         }
     } catch {}
 }
@@ -1982,10 +2029,53 @@ if (checkoutForm) {
                 pixTotal += (item.pixPrice || item.price) * item.quantity;
             });
             
-            // Obter dados do cliente
-            const customerName = document.getElementById('customerName')?.value.trim() || '';
-            const customerPhone = document.getElementById('customerPhone')?.value.trim() || '';
-            const customerEmail = document.getElementById('customerEmail')?.value.trim() || '';
+            // VERIFICAÇÃO DE LOGIN OBRIGATÓRIA
+            let essenzaUser = null;
+            try {
+                essenzaUser = JSON.parse(localStorage.getItem('essenzaUser'));
+            } catch {}
+            if (!essenzaUser || !essenzaUser.email) {
+                await Swal.fire({
+                    title: 'Faça login ou cadastre-se',
+                    html: '<div style="font-size:1.05em;">Para finalizar seu pedido, é necessário estar logado.<br><br><b>Crie uma conta ou faça login para continuar.</b></div>',
+                    icon: 'info',
+                    confirmButtonText: '<b>Fazer login ou cadastro</b>',
+                    confirmButtonColor: '#ff69b4',
+                    customClass: {
+                        popup: 'essenza-swal essenza-swal-login',
+                        confirmButton: 'essenza-swal-btn',
+                        title: 'essenza-swal-title swal-title-small',
+                        icon: 'essenza-swal-icon'
+                    }
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        window.location.href = 'login.html'; // ajuste o nome do arquivo se necessário
+                    }
+                });
+                submitButton.disabled = false;
+                submitButton.innerHTML = originalButtonText;
+                return;
+            }
+
+            // Obter dados do cliente diretamente do localStorage (inputs removidos)
+            let customerName = '';
+            let customerPhone = '';
+            let customerEmail = '';
+            try {
+                const user = JSON.parse(localStorage.getItem('essenzaUser'));
+                if (user && user.email) {
+                    if (user.name && user.sobrenome) {
+                        customerName = user.name + ' ' + user.sobrenome;
+                    } else if (user.nome && user.sobrenome) {
+                        customerName = user.nome + ' ' + user.sobrenome;
+                    } else {
+                        customerName = user.name || user.nome || '';
+                    }
+                    customerPhone = user.phone || user.celular || '';
+                    customerEmail = user.email || '';
+                }
+            } catch {}
+
             
             // Validação dos dados do cliente
             if (!customerName || !customerPhone || !customerEmail) {
@@ -2049,12 +2139,15 @@ if (checkoutForm) {
             }
 
             // Aplicar desconto do cupom ao valor do PIX também
+            let pixCouponDiscount = 0;
             let pixFinalTotal = pixTotal;
             if (appliedCoupon) {
                 if (appliedCoupon.type === 'percent') {
-                    pixFinalTotal = pixTotal - Math.round(pixTotal * (appliedCoupon.value / 100));
+                    pixCouponDiscount = Math.round(pixTotal * (appliedCoupon.value / 100));
+                    pixFinalTotal = pixTotal - pixCouponDiscount;
                 } else if (appliedCoupon.type === 'fixed') {
-                    pixFinalTotal = Math.max(0, pixTotal - appliedCoupon.value);
+                    pixCouponDiscount = appliedCoupon.value;
+                    pixFinalTotal = Math.max(0, pixTotal - pixCouponDiscount);
                 }
             }
 
