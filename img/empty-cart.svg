@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg width="120px" height="120px" viewBox="0 0 24 24" version="1.1" xmlns="http://www.w3.org/2000/svg">
     <g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
-        <path d="M4.5,5 L21.5,5 L20,17 L6,17 L4.5,5 Z" stroke="#FFB6C1" stroke-width="1.5"/>
-        <path d="M9,8 L9,4 C9,2.8954305 9.8954305,2 11,2 L13,2 C14.1045695,2 15,2.8954305 15,4 L15,8" stroke="#FFB6C1" stroke-width="1.5"/>
-        <circle fill="#FFB6C1" cx="8.5" cy="20.5" r="1.5"/>
-        <circle fill="#FFB6C1" cx="17.5" cy="20.5" r="1.5"/>
-        <line x1="8" y1="12" x2="18" y2="12" stroke="#FFB6C1" stroke-width="1.5"/>
-        <line x1="13" y1="8" x2="13" y2="16" stroke="#FFB6C1" stroke-width="1.5"/>
+        <path d="M4.5,5 L21.5,5 L20,17 L6,17 L4.5,5 Z" stroke="#6dd17c" stroke-width="1.5"/>
+        <path d="M9,8 L9,4 C9,2.8954305 9.8954305,2 11,2 L13,2 C14.1045695,2 15,2.8954305 15,4 L15,8" stroke="#6dd17c" stroke-width="1.5"/>
+        <circle fill="#6dd17c" cx="8.5" cy="20.5" r="1.5"/>
+        <circle fill="#6dd17c" cx="17.5" cy="20.5" r="1.5"/>
+        <line x1="8" y1="12" x2="18" y2="12" stroke="#6dd17c" stroke-width="1.5"/>
+        <line x1="13" y1="8" x2="13" y2="16" stroke="#6dd17c" stroke-width="1.5"/>
     </g>
 </svg>
