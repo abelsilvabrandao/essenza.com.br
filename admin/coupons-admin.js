@@ -110,6 +110,17 @@ async function openCouponModal(initial = {}) {
     noExpiration = (typeof initial.noExpiration !== 'undefined' ? initial.noExpiration : false),
     id = null
   } = initial;
+  // Pré-seleciona métodos de pagamento se fornecido
+  setTimeout(() => {
+    if (initial.allowedPaymentMethods && Array.isArray(initial.allowedPaymentMethods)) {
+      const select = document.getElementById('swalCouponPaymentMethod');
+      if (select) {
+        Array.from(select.options).forEach(opt => {
+          opt.selected = initial.allowedPaymentMethods.includes(opt.value) || (initial.allowedPaymentMethods.length === 3 && opt.value === 'all');
+        });
+      }
+    }
+  }, 10);
   const { value: formValues } = await Swal.fire({
     title: id ? 'Editar Cupom' : 'Adicionar Cupom',
     html:
@@ -142,6 +153,20 @@ async function openCouponModal(initial = {}) {
           `<input id="swalNoExpiration" type="checkbox"${noExpiration?' checked':''}>` +
           `<label for="swalNoExpiration" style='color:#FF69B4;font-weight:600;'>Validade sem expiração</label>` +
         `</div>` +
+      `<div class='form-group' style='display:flex;flex-direction:row;align-items:center;gap:4px;'>` +
+        `<label for="swalCouponPaymentMethod" style='color:#FF69B4;font-weight:600;width:120px;'>Método de pagamento</label>` +
+        `<select id="swalCouponPaymentMethod" class="swal2-select" multiple style='flex:1;max-width:180px;'>`
+          + `<option value="pix">PIX</option>`
+          + `<option value="credit">Cartão</option>`
+          + `<option value="agreement">Acordo</option>`
+          + `<option value="all">Todos</option>`
+        + `</select>` +
+      `</div>` +
+      `<div class='form-group' style='display:flex;flex-direction:column;align-items:center;margin-top:0.7rem;'>` +
+        `<label for="swalCouponProducts" style='color:#FF69B4;font-weight:600;margin-bottom:2px;text-align:center;'>Produtos elegíveis (opcional)</label>` +
+        `<select id="swalCouponProducts" class="swal2-select" multiple style='max-width:320px;min-width:180px;'>` +
+        (window.products || []).filter(p=>p.active!==false).map(p=>`<option value="${p.id}">${p.name}</option>`).join('') +
+        `</select>` +
       `</div>`,
     focusConfirm: false,
     showCancelButton: true,
@@ -171,7 +196,17 @@ async function openCouponModal(initial = {}) {
         Swal.showValidationMessage('A data de validade deve ser igual ou posterior à data de início.');
         return false;
       }
-      return { code, type, value, enableAgreement, startDate, endDate, noExpiration };
+      // Obter métodos de pagamento selecionados
+      let paymentMethodSelect = document.getElementById('swalCouponPaymentMethod');
+      let allowedPaymentMethods = Array.from(paymentMethodSelect.selectedOptions).map(opt => opt.value);
+      // Se "Todos" for selecionado, sobrescreve para ["pix","credit","agreement"]
+      if (allowedPaymentMethods.includes('all')) {
+        allowedPaymentMethods = ["pix","credit","agreement"];
+      }
+      // Obter produtos selecionados
+      let productsSelect = document.getElementById('swalCouponProducts');
+      let productIds = Array.from(productsSelect ? productsSelect.selectedOptions : []).map(opt => String(opt.value));
+      return { code, type, value, enableAgreement, startDate, endDate, noExpiration, allowedPaymentMethods, productIds };
     }
   });
   if (formValues) {
@@ -223,6 +258,7 @@ couponsTableBody.addEventListener('click', async (e) => {
         startDate: coupon.startDate || '',
         endDate: coupon.endDate || '',
         noExpiration: coupon.noExpiration || (!coupon.startDate && !coupon.endDate),
+        allowedPaymentMethods: coupon.allowedPaymentMethods || [],
         id: coupon.id
       });
     }

@@ -1669,6 +1669,56 @@ function updateCartTotals() {
 
 // Função para alternar entre PIX e Cartão
 function togglePaymentMethod() {
+    // Bloqueio de troca se cupom exclusivo acordo, MAS só alerta se usuário tentar trocar manualmente
+    // Exclusivo para acordo (mantém lógica atual)
+    if (appliedCoupon && appliedCoupon.allowedPaymentMethods && appliedCoupon.allowedPaymentMethods.length === 1 && appliedCoupon.allowedPaymentMethods[0] === 'agreement') {
+        const paymentMethod = document.querySelector('input[name="paymentMethod"]:checked')?.value;
+        if (paymentMethod !== 'agreement') {
+            if (togglePaymentMethod.silentlySwitchToAgreement) {
+                const agreementRadio = document.getElementById('paymentMethodAgreement');
+                if (agreementRadio) agreementRadio.checked = true;
+                const paymentMethodField = document.getElementById('paymentMethod');
+                if (paymentMethodField) paymentMethodField.value = 'agreement';
+                togglePaymentMethod.silentlySwitchToAgreement = false;
+                return;
+            }
+            const agreementRadio = document.getElementById('paymentMethodAgreement');
+            if (agreementRadio) agreementRadio.checked = true;
+            const paymentMethodField = document.getElementById('paymentMethod');
+            if (paymentMethodField) paymentMethodField.value = 'agreement';
+            Swal.fire({
+                title: 'Forma de pagamento restrita',
+                text: 'Este cupom só é válido para pagamento por Acordo. Não é possível trocar para outra forma. Se desejar outra forma de pagamento remova o cupom e tente novamente.',
+                icon: 'warning',
+                confirmButtonColor: '#FF69B4'
+            });
+            return;
+        }
+    }
+
+    // NOVO: Outras formas de pagamento restritas pelo cupom
+    if (appliedCoupon && Array.isArray(appliedCoupon.allowedPaymentMethods) && appliedCoupon.allowedPaymentMethods.length > 0 && !(appliedCoupon.allowedPaymentMethods.length === 1 && appliedCoupon.allowedPaymentMethods[0] === 'agreement')) {
+        const paymentMethod = document.querySelector('input[name="paymentMethod"]:checked')?.value;
+        if (!appliedCoupon.allowedPaymentMethods.includes(paymentMethod)) {
+            // Salva métodos permitidos antes de remover o cupom
+            const allowedMethods = appliedCoupon.allowedPaymentMethods.map(m => ({pix:'PIX',credit:'Cartão',agreement:'Acordo'}[m]||m)).join(', ');
+            appliedCoupon = null;
+            updateCartTotals();
+            const couponInput = document.getElementById('couponInput');
+            const couponFeedback = document.getElementById('couponFeedback');
+            if (couponInput) couponInput.classList.remove('input-success');
+            if (couponFeedback) {
+                couponFeedback.textContent = 'Cupom removido: só pode ser usado para a forma de pagamento ' + allowedMethods;
+                couponFeedback.className = 'coupon-feedback feedback-error';
+            }
+            Swal.fire({
+                title: 'Forma de pagamento não permitida',
+                text: 'O cupom foi removido pois só é válido para a forma de pagamento ' + allowedMethods,
+                icon: 'warning',
+                confirmButtonColor: '#FF69B4'
+            });
+        }
+    }
     const paymentMethod = document.querySelector('input[name="paymentMethod"]:checked')?.value;
     if (!paymentMethod) return;
     
@@ -1690,7 +1740,16 @@ function togglePaymentMethod() {
     // Mostrar/ocultar opção acordo conforme cupom
     const agreementOption = document.getElementById('paymentMethodAgreement')?.closest('.payment-option');
     if (agreementOption) {
-        if (appliedCoupon && appliedCoupon.enableAgreement) {
+        if (appliedCoupon && appliedCoupon.allowedPaymentMethods && appliedCoupon.allowedPaymentMethods.length === 1 && appliedCoupon.allowedPaymentMethods[0] === 'agreement') {
+            agreementOption.style.display = '';
+            // Marcar automaticamente acordo se não estiver
+            const agreementRadio = document.getElementById('paymentMethodAgreement');
+            if (agreementRadio && !agreementRadio.checked) {
+                agreementRadio.checked = true;
+                if (paymentMethodField) paymentMethodField.value = 'agreement';
+                // Silencioso: não mostra alerta aqui
+            }
+        } else if (appliedCoupon && appliedCoupon.enableAgreement) {
             agreementOption.style.display = '';
         } else {
             agreementOption.style.display = 'none';
@@ -1738,12 +1797,61 @@ if (couponInput && applyCouponBtn) {
     const couponFeedback = document.getElementById('couponFeedback');
 
     const handleCoupon = async () => {
+    // Flag para troca silenciosa caso cupom seja só acordo
+    let silentAgreementSwitch = false;
         const code = couponInput.value.trim().toUpperCase(); // Sempre maiúsculo
         appliedCoupon = null;
         couponFeedback.textContent = '';
         couponFeedback.className = 'coupon-feedback';
         if (code) {
             const coupon = await getCouponByCode(code);
+            // Validação de produtos vinculados ao cupom
+            let eligibleSetCount = 1;
+            if (coupon && Array.isArray(coupon.productIds) && coupon.productIds.length > 0) {
+                // Verifica se TODOS os produtos obrigatórios estão no carrinho
+                // Para múltiplos conjuntos completos: calcula quantos "kits" completos há no carrinho
+                const productCounts = coupon.productIds.map(pid => {
+                    const item = cart.find(i => String(i.id) === String(pid));
+                    return item ? Number(item.quantity) || 0 : 0;
+                });
+                eligibleSetCount = Math.min(...productCounts);
+                const missingProducts = coupon.productIds.filter(pid => !cart.some(item => String(item.id) === String(pid))); 
+                if (missingProducts.length > 0) {
+                    // Buscar nomes dos produtos faltantes
+                    let missingNames = [];
+                    if (window.products && Array.isArray(window.products)) {
+                        missingNames = missingProducts.map(pid => {
+                            const prod = window.products.find(p => String(p.id) === String(pid));
+                            return prod ? prod.name : `ID ${pid}`;
+                        });
+                    } else {
+                        missingNames = missingProducts.map(pid => `ID ${pid}`);
+                    }
+                    couponInput.classList.remove('input-success');
+                    couponInput.classList.add('input-error');
+                    // Mensagem amigável
+                    couponFeedback.innerHTML = 'Para usar este cupom, inclua no carrinho:<br>' + missingNames.map(n => `1 - ${n}`).join('<br>') + '<br><span style="font-weight:bold;font-size:1.2em;color:#FF69B4;">+</span>';
+                    couponFeedback.className = 'coupon-feedback feedback-error';
+                    appliedCoupon = null;
+                    return;
+                }
+            }
+            // Ajuste para aplicar desconto proporcional ao número de conjuntos completos
+            if (coupon && eligibleSetCount > 1) {
+                // Se já existe lógica de cálculo de desconto, multiplique o valor do desconto por eligibleSetCount
+                coupon._eligibleSetCount = eligibleSetCount; // pode ser usado depois no cálculo
+            }
+            // Se for cupom exclusivo acordo, acionar flag para troca silenciosa E já exibir e selecionar a opção acordo
+            if (coupon && coupon.allowedPaymentMethods && coupon.allowedPaymentMethods.length === 1 && coupon.allowedPaymentMethods[0] === 'agreement') {
+                togglePaymentMethod.silentlySwitchToAgreement = true;
+                // Exibir e selecionar acordo imediatamente
+                const agreementOption = document.getElementById('paymentMethodAgreement')?.closest('.payment-option');
+                if (agreementOption) agreementOption.style.display = '';
+                const agreementRadio = document.getElementById('paymentMethodAgreement');
+                if (agreementRadio) agreementRadio.checked = true;
+                const paymentMethodField = document.getElementById('paymentMethod');
+                if (paymentMethodField) paymentMethodField.value = 'agreement';
+            }
             if (coupon) {
                 // --- Validação de datas ---
                 const today = new Date();
@@ -2122,6 +2230,33 @@ if (checkoutForm) {
             // Gerar número do pedido
             const orderNumber = generateOrderNumber();
             
+            // Bloqueio total se cupom só permite acordo
+            if (appliedCoupon && appliedCoupon.allowedPaymentMethods && appliedCoupon.allowedPaymentMethods.length === 1 && appliedCoupon.allowedPaymentMethods[0] === 'agreement') {
+                if (paymentMethod !== 'agreement') {
+                    await Swal.fire({
+                        title: 'Forma de pagamento restrita',
+                        text: 'Este cupom só pode ser usado para pagamento por acordo. Selecione "Acordo" para finalizar o pedido.',
+                        icon: 'warning',
+                        confirmButtonColor: '#FF69B4'
+                    });
+                    submitButton.disabled = false;
+                    submitButton.innerHTML = originalButtonText;
+                    return;
+                }
+            } else if (appliedCoupon && Array.isArray(appliedCoupon.allowedPaymentMethods) && appliedCoupon.allowedPaymentMethods.length > 0) {
+                const couponAllowed = appliedCoupon.allowedPaymentMethods.includes(paymentMethod);
+                if (!couponAllowed) {
+                    await Swal.fire({
+                        title: 'Cupom não válido para esta forma de pagamento',
+                        text: 'Este cupom só pode ser usado para: ' + (appliedCoupon.allowedPaymentMethods.map(m => ({pix:'PIX',credit:'Cartão',agreement:'Acordo'}[m]||m)).join(', ')),
+                        icon: 'warning',
+                        confirmButtonColor: '#FF69B4'
+                    });
+                    submitButton.disabled = false;
+                    submitButton.innerHTML = originalButtonText;
+                    return;
+                }
+            }
             // Aplicar desconto do cupom se houver
             let couponDiscount = 0;
             let couponDescText = '';

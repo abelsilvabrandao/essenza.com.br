@@ -3414,8 +3414,88 @@ body.login-bg {
 
 .social-links {
     display: flex;
-    gap: 1rem;
+    gap: 2.2em;
+    align-items: flex-end;
+    justify-content: center;
+    margin-bottom: 0.5em;
 }
+
+@media (max-width: 700px) {
+    .social-links {
+        flex-direction: column;
+        gap: 0.7em;
+    }
+}
+
+.instagram-link {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-decoration: none;
+    color: #888;
+    transition: color 0.18s;
+}
+
+.whatsapp-link {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-decoration: none;
+    color: #888;
+    transition: color 0.18s;
+}
+
+.whatsapp-link .whatsapp-username {
+    display: block;
+    font-size: 1.02em;
+    color: #888;
+    margin-top: 0.22em;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    transition: color 0.18s;
+}
+
+.whatsapp-link:hover,
+.whatsapp-link:focus {
+    color: var(--color-primary);
+}
+
+.whatsapp-link:hover .whatsapp-username,
+.whatsapp-link:focus .whatsapp-username {
+    color: var(--color-primary);
+}
+
+
+.instagram-link .instagram-username {
+    display: block;
+    font-size: 1.02em;
+    color: #888;
+    margin-top: 0.22em;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    transition: color 0.18s;
+}
+
+.instagram-link:hover,
+.instagram-link:focus {
+    color: var(--color-primary);
+}
+
+.instagram-link:hover .instagram-username,
+.instagram-link:focus .instagram-username {
+    color: var(--color-primary);
+}
+
+@media (max-width: 700px) {
+    .social-links {
+        flex-direction: column;
+        gap: 0.7em;
+    }
+    .instagram-link .instagram-username {
+        font-size: 1.09em;
+    }
+}
+
 
 .social-links a {
     color: #ccc;
@@ -3437,9 +3517,10 @@ body.login-bg {
 }
 
 .footer-contact p {
-    color: #ccc;
-    margin: 0.5rem 0;
-    font-size: 0.95rem;
+    color: #888;
+    margin: 0.2em 0;
+    font-size: 1.07em;
+    text-align: center;
 }
 
 .footer-bottom {
