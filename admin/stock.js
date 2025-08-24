@@ -228,19 +228,26 @@ export async function renderCategoriesAccordion() {
 }
 
 // Atualiza todos os selects de categoria de produto (inclui editProduct)
-function renderCategorySelects() {
-  const categories = getCategories();
-  // Para cada select com id 'productCategory' (pode haver mais de um em modais)
-  document.querySelectorAll('select#productCategory').forEach(select => {
-    const current = select.value;
-    select.innerHTML = categories.map(cat => `<option value="${cat}">${cat}</option>`).join('');
-    // Se a categoria atual não existir mais, mantém selecionado vazio
-    if (categories.includes(current)) {
-      select.value = current;
-    } else {
-      select.value = '';
-    }
-  });
+async function renderCategorySelects() {
+  try {
+    const categories = await getCategories();
+    // Para cada select com id 'productCategory' (pode haver mais de um em modais)
+    document.querySelectorAll('select#productCategory').forEach(select => {
+      const current = select.value;
+      // Adiciona uma opção padrão vazia
+      select.innerHTML = ['<option value="">Selecione...</option>']
+        .concat((categories || []).map(cat => `<option value="${cat}">${cat}</option>`))
+        .join('');
+      // Se a categoria atual existir, mantém selecionada
+      if (Array.isArray(categories) && categories.includes(current)) {
+        select.value = current;
+      } else {
+        select.value = '';
+      }
+    });
+  } catch (e) {
+    console.error('Erro ao carregar categorias para selects:', e);
+  }
 }
 
 window.renderCategoriesAccordion = renderCategoriesAccordion;
@@ -2083,13 +2090,13 @@ window.openGiftModal = async function (orderId) {
 
                 // Adiciona o produto como brinde (preço zero)
                 const giftItem = {
-                  ...product,
+                  productId: product.id,
+                  name: product.name,
                   price: 0,
-                  originalPrice: product.price, // Mantém o preço original para referência
+                  originalPrice: product.price,
                   quantity: giftData.quantity,
                   isGift: true,
-                  note: giftData.note || "Brinde de cortesia",
-                  productId: product.id, // Garante que o productId está definido
+                  note: giftData.note || "Brinde de cortesia"
                 };
 
                 // Adiciona o item ao pedido
@@ -4511,10 +4518,7 @@ export async function showAddProductModal() {
       <div class="price-field-row">
         <label for="productCategory">Categoria:</label>
         <select id="productCategory" class="swal2-input">
-          <option value="Cuidados Capilares">Cuidados Capilares</option>
-          <option value="Tratamentos">Tratamentos</option>
-          <option value="Kits">Kits</option>
-          <option value="Outros">Outros</option>
+          <option value="">Carregando categorias...</option>
         </select>
       </div>
       <div class="price-field-row">
@@ -4558,6 +4562,23 @@ export async function showAddProductModal() {
             preview.innerHTML = `<div class='preview-placeholder'><i class='fas fa-image'></i></div>`;
           }
         });
+      }
+      // Popular categorias dinamicamente
+      const categorySelect = swalPopup.querySelector('#productCategory');
+      if (categorySelect) {
+        // placeholder enquanto carrega
+        categorySelect.innerHTML = '<option value="">Carregando categorias...</option>';
+        Promise.resolve(getCategories())
+          .then((categories) => {
+            const opts = ['<option value="">Selecione...</option>']
+              .concat((categories || []).map(cat => `<option value="${cat}">${cat}</option>`))
+              .join('');
+            categorySelect.innerHTML = opts;
+          })
+          .catch(err => {
+            console.error('Erro ao obter categorias no modal:', err);
+            categorySelect.innerHTML = '<option value="">Erro ao carregar categorias</option>';
+          });
       }
     },
     preConfirm: async () => {

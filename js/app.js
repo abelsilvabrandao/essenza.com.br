@@ -1580,14 +1580,41 @@ function updateCartTotals() {
 
     // Aplicar desconto do cupom, se houver
     if (appliedCoupon) {
-        if (appliedCoupon.type === 'percent') {
-            couponDiscount = Math.round(total * (appliedCoupon.value / 100));
-            finalTotal = total - couponDiscount;
-            couponBadge = `<div class="discount-badge">Cupom aplicado: -${appliedCoupon.value}%</div>`;
-        } else if (appliedCoupon.type === 'fixed') {
-            couponDiscount = appliedCoupon.value;
+        const hasProgressive = Number.isInteger(appliedCoupon.progressiveMultiple) && appliedCoupon.progressiveMultiple >= 2 && Array.isArray(appliedCoupon.productIds) && appliedCoupon.productIds.length > 0;
+
+        if (hasProgressive) {
+            const M = appliedCoupon.progressiveMultiple;
+            // Calcula desconto progressivo sobre os preços normais (não PIX)
+            let progressiveDiscountSum = 0;
+            cart.forEach(item => {
+                const eligible = appliedCoupon.productIds.some(pid => String(pid) === String(item.id));
+                if (!eligible) return;
+                const multiples = Math.floor((Number(item.quantity) || 0) / M);
+                if (multiples <= 0) return;
+                const unitPrice = Number(item.price) || 0;
+                if (appliedCoupon.type === 'percent') {
+                    progressiveDiscountSum += unitPrice * M * (appliedCoupon.value / 100) * multiples;
+                } else if (appliedCoupon.type === 'fixed') {
+                    progressiveDiscountSum += appliedCoupon.value * multiples;
+                }
+            });
+            couponDiscount = Math.round(progressiveDiscountSum);
             finalTotal = Math.max(0, total - couponDiscount);
-            couponBadge = `<div class="discount-badge">Cupom aplicado: -R$ ${appliedCoupon.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>`;
+            if (appliedCoupon.type === 'percent') {
+                couponBadge = `<div class="discount-badge">Cupom aplicado (progressivo): -${appliedCoupon.value}% a cada ${appliedCoupon.progressiveMultiple} un. elegíveis</div>`;
+            } else {
+                couponBadge = `<div class="discount-badge">Cupom aplicado (progressivo): -R$ ${appliedCoupon.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} a cada ${appliedCoupon.progressiveMultiple} un. elegíveis</div>`;
+            }
+        } else {
+            if (appliedCoupon.type === 'percent') {
+                couponDiscount = Math.round(total * (appliedCoupon.value / 100));
+                finalTotal = total - couponDiscount;
+                couponBadge = `<div class="discount-badge">Cupom aplicado: -${appliedCoupon.value}%</div>`;
+            } else if (appliedCoupon.type === 'fixed') {
+                couponDiscount = appliedCoupon.value;
+                finalTotal = Math.max(0, total - couponDiscount);
+                couponBadge = `<div class="discount-badge">Cupom aplicado: -R$ ${appliedCoupon.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>`;
+            }
         }
     }
 
@@ -1605,7 +1632,25 @@ function updateCartTotals() {
         let discountPercentage = Math.round(((total - pixTotalValue) / total) * 100);
         let pixBadge = '';
         if (appliedCoupon) {
-            if (appliedCoupon.type === 'percent') {
+            const hasProgressive = Number.isInteger(appliedCoupon.progressiveMultiple) && appliedCoupon.progressiveMultiple >= 2 && Array.isArray(appliedCoupon.productIds) && appliedCoupon.productIds.length > 0;
+            if (hasProgressive) {
+                const M = appliedCoupon.progressiveMultiple;
+                let progressivePixDiscount = 0;
+                cart.forEach(item => {
+                    const eligible = appliedCoupon.productIds.some(pid => String(pid) === String(item.id));
+                    if (!eligible) return;
+                    const multiples = Math.floor((Number(item.quantity) || 0) / M);
+                    if (multiples <= 0) return;
+                    const unitPix = Number(item.pixPrice || item.price) || 0;
+                    if (appliedCoupon.type === 'percent') {
+                        progressivePixDiscount += unitPix * M * (appliedCoupon.value / 100) * multiples;
+                    } else if (appliedCoupon.type === 'fixed') {
+                        progressivePixDiscount += appliedCoupon.value * multiples;
+                    }
+                });
+                pixCouponDiscount = Math.round(progressivePixDiscount);
+                pixFinalTotal = Math.max(0, pixTotalValue - pixCouponDiscount);
+            } else if (appliedCoupon.type === 'percent') {
                 pixCouponDiscount = Math.round(pixTotalValue * (appliedCoupon.value / 100));
                 pixFinalTotal = pixTotalValue - pixCouponDiscount;
             } else if (appliedCoupon.type === 'fixed') {
@@ -2262,7 +2307,30 @@ if (checkoutForm) {
             let couponDescText = '';
             let finalTotal = total;
             if (appliedCoupon) {
-                if (appliedCoupon.type === 'percent') {
+                const hasProgressive = Number.isInteger(appliedCoupon.progressiveMultiple) && appliedCoupon.progressiveMultiple >= 2 && Array.isArray(appliedCoupon.productIds) && appliedCoupon.productIds.length > 0;
+                if (hasProgressive) {
+                    const M = appliedCoupon.progressiveMultiple;
+                    let progressiveDiscountSum = 0;
+                    cart.forEach(item => {
+                        const eligible = appliedCoupon.productIds.some(pid => String(pid) === String(item.id));
+                        if (!eligible) return;
+                        const multiples = Math.floor((Number(item.quantity) || 0) / M);
+                        if (multiples <= 0) return;
+                        const unitPrice = Number(item.price) || 0;
+                        if (appliedCoupon.type === 'percent') {
+                            progressiveDiscountSum += unitPrice * M * (appliedCoupon.value / 100) * multiples;
+                        } else if (appliedCoupon.type === 'fixed') {
+                            progressiveDiscountSum += appliedCoupon.value * multiples;
+                        }
+                    });
+                    couponDiscount = Math.round(progressiveDiscountSum);
+                    finalTotal = Math.max(0, total - couponDiscount);
+                    if (appliedCoupon.type === 'percent') {
+                        couponDescText = `Cupom aplicado (progressivo): -${appliedCoupon.value}% a cada ${appliedCoupon.progressiveMultiple} un. elegíveis`;
+                    } else {
+                        couponDescText = `Cupom aplicado (progressivo): -R$ ${appliedCoupon.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} a cada ${appliedCoupon.progressiveMultiple} un. elegíveis`;
+                    }
+                } else if (appliedCoupon.type === 'percent') {
                     couponDiscount = Math.round(total * (appliedCoupon.value / 100));
                     finalTotal = total - couponDiscount;
                     couponDescText = `Cupom aplicado: -${appliedCoupon.value}%`;
@@ -2277,7 +2345,25 @@ if (checkoutForm) {
             let pixCouponDiscount = 0;
             let pixFinalTotal = pixTotal;
             if (appliedCoupon) {
-                if (appliedCoupon.type === 'percent') {
+                const hasProgressive = Number.isInteger(appliedCoupon.progressiveMultiple) && appliedCoupon.progressiveMultiple >= 2 && Array.isArray(appliedCoupon.productIds) && appliedCoupon.productIds.length > 0;
+                if (hasProgressive) {
+                    const M = appliedCoupon.progressiveMultiple;
+                    let progressivePixDiscount = 0;
+                    cart.forEach(item => {
+                        const eligible = appliedCoupon.productIds.some(pid => String(pid) === String(item.id));
+                        if (!eligible) return;
+                        const multiples = Math.floor((Number(item.quantity) || 0) / M);
+                        if (multiples <= 0) return;
+                        const unitPix = Number(item.pixPrice || item.price) || 0;
+                        if (appliedCoupon.type === 'percent') {
+                            progressivePixDiscount += unitPix * M * (appliedCoupon.value / 100) * multiples;
+                        } else if (appliedCoupon.type === 'fixed') {
+                            progressivePixDiscount += appliedCoupon.value * multiples;
+                        }
+                    });
+                    pixCouponDiscount = Math.round(progressivePixDiscount);
+                    pixFinalTotal = Math.max(0, pixTotal - pixCouponDiscount);
+                } else if (appliedCoupon.type === 'percent') {
                     pixCouponDiscount = Math.round(pixTotal * (appliedCoupon.value / 100));
                     pixFinalTotal = pixTotal - pixCouponDiscount;
                 } else if (appliedCoupon.type === 'fixed') {
@@ -2335,7 +2421,24 @@ if (checkoutForm) {
                 let itemUnitPrice = isPix ? (item.pixPrice || item.price) : item.price;
                 // Aplica desconto proporcional do cupom ao item
                 if (appliedCoupon) {
-                    if (appliedCoupon.type === 'percent') {
+                    const hasProgressive = Number.isInteger(appliedCoupon.progressiveMultiple) && appliedCoupon.progressiveMultiple >= 2 && Array.isArray(appliedCoupon.productIds) && appliedCoupon.productIds.length > 0;
+                    if (hasProgressive) {
+                        const eligible = appliedCoupon.productIds.some(pid => String(pid) === String(item.id));
+                        if (eligible) {
+                            const M = appliedCoupon.progressiveMultiple;
+                            const multiples = Math.floor((Number(item.quantity) || 0) / M);
+                            if (multiples > 0) {
+                                let itemDiscount = 0;
+                                if (appliedCoupon.type === 'percent') {
+                                    itemDiscount = itemUnitPrice * M * (appliedCoupon.value / 100) * multiples;
+                                } else if (appliedCoupon.type === 'fixed') {
+                                    itemDiscount = appliedCoupon.value * multiples;
+                                }
+                                const perUnit = itemDiscount / item.quantity;
+                                itemUnitPrice = Math.max(0, itemUnitPrice - perUnit);
+                            }
+                        }
+                    } else if (appliedCoupon.type === 'percent') {
                         itemUnitPrice = itemUnitPrice - (itemUnitPrice * (appliedCoupon.value / 100));
                     } else if (appliedCoupon.type === 'fixed') {
                         // Distribui o desconto fixo proporcionalmente entre os itens

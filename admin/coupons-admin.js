@@ -164,10 +164,16 @@ async function openCouponModal(initial = {}) {
       `</div>` +
       `<div class='form-group' style='display:flex;flex-direction:column;align-items:center;margin-top:0.7rem;'>` +
         `<label for="swalCouponProducts" style='color:#FF69B4;font-weight:600;margin-bottom:2px;text-align:center;'>Produtos elegíveis (opcional)</label>` +
-        `<select id="swalCouponProducts" class="swal2-select" multiple style='max-width:320px;min-width:180px;'>` +
-        (window.products || []).filter(p=>p.active!==false).map(p=>`<option value="${p.id}">${p.name}</option>`).join('') +
+        `<select id="swalCouponProducts" class="swal2-select" multiple style='max-width:320px;min-width:180px;' onchange="if(document.getElementById('swalCouponProducts').selectedOptions.length>0){document.getElementById('swalProgressiveMultipleContainer').style.display='flex';}else{document.getElementById('swalProgressiveMultipleContainer').style.display='none';}">`
+        + (window.products || []).filter(p=>p.active!==false).map(p=>`<option value="${p.id}">${p.name}</option>`).join('') +
         `</select>` +
+      `</div>` +
+      // Campo progressivo só aparece se houver produtos elegíveis selecionados
+      `<div id="swalProgressiveMultipleContainer" class='form-group' style='display:none;flex-direction:row;align-items:center;gap:4px;margin-top:-0.2rem;'>` +
+        `<label for="swalProgressiveMultiple" style='color:#FF69B4;font-weight:600;width:170px;'>Múltiplo para desconto progressivo</label>` +
+        `<input id="swalProgressiveMultiple" class="swal2-input" type="number" min="2" step="1" placeholder="Ex: 2 para par" style='flex:1;max-width:90px;'>` +
       `</div>`,
+
     focusConfirm: false,
     showCancelButton: true,
     confirmButtonText: id ? 'Salvar Alterações' : 'Adicionar Cupom',
@@ -206,7 +212,16 @@ async function openCouponModal(initial = {}) {
       // Obter produtos selecionados
       let productsSelect = document.getElementById('swalCouponProducts');
       let productIds = Array.from(productsSelect ? productsSelect.selectedOptions : []).map(opt => String(opt.value));
-      return { code, type, value, enableAgreement, startDate, endDate, noExpiration, allowedPaymentMethods, productIds };
+      // Lê o campo de múltiplo progressivo
+      let progressiveMultiple = null;
+      const progressiveInput = document.getElementById('swalProgressiveMultiple');
+      if (progressiveInput && progressiveInput.value) {
+        const val = parseInt(progressiveInput.value);
+        if (!isNaN(val) && val >= 2) {
+          progressiveMultiple = val;
+        }
+      }
+      return { code, type, value, enableAgreement, startDate, endDate, noExpiration, allowedPaymentMethods, productIds, progressiveMultiple };
     }
   });
   if (formValues) {
@@ -214,6 +229,10 @@ async function openCouponModal(initial = {}) {
     if (data.noExpiration) {
       data.startDate = '';
       data.endDate = '';
+    }
+    // Remove campo se não válido
+    if (!data.progressiveMultiple || isNaN(data.progressiveMultiple) || data.progressiveMultiple < 2) {
+      delete data.progressiveMultiple;
     }
     if (id) {
       await updateCoupon(id, data);
@@ -259,6 +278,8 @@ couponsTableBody.addEventListener('click', async (e) => {
         endDate: coupon.endDate || '',
         noExpiration: coupon.noExpiration || (!coupon.startDate && !coupon.endDate),
         allowedPaymentMethods: coupon.allowedPaymentMethods || [],
+        productIds: coupon.productIds || [],
+        progressiveMultiple: coupon.progressiveMultiple || '',
         id: coupon.id
       });
     }
