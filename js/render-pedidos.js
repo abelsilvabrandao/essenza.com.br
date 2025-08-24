@@ -94,19 +94,33 @@ export async function renderPedidosConta() {
          if (totalParcelasPagas === qtdParcelas) statusPagamento = 'Pago';
          else if (totalParcelasPagas > 0 || totalParcelasParciais > 0) statusPagamento = 'Parcial';
          else statusPagamento = 'Pendente';
-      } else if (
-        (method.includes('crédito') || method.includes('credit') || method.includes('débito') || method.includes('debit') || method.includes('pix') || method.includes('boleto') || method.includes('dinheiro') || method.includes('cash'))
-        && pedido.status === 'Concluído'
-      ) {
-        statusPagamento = 'Pago';
       } else {
-        statusPagamento = 'Pendente';
+        // Preferir campo explícito de status de pagamento, caso exista
+        if (pedido.paymentStatus) {
+          const ps = String(pedido.paymentStatus).toLowerCase();
+          if (ps === 'pago' || ps === 'paid') statusPagamento = 'Pago';
+          else if (ps === 'parcial' || ps === 'partial') statusPagamento = 'Parcial';
+          else statusPagamento = 'Pendente';
+        } else {
+          // Derivar pela soma dos pagamentos
+          const pagamentos = Array.isArray(pedido.payments) ? pedido.payments : [];
+          const totalPago = pagamentos.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+          const totalPedido = Number(pedido.total || 0);
+          if (totalPedido > 0 && totalPago >= totalPedido) statusPagamento = 'Pago';
+          else if (totalPago > 0) statusPagamento = 'Parcial';
+          else statusPagamento = 'Pendente';
+        }
       }
       // Parcelas
       let parcelasHtml = '-';
       if (pedido.installments > 1) {
-        // Se não há controle de pagas, exibe 0/total
-        parcelasHtml = `0/${pedido.installments} pagas`;
+        if (statusPagamento === 'Pago') {
+          parcelasHtml = `${pedido.installments}/${pedido.installments} pagas`;
+        } else if (statusPagamento === 'Parcial') {
+          parcelasHtml = 'Parcial';
+        } else {
+          parcelasHtml = `0/${pedido.installments} pagas`;
+        }
       } else if (pedido.installments === 1) {
         parcelasHtml = statusPagamento === 'Pago' ? '1/1 paga' : '0/1 paga';
       }
@@ -421,12 +435,14 @@ export async function renderPedidosConta() {
   <div style="display:flex;flex-wrap:wrap;gap:1.1em 1.3em;align-items:center;justify-content:center;margin-top:0.7em;">
   <!-- Botão Cancelar Pedido -->
   ${pedido.status && pedido.status.toLowerCase() !== 'concluído' ? `<button class="btn" style="background:#ffe0f3;color:#c2185b;font-weight:700;padding:7px 18px;border-radius:7px;border:none;box-shadow:0 1px 4px #0001;cursor:pointer;display:flex;align-items:center;gap:7px;" onclick="cancelarPedido('${pedido.id || pedido.orderNumber}')"><i class='fa fa-times-circle'></i> Cancelar Pedido</button>` : ''}
-  <!-- Linha única PIX e ações -->
+  <!-- Linha única PIX e ações (somente para pedidos com método PIX) -->
+  ${method.includes('pix') ? `
   <div style="display:flex;align-items:center;gap:0.6em;background:#f4f6fb;padding:6px 14px 6px 11px;border-radius:8px;box-shadow:0 1px 4px #0001;">
     <b style="color:#555;margin-right:2px;">Pagar via PIX</b>
     <button class="btn btn-outline-secondary btn-sm" style="color:#7b1fa2;border:1.5px solid #e1bee7;padding:4px 10px;border-radius:7px;font-weight:600;margin-left:2px;" onclick="copiarChavePix('71991427989')"><i class='fa fa-copy'></i> Copiar</button>
     <button class="btn" style="background:#25d366;color:#fff;font-weight:600;padding:7px 18px;border-radius:7px;border:none;box-shadow:0 1px 4px #0001;cursor:pointer;display:flex;align-items:center;gap:10px;margin-left:7px;font-size:1.13em;letter-spacing:0.5px;" onclick="whatsappPedido('${pedido.orderNumber || pedido.id}')"><i class='fab fa-whatsapp' style='color:#fff;font-size:1.35em;'></i> <span style='color:#fff;font-weight:600;'>WhatsApp</span></button>
   </div>
+  ` : ''}
 </div>
       </div>`;
     });
