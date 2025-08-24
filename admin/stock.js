@@ -6195,6 +6195,9 @@ async function upsertPairedPromotion(id, data) {
   await setDoc(ref, {
     productId1: String(data.productId1||'').trim(),
     productId2: String(data.productId2||'').trim(),
+    qty1: Number(data.qty1||1),
+    qty2: Number(data.qty2||0),
+    bundlePrice: data.bundlePrice !== undefined && data.bundlePrice !== null && String(data.bundlePrice).trim() !== '' ? Number(data.bundlePrice) : null,
     couponCode: String(data.couponCode||'').trim(),
     title: String(data.title||'').trim(),
     imageUrl: data.imageUrl || '',
@@ -6238,12 +6241,12 @@ async function renderPairedPromotionsList(container, promos, products) {
   };
   const rows = (promos||[]).map(p=>{
     const a = map.get(String(p.productId1));
-    const b = map.get(String(p.productId2));
+    const b = p.productId2 ? map.get(String(p.productId2)) : null;
     const nameA = a ? `${a.id} - ${a.name||''}` : p.productId1;
-    const nameB = b ? `${b.id} - ${b.name||''}` : p.productId2;
+    const nameB = b ? `${b.id} - ${b.name||''}` : (p.productId2 || '');
     return `
       <tr>
-        <td>${escapeHtml(p.title || `${nameA} + ${nameB}`)}</td>
+        <td>${escapeHtml(p.title || (nameB ? `${nameA} + ${nameB}` : `${nameA}`))}</td>
         <td>${escapeHtml(nameA)}</td>
         <td>${escapeHtml(nameB)}</td>
         <td><code>${escapeHtml(p.couponCode||'')}</code></td>
@@ -6263,44 +6266,73 @@ async function renderPairedPromotionsList(container, promos, products) {
   // Pré-visualização de cards das promoções em par
   const previewCards = (promos||[]).map(p=>{
     const a = map.get(String(p.productId1));
-    const b = map.get(String(p.productId2));
-    if (!a || !b) return '';
+    const b = p.productId2 ? map.get(String(p.productId2)) : null;
+    if (!a) return '';
+    const qty1 = Number(p.qty1||1) > 0 ? Number(p.qty1) : 1;
+    const qty2 = Number(p.qty2||0) > 0 ? Number(p.qty2) : 0;
+    const same = !b || String(p.productId1) === String(p.productId2);
     const pairImg = p.imageUrl && String(p.imageUrl).trim() ? String(p.imageUrl).trim() : '';
     const imgA = a.imageUrl || a.image || '/img/placeholder.png';
-    const imgB = b.imageUrl || b.image || '/img/placeholder.png';
-    const title = p.title && p.title.trim() ? p.title.trim() : `${a.name||''} + ${b.name||''}`;
+    const imgB = (b && (b.imageUrl || b.image)) || '/img/placeholder.png';
+    const title = p.title && p.title.trim() 
+      ? p.title.trim() 
+      : (same ? `${a.name||''} x${qty1 + qty2}` : `${a.name||''}${qty1>1?` x${qty1}`:''} + ${(b?.name)||''}${qty2>1?` x${qty2}`:''}`);
     const oldA = Number(a.oldPrice || a.price || 0);
-    const oldB = Number(b.oldPrice || b.price || 0);
+    const oldB = b ? Number(b.oldPrice || b.price || 0) : 0;
     const priceA = Number(a.price || 0);
-    const priceB = Number(b.price || 0);
+    const priceB = b ? Number(b.price || 0) : 0;
     const pixA = Number(a.pixPrice || a.price || 0);
-    const pixB = Number(b.pixPrice || b.price || 0);
-    const oldSum = (oldA + oldB) || 0;
-    const basePriceSum = (priceA + priceB) || 0;
-    const basePixSum = (pixA + pixB) || 0;
-    const coupon = p.couponCode ? couponsMap.get(String(p.couponCode).toUpperCase()) : null;
-    const priceSum = applyCoupon(basePriceSum, coupon);
-    const pixSum = applyCoupon(basePixSum, coupon);
-    const couponLabel = p.couponCode ? `Utilizando o CUPOM <strong>${escapeHtml(p.couponCode)}</strong>` : '';
-    return `
-      <div class="pp-card" data-pair="${p._id}">
-        <div class="pp-card-img">
-          ${pairImg ? `<img class=\"pp-pair-image\" src=\"${pairImg}\" alt=\"${escapeHtml(title)}\" loading=\"lazy\"/>` : `
-          <div class=\"pp-duo\">
-            <img src=\"${imgA}\" alt=\"${escapeHtml(a.name||'Produto 1')}\" loading=\"lazy\"/>
-            <img src=\"${imgB}\" alt=\"${escapeHtml(b.name||'Produto 2')}\" loading=\"lazy\"/>
-          </div>`}
-          <span class="pp-badge">Promoção em Par</span>
-        </div>
-        <div class="pp-card-info">
-          <h4 class="pp-card-title">${escapeHtml(title)}</h4>
-          <div class="pp-prices">
-            <div class="pp-price-row"><span class="pp-label">De:</span> <span class="pp-old">R$ ${oldSum.toLocaleString('pt-BR',{minimumFractionDigits:2})}</span></div>
-            <div class="pp-price-row"><span class="pp-label">Por:</span> <span class="pp-current">R$ ${priceSum.toLocaleString('pt-BR',{minimumFractionDigits:2})}</span></div>
-            <div class="pp-price-row"><span class="pp-label">PIX:</span> <span class="pp-pix">R$ ${pixSum.toLocaleString('pt-BR',{minimumFractionDigits:2})}</span></div>
+    const pixB = b ? Number(b.pixPrice || b.price || 0) : 0;
+    const oldSum = (oldA*qty1 + oldB*qty2) || 0;
+    const basePriceSum = (priceA*qty1 + priceB*qty2) || 0;
+    const basePixSum = (pixA*qty1 + pixB*qty2) || 0;
+    const hasBundle = p.bundlePrice !== undefined && p.bundlePrice !== null && String(p.bundlePrice).trim() !== '';
+    const coupon = !hasBundle && p.couponCode ? couponsMap.get(String(p.couponCode).toUpperCase()) : null;
+    const priceSum = hasBundle ? Number(p.bundlePrice) : applyCoupon(basePriceSum, coupon);
+    const pixSum = hasBundle ? 0 : applyCoupon(basePixSum, coupon);
+    const couponLabel = (!hasBundle && p.couponCode) ? `Utilizando o CUPOM <strong>${escapeHtml(p.couponCode)}</strong>` : '';
+    // Construção das imagens no padrão do card público
+    let imagesHTML = '';
+    if (pairImg) {
+      imagesHTML = `<div class="special-offer-img-wrap"><img src="${pairImg}" alt="${escapeHtml(title)}" loading="lazy"/></div>`;
+    } else if (same) {
+      const totalQty = qty1 + qty2;
+      imagesHTML = `
+        <div class="special-offer-img-wrap" style="position:relative;">
+          <img src="${imgA}" alt="${escapeHtml(a.name||'Produto')}" loading="lazy"/>
+          <span class="qty-badge">x${totalQty}</span>
+        </div>`;
+    } else {
+      imagesHTML = `
+        <div class="special-offer-img-wrap" style="display:flex;gap:8px;justify-content:center;align-items:center;">
+          <div style="position:relative;flex:1;display:flex;justify-content:center;">
+            <img src="${imgA}" alt="${escapeHtml(a.name||'Produto 1')}" loading="lazy"/>
+            ${qty1>1?`<span class="qty-badge">x${qty1}</span>`:''}
           </div>
-          <div class="pp-meta">
-            <code class="pp-coupon" title="Cupom para o par">${escapeHtml(p.couponCode||'')}</code>
+          <div style="position:relative;flex:1;display:flex;justify-content:center;">
+            <img src="${imgB}" alt="${escapeHtml((b&&b.name)||'Produto 2')}" loading="lazy"/>
+            ${qty2>1?`<span class="qty-badge">x${qty2}</span>`:''}
+          </div>
+        </div>`;
+    }
+    // 'De:' no bundle deve mostrar soma dos PIX quando disponível
+    const displayOldForBundle = hasBundle ? (basePixSum > 0 ? basePixSum : basePriceSum) : 0;
+    const shouldShowOld = hasBundle ? (displayOldForBundle > 0) : (oldSum > 0);
+    return `
+      <div class="special-offer-card admin-preview${!same ? ' two-items' : ''}" data-pair="${p._id}">
+        <div class="special-offer-img-area">
+          <span class="special-offer-badge">Promoção!!</span>
+          ${imagesHTML}
+        </div>
+        <div class="special-offer-info">
+          <h3 class="special-offer-title">${escapeHtml(title)}</h3>
+          <div class="offer-prices">
+            ${shouldShowOld ? `<span class='old-price'>De: ${(hasBundle ? displayOldForBundle : oldSum).toLocaleString('pt-BR', {minimumFractionDigits:2})}</span>` : ''}
+            <span class="current-price">Por: R$ ${priceSum.toLocaleString('pt-BR', {minimumFractionDigits:2})} ${hasBundle ? 'PIX*' : ''}</span>
+            ${!hasBundle && pixSum>0 && pixSum < priceSum ? `<span class="pix-price">PIX: R$ ${pixSum.toLocaleString('pt-BR', {minimumFractionDigits:2})}</span>` : ''}
+            ${p.couponCode ? `<span class="coupon-badge" aria-label="Cupom disponível"><i class="fa-solid fa-tag"></i> <strong>Cupom:</strong> <span class="code">${escapeHtml(p.couponCode)}</span></span>` : ''}
+          </div>
+          <div class="pp-meta" style="margin-top:8px;">
             <span class="pp-active ${p.active? 'on':'off'}" title="Status">${p.active? 'Ativa':'Inativa'}</span>
           </div>
           ${couponLabel ? `<div class=\"pp-coupon-note\">${couponLabel}</div>` : ''}
@@ -6310,7 +6342,7 @@ async function renderPairedPromotionsList(container, promos, products) {
 
   container.innerHTML = `
     <div style="margin-bottom:12px; display:flex; gap:8px; align-items:center;">
-      <button id="ppNewBtn" class="btn btn-primary"><i class="fas fa-plus"></i> Nova Promoção em Par</button>
+      <button id="ppNewBtn" class="btn btn-primary"><i class="fas fa-plus"></i> Nova Promoção</button>
     </div>
     <div class="pp-cards-wrap">
       <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 2px 6px 2px;">
@@ -6340,24 +6372,25 @@ async function renderPairedPromotionsList(container, promos, products) {
       .slider:before{ position:absolute; content:""; height:18px; width:18px; left:2px; bottom:2px; background:white; transition:.2s; border-radius:50%; }
       input:checked + .slider{ background-color:#4caf50; }
       input:checked + .slider:before{ transform: translateX(20px); }
-      /* Estilos dos cards de preview */
+      /* Estilos dos cards de preview (adaptados do público) */
       .pp-cards-wrap{ margin: 8px 0 16px 0; }
       .pp-cards-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:14px; }
-      .pp-card{ box-shadow: 0 8px 32px #00000014, 0 2px 8px #0000000d; border-radius: 18px; background: #fff; overflow: hidden; display:flex; flex-direction:column; }
-      .pp-card-img{ position:relative; padding:10px; background: linear-gradient(180deg,#ffffff 0%, #faf7fb 100%); }
-      .pp-duo{ display:flex; gap:8px; align-items:center; justify-content:center; }
-      .pp-duo img{ width:48%; height:120px; object-fit:contain; border-radius:10px; background:#fff; box-shadow: inset 0 0 0 1px #00000010; }
-      .pp-pair-image{ width:100%; height:160px; object-fit:cover; border-radius:12px; box-shadow: inset 0 0 0 1px #00000010; }
-      .pp-badge{ position:absolute; top:8px; left:8px; background:#ff1493; color:#fff; font-size:12px; padding:4px 8px; border-radius:12px; }
-      .pp-card-info{ padding:10px 12px 12px 12px; }
-      .pp-card-title{ margin:4px 0 8px 0; font-size:14px; font-weight:600; color:#333; min-height:32px; }
-      .pp-prices{ display:flex; flex-direction:column; gap:4px; font-size:13px; }
-      .pp-label{ color:#666; margin-right:6px; }
-      .pp-old{ text-decoration: line-through; color:#888; }
-      .pp-current{ color:#111; font-weight:700; }
-      .pp-pix{ color:#008f5a; font-weight:600; }
-      .pp-meta{ display:flex; align-items:center; justify-content:space-between; margin-top:10px; }
-      .pp-coupon{ background:#f1f1f6; color:#333; padding:2px 6px; border-radius:6px; font-size:12px; }
+      .special-offer-card.admin-preview{ box-shadow: 0 8px 32px #00000014, 0 2px 8px #0000000d; border-radius: 18px; background: #fff; overflow: hidden; display:flex; flex-direction:column; }
+      .special-offer-img-area{ position:relative; padding:10px; background: linear-gradient(180deg,#ffffff 0%, #faf7fb 100%); }
+      .special-offer-badge{ position:absolute; top:8px; left:8px; background:#ff1493; color:#fff; font-size:12px; padding:4px 8px; border-radius:12px; }
+      .special-offer-img-wrap{ width:100%; display:block; }
+      .special-offer-img-wrap img{ width:100%; height:160px; object-fit:contain; border-radius:12px; background:#fff; box-shadow: inset 0 0 0 1px #00000010; }
+      .special-offer-card.two-items .special-offer-img-wrap img{ height:120px; }
+      .qty-badge{ position:absolute; top:6px; right:6px; background:#e91e63; color:#fff; border-radius:12px; padding:2px 8px; font-size:12px; font-weight:700; }
+      .special-offer-info{ padding:10px 12px 12px 12px; }
+      .special-offer-title{ margin:4px 0 8px 0; font-size:14px; font-weight:700; color:#e91e63; min-height:32px; }
+      .offer-prices{ display:flex; flex-direction:column; gap:4px; font-size:13px; }
+      .offer-prices .old-price{ color:#999; text-decoration:line-through; }
+      .offer-prices .current-price{ color:#e91e63; font-weight:800; }
+      .offer-prices .pix-price{ color:#008f5a; font-weight:700; }
+      .coupon-badge{ display:inline-flex; align-items:center; gap:6px; background:#fff0f5; color:#d81b60; border-radius:10px; padding:2px 8px; font-size:12px; font-weight:600; width:max-content; }
+      .coupon-badge .code{ font-weight:800; }
+      .pp-meta{ display:flex; align-items:center; justify-content:space-between; margin-top:8px; }
       .pp-active.on{ color:#2e7d32; font-weight:600; font-size:12px; }
       .pp-active.off{ color:#b71c1c; font-weight:600; font-size:12px; }
       .pp-coupon-note{ margin-top:8px; font-size:12px; color:#444; }
@@ -6372,7 +6405,10 @@ async function openPairedPromotionModal(products, existing) {
     <form id="ppForm" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
       <div><label>Produto 1</label><select id="ppProd1" class="swal2-select" style="width:100%">${opt1}</select></div>
       <div><label>Produto 2</label><select id="ppProd2" class="swal2-select" style="width:100%">${opt2}</select></div>
+      <div><label>Qtd Produto 1</label><input id="ppQty1" type="number" min="1" step="1" class="swal2-input" placeholder="Ex: 1" value="${Number(existing?.qty1||1)}"/></div>
+      <div><label>Qtd Produto 2</label><input id="ppQty2" type="number" min="0" step="1" class="swal2-input" placeholder="Ex: 0" value="${Number(existing?.qty2||0)}"/></div>
       <div><label>Cupom</label><input id="ppCoupon" class="swal2-input" placeholder="Ex: PAR10" value="${existing?.couponCode||''}"/></div>
+      <div><label>Preço do Combo (opcional)</label><input id="ppBundle" type="number" min="0" step="0.01" class="swal2-input" placeholder="Ex: 19.90" value="${existing?.bundlePrice ?? ''}"/></div>
       <div><label>Título (opcional)</label><input id="ppTitle" class="swal2-input" placeholder="Ex: Combo" value="${existing?.title||''}"/></div>
       <div style="grid-column:1/3; display:flex; align-items:center; gap:12px;">
         <div style="flex:1;">
@@ -6389,6 +6425,7 @@ async function openPairedPromotionModal(products, existing) {
         <input type="checkbox" id="ppActive" ${existing?.active?'checked':''}/>
         <label for="ppActive">Ativa</label>
       </div>
+      <div style="grid-column:1/3; font-size:12px; color:#666;">Dica: você pode deixar o Produto 2 em branco ou igual ao Produto 1 para combos do mesmo item. O cupom é opcional quando usar Preço do Combo.</div>
     </form>`;
   const result = await Swal.fire({
     title: existing? 'Editar Promoção em Par' : 'Nova Promoção em Par',
@@ -6423,19 +6460,23 @@ async function openPairedPromotionModal(products, existing) {
     preConfirm: () => {
       const productId1 = document.getElementById('ppProd1').value;
       const productId2 = document.getElementById('ppProd2').value;
+      const qty1 = Math.max(1, Number(document.getElementById('ppQty1').value||1));
+      const qty2 = Math.max(0, Number(document.getElementById('ppQty2').value||0));
+      const bundleRaw = (document.getElementById('ppBundle').value||'').trim();
+      const bundlePrice = bundleRaw !== '' ? Number(bundleRaw) : null;
       const couponCode = document.getElementById('ppCoupon').value.trim();
       const title = document.getElementById('ppTitle').value.trim();
       const imageUrl = (document.getElementById('ppImageData')||{}).value || '';
       const active = document.getElementById('ppActive').checked;
-      if (!productId1 || !productId2 || !couponCode) {
-        Swal.showValidationMessage('Selecione os produtos e informe o cupom.');
+      if (!productId1) {
+        Swal.showValidationMessage('Selecione o Produto 1. O Produto 2 é opcional.');
         return false;
       }
-      if (String(productId1) === String(productId2)) {
-        Swal.showValidationMessage('Selecione dois produtos diferentes.');
+      if (bundleRaw !== '' && isNaN(Number(bundleRaw))) {
+        Swal.showValidationMessage('Preço do Combo inválido.');
         return false;
       }
-      return { productId1, productId2, couponCode, title, imageUrl, active };
+      return { productId1, productId2, qty1, qty2, bundlePrice, couponCode, title, imageUrl, active };
     }
   });
   if (result.isConfirmed) {

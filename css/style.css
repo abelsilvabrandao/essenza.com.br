@@ -1373,23 +1373,24 @@ body {
 .special-offer-card.promo-pair {
   padding-top: 1rem;
 }
-.promo-pair .special-offer-img-wrap {
+/* Aplicar layout em grid apenas quando houver dois itens */
+.promo-pair.two-items .special-offer-img-wrap {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
-  height: 220px;
+  /* Sem altura fixa aqui: usa a mesma altura do card padrão */
   background: #fff5f9;
   border-radius: 1rem;
   position: relative;
 }
-.promo-pair .special-offer-img-wrap img {
+.promo-pair.two-items .special-offer-img-wrap img {
   width: 100%;
   height: 100%;
   object-fit: contain;
   background: transparent;
   box-shadow: none;
 }
-.promo-pair .special-offer-img-wrap::after {
+.promo-pair.two-items .special-offer-img-wrap::after {
   content: "+";
   position: absolute;
   left: 50%;
@@ -1422,12 +1423,54 @@ body {
   z-index: 3;
 }
 @media (max-width: 900px) {
-  .promo-pair .special-offer-img-wrap { height: 190px; gap: 8px; }
+  .promo-pair.two-items .special-offer-img-wrap { gap: 8px; }
 }
 @media (max-width: 700px) {
-  .promo-pair .special-offer-img-wrap { height: 170px; gap: 8px; }
-  .promo-pair .special-offer-img-wrap::after { width: 28px; height: 28px; font-size: 1rem; }
+  .promo-pair.two-items .special-offer-img-wrap { gap: 8px; }
+  .promo-pair.two-items .special-offer-img-wrap::after { width: 28px; height: 28px; font-size: 1rem; }
   .pair-promo-badge { font-size: 0.8rem; padding: 0.25em 0.7em; }
+}
+
+/* Forçar altura consistente no carrossel (sobrepõe regras duplicadas) */
+#specialOffersCarousel .special-offer-img-wrap {
+  height: 240px !important;
+}
+/* Imagens do carrossel seguem o padrão do card de Oferta Especial */
+#specialOffersCarousel .special-offer-img-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover; /* igual aos cards de Oferta Especial */
+  border-radius: 0.8rem;
+}
+@media (max-width: 900px) {
+  #specialOffersCarousel .special-offer-img-wrap { height: 210px !important; }
+}
+@media (max-width: 700px) {
+  #specialOffersCarousel .special-offer-img-wrap { height: 180px !important; }
+}
+
+/* Badge de Cupom - estilo profissional */
+.coupon-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ff6fb5, #ff1493);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  box-shadow: 0 4px 10px rgba(255, 20, 147, 0.25);
+  margin-top: 6px;
+}
+.coupon-badge i {
+  font-size: 0.9rem;
+}
+.coupon-badge .code {
+  background: rgba(255,255,255,0.18);
+  padding: 2px 6px;
+  border-radius: 6px;
+  letter-spacing: 0.3px;
 }
 
 /* Waitlist Orphan Styles */

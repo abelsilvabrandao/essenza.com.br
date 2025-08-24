@@ -2019,12 +2019,24 @@ async function applyCouponCode(code, options = { showFeedback: true }) {
     }
 }
 
-// Utilitário: adiciona dois produtos (promoção em par) e aplica cupom associado
-async function addPromoToCart(productId1, productId2, couponCode) {
+// Utilitário: adiciona promoção em par (suporta mesmo produto) com quantidades e aplica cupom
+async function addPromoToCart(productId1, qty1 = 1, productId2 = null, qty2 = 0, couponCode = '') {
     try {
         if (typeof addToCart !== 'function') return;
-        if (productId1 != null) await addToCart(String(productId1));
-        if (productId2 != null) await addToCart(String(productId2));
+        // Adiciona produto 1 na quantidade informada
+        if (productId1 != null) {
+            const q1 = Number(qty1) > 0 ? Number(qty1) : 1;
+            for (let i = 0; i < q1; i++) {
+                await addToCart(String(productId1));
+            }
+        }
+        // Adiciona produto 2 (se existir) na quantidade informada
+        if (productId2 != null) {
+            const q2 = Number(qty2) > 0 ? Number(qty2) : 1;
+            for (let i = 0; i < q2; i++) {
+                await addToCart(String(productId2));
+            }
+        }
         if (couponCode) await applyCouponCode(couponCode, { showFeedback: true });
         if (typeof toggleCart === 'function') {
             try { toggleCart(true); } catch { toggleCart(); }
@@ -2597,8 +2609,7 @@ if (checkoutForm) {
                     name: item.name,
                     price: item.price,
                     pixPrice: item.pixPrice || item.price,
-                    quantity: item.quantity,
-                    imageUrl: item.imageUrl || ''
+                    quantity: item.quantity
                 })),
                 total: finalAmount,
                 paymentMethod,
@@ -2779,9 +2790,7 @@ function updateOrderConfirmationUI(orderData, whatsappMessage) {
                     R$ ${itemTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
             </div>`;
-        promoRenderedCount++;
     });
-    console.log('[Carousel] Promoções em par renderizadas:', promoRenderedCount);
     
     summaryHTML += `
         <div class="order-totals">
@@ -3091,6 +3100,18 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // Atualizar carrinho se necessário
                 updateCartState();
             });
+            
+            // Listener em tempo real para pairedPromotions
+            try {
+                const promosCollection = collection(window.db, 'pairedPromotions');
+                onSnapshot(promosCollection, () => {
+                    if (typeof renderSpecialOffersCarousel === 'function') {
+                        renderSpecialOffersCarousel();
+                    }
+                });
+            } catch (e) {
+                console.warn('[Carousel] Não foi possível iniciar listener de pairedPromotions:', e);
+            }
         } else {
             console.error('Erro ao carregar produtos do Firestore');
         }
@@ -3133,6 +3154,15 @@ async function initializeApp() {
                 // Atualizar produtos globalmente
                 products = updatedProducts;
                 
+                // Re-renderizar carrossel de ofertas especiais e listas
+                try {
+                    if (typeof renderSpecialOffersCarousel === 'function') {
+                        renderSpecialOffersCarousel();
+                    }
+                } catch (e) {
+                    console.warn('[Carousel] Erro ao re-renderizar após atualização de produtos:', e);
+                }
+
                 // Re-renderizar listas
                 renderProductList();
                 
@@ -3170,8 +3200,19 @@ async function fetchPairedPromotions() {
     try {
         const promosCol = collection(db, 'pairedPromotions');
         const snap = await getDocs(promosCol);
-        return snap.docs.map(d => ({ id: d.id, ...d.data() }))
-            .filter(p => p && p.active !== false && p.productId1 && p.productId2);
+        return snap.docs
+            .map(d => ({ id: d.id, ...d.data() }))
+            // Aceita promoções onde pelo menos productId1 existe; productId2 pode
+            // ser igual a productId1 ou inexistente quando qty1 > 1 (mesmo produto)
+            .filter(p => p && p.active !== false && p.productId1)
+            .map(p => ({
+                ...p,
+                qty1: Number(p.qty1) > 0 ? Number(p.qty1) : 1,
+                // Se não houver productId2, qty2 vira 0 por padrão
+                qty2: p.productId2 ? (Number(p.qty2) > 0 ? Number(p.qty2) : 1) : 0,
+                couponCode: p.couponCode || p.coupon || '',
+                bundlePrice: p.bundlePrice != null ? Number(p.bundlePrice) : null
+            }));
     } catch (e) {
         console.warn('Sem coleção pairedPromotions ou erro ao buscar:', e);
         return [];
@@ -3216,12 +3257,15 @@ async function renderSpecialOffersCarousel() {
 
     let html = '';
 
-    // Primeiro: cards de promoções em par
+    // Primeiro: cards de promoções em par (inclui mesmo produto com qty)
     let promoRenderedCount = 0;
     pairedPromos.forEach((promo) => {
+        const qty1 = Number(promo.qty1) > 0 ? Number(promo.qty1) : 1;
+        const qty2 = Number(promo.qty2) > 0 ? Number(promo.qty2) : 0;
         const p1 = (allProds || []).find(p => String(p.id) === String(promo.productId1));
-        const p2 = (allProds || []).find(p => String(p.id) === String(promo.productId2));
-        if (!p1 || !p2) {
+        const hasSecond = !!promo.productId2;
+        const p2 = hasSecond ? (allProds || []).find(p => String(p.id) === String(promo.productId2)) : null;
+        if (!p1) {
             console.warn('[Carousel] Produto não encontrado para promoção em par:', {
                 promoId: promo.id,
                 productId1: promo.productId1,
@@ -3231,29 +3275,87 @@ async function renderSpecialOffersCarousel() {
             });
             return;
         }
-        // Badge "Promoção!!" e botão que chama addPromoToCart
-        const title = `${p1.name} + ${p2.name}`;
-        const oldSum = (Number(p1.oldPrice)||0) + (Number(p2.oldPrice)||0);
-        const priceSum = (Number(p1.price)||0) + (Number(p2.price)||0);
-        const pixSum = (Number(p1.pixPrice)||0) + (Number(p2.pixPrice)||0);
-        html += `<div class="special-offer-card promo-pair" data-pair="${promo.id}">
+        // Título e somatórios com quantidades
+        const sameProduct = !hasSecond || String(promo.productId1) === String(promo.productId2);
+        const defaultTitle = sameProduct
+            ? `${p1.name} x${qty1 + (sameProduct ? qty2 : 0)}`
+            : `${p1.name}${qty1>1?` x${qty1}`:''} + ${(p2?.name)||''}${qty2>1?` x${qty2}`:''}`;
+        const title = (promo && promo.title && String(promo.title).trim())
+            || (promo && promo.name && String(promo.name).trim())
+            || defaultTitle;
+        const unitOld1 = Number(p1.oldPrice)||0;
+        const unitPrice1 = Number(p1.price)||0;
+        const unitPix1 = Number(p1.pixPrice)||0;
+        const unitOld2 = p2 ? (Number(p2.oldPrice)||0) : 0;
+        const unitPrice2 = p2 ? (Number(p2.price)||0) : 0;
+        const unitPix2 = p2 ? (Number(p2.pixPrice)||0) : 0;
+        const oldSum = (unitOld1*qty1) + (unitOld2*qty2);
+        const calcPriceSum = (unitPrice1*qty1) + (unitPrice2*qty2);
+        const calcPixSum = (unitPix1*qty1) + (unitPix2*qty2);
+        const hasBundle = promo.bundlePrice != null && !isNaN(promo.bundlePrice);
+        const priceSum = hasBundle ? Number(promo.bundlePrice) : calcPriceSum;
+        const pixSum = hasBundle ? 0 : calcPixSum; // quando bundle, não exibimos PIX separado
+
+        // Validação de estoque considerando itens já no carrinho
+        const cartQty1 = (cart.find(it => String(it.id) === String(promo.productId1))?.quantity) || 0;
+        const available1 = (Number(p1.quantity) || 0) - cartQty1;
+        let canBuy = available1 >= qty1;
+        let stockMsg = '';
+        if (hasSecond && p2) {
+            const cartQty2 = (cart.find(it => String(it.id) === String(promo.productId2))?.quantity) || 0;
+            const available2 = (Number(p2.quantity) || 0) - cartQty2;
+            canBuy = canBuy && (available2 >= qty2);
+            if (!canBuy) stockMsg = 'Indisponível: estoque insuficiente para o combo';
+        } else {
+            if (!canBuy) stockMsg = 'Indisponível: estoque insuficiente';
+        }
+
+        // HTML de imagens padronizado para combinar com outros cards
+        let imagesHTML = '';
+        if (sameProduct) {
+            const totalQty = qty1 + qty2;
+            imagesHTML = `
+                <div class="special-offer-img-wrap" style="position:relative;">
+                    <img src="${p1.imageUrl || p1.image || '/img/placeholder.png'}" alt="${p1.name}" loading="lazy" />
+                    <span style="position:absolute;top:6px;right:6px;background:#e91e63;color:#fff;border-radius:12px;padding:2px 8px;font-size:12px;font-weight:700;">x${totalQty}</span>
+                </div>`;
+        } else {
+            imagesHTML = `
+                <div class="special-offer-img-wrap" style="display:flex;gap:8px;justify-content:center;align-items:center;">
+                    <div style="position:relative;flex:1;display:flex;justify-content:center;">
+                        <img src="${p1.imageUrl || p1.image || '/img/placeholder.png'}" alt="${p1.name}" loading="lazy" />
+                        ${qty1>1?`<span style="position:absolute;top:6px;right:6px;background:#e91e63;color:#fff;border-radius:12px;padding:2px 8px;font-size:12px;font-weight:700;">x${qty1}</span>`:''}
+                    </div>
+                    <div style="position:relative;flex:1;display:flex;justify-content:center;">
+                        <img src="${(p2?.imageUrl) || (p2?.image) || '/img/placeholder.png'}" alt="${p2?.name||''}" loading="lazy" />
+                        ${qty2>1?`<span style="position:absolute;top:6px;right:6px;background:#e91e63;color:#fff;border-radius:12px;padding:2px 8px;font-size:12px;font-weight:700;">x${qty2}</span>`:''}
+                    </div>
+                </div>`;
+        }
+
+        // Definir valores de exibição para 'De:' e linhas de PIX
+        // quando bundle, 'De:' deve ser a soma dos preços PIX; se não houver PIX, usar preços padrão
+        const displayOldForBundle = hasBundle ? (calcPixSum > 0 ? calcPixSum : calcPriceSum) : 0;
+        const shouldShowOld = hasBundle ? (displayOldForBundle > 0) : (oldSum > 0);
+
+        html += `<div class="special-offer-card promo-pair${!sameProduct ? ' two-items' : ''}" data-pair="${promo.id}">
     <div class="special-offer-img-area">
         <span class="special-offer-badge">Promoção!!</span>
-        <div class="special-offer-img-wrap" style="display:flex;gap:6px;justify-content:center;align-items:center;">
-            <img src="${p1.imageUrl || p1.image || '/img/placeholder.png'}" alt="${p1.name}" loading="lazy" style="width:48%;object-fit:contain;border-radius:8px;" />
-            <img src="${p2.imageUrl || p2.image || '/img/placeholder.png'}" alt="${p2.name}" loading="lazy" style="width:48%;object-fit:contain;border-radius:8px;" />
-        </div>
+        ${imagesHTML}
     </div>
     <div class="special-offer-info">
         <h3 class="special-offer-title">${title}</h3>
         <div class="offer-prices">
-            ${oldSum>0 ? `<span class='old-price'>De: ${oldSum.toLocaleString('pt-BR', {minimumFractionDigits:2})}</span>` : ''}
-            <span class="current-price">Por: R$ ${priceSum.toLocaleString('pt-BR', {minimumFractionDigits:2})}</span>
-            ${pixSum>0 && pixSum < priceSum ? `<span class="pix-price">PIX: R$ ${pixSum.toLocaleString('pt-BR', {minimumFractionDigits:2})}</span>` : ''}
+            ${shouldShowOld ? `<span class='old-price'>De: ${(hasBundle ? displayOldForBundle : oldSum).toLocaleString('pt-BR', {minimumFractionDigits:2})}</span>` : ''}
+            <span class="current-price">Por: R$ ${priceSum.toLocaleString('pt-BR', {minimumFractionDigits:2})} ${hasBundle ? 'PIX*' : ''}</span>
+            ${!hasBundle && pixSum>0 && pixSum < priceSum ? `<span class="pix-price">PIX: R$ ${pixSum.toLocaleString('pt-BR', {minimumFractionDigits:2})}</span>` : ''}
+            ${promo.couponCode ? `<span class="coupon-badge" aria-label="Cupom disponível"><i class="fa-solid fa-tag"></i> <strong>Cupom:</strong> <span class="code">${promo.couponCode}</span></span>` : ''}
         </div>
-        <button class="btn-buy-offer" data-pair="${promo.id}"><i class="fas fa-bag-shopping"></i> Adicionar ao carrinho</button>
+        <button class="btn-buy-offer" data-pair="${promo.id}" ${canBuy ? '' : 'disabled title="'+stockMsg+'"'}><i class="fas fa-bag-shopping"></i> ${canBuy ? 'Comprar' : 'Indisponível'}</button>
+        ${canBuy ? '' : `<div class="stock-warning" style="color:#b71c1c;font-size:12px;margin-top:6px;">${stockMsg}</div>`}
     </div>
 </div>`;
+        promoRenderedCount++;
     });
 
     extendedOffers.forEach((p, i) => {
@@ -3331,7 +3433,7 @@ async function renderSpecialOffersCarousel() {
             toggleFavorite(productId);
         };
     });
-    // Integrar botões comprar (produtos simples)
+    // Integrar botões comprar (produtos simples e promoções em par)
     document.querySelectorAll('.btn-buy-offer').forEach(btn => {
         btn.addEventListener('click', function() {
             const id = this.getAttribute('data-id');
@@ -3339,7 +3441,9 @@ async function renderSpecialOffersCarousel() {
             if (pairId) {
                 const promo = pairedPromos.find(pp => String(pp.id) === String(pairId));
                 if (!promo) return;
-                if (window.addPromoToCart) window.addPromoToCart(promo.productId1, promo.productId2, promo.couponCode || promo.coupon || '');
+                const qty1 = Number(promo.qty1) > 0 ? Number(promo.qty1) : 1;
+                const qty2 = Number(promo.qty2) > 0 ? Number(promo.qty2) : 0;
+                if (window.addPromoToCart) window.addPromoToCart(promo.productId1, qty1, promo.productId2 || null, qty2, promo.couponCode || promo.coupon || '');
             } else if (id) {
                 if (window.addToCart) window.addToCart(id);
             }
