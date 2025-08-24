@@ -6154,6 +6154,331 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 });
 
+/**
+ * Promoções em Par (pairedPromotions) - CRUD + UI Acordeon
+ */
+async function fetchPairedPromotions() {
+  try {
+    const snap = await getDocs(collection(window.db, 'pairedPromotions'));
+    const list = [];
+    snap.forEach(d => list.push({ _id: d.id, ...d.data() }));
+    return list;
+  } catch (e) {
+    console.error('Erro ao carregar pairedPromotions:', e);
+    return [];
+  }
+}
+
+async function fetchAllProductsForPairs() {
+  try {
+    if (Array.isArray(window.products) && window.products.length) return window.products;
+    const snap = await getDocs(collection(window.db, 'products'));
+    const arr = [];
+    snap.forEach(d => arr.push({ id: d.id, ...d.data() }));
+    window.products = arr;
+    return arr;
+  } catch (e) {
+    console.error('Erro ao carregar produtos:', e);
+    return [];
+  }
+}
+
+function renderProductSelectOptions(products, selectedId) {
+  const list = (products||[]).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')));
+  return ['<option value="">Selecione...</option>']
+    .concat(list.map(p=>`<option value="${p.id}" ${String(p.id)===String(selectedId)?'selected':''}>${p.id} - ${escapeHtml(p.name||'')}</option>`))
+    .join('');
+}
+
+async function upsertPairedPromotion(id, data) {
+  const ref = id ? doc(window.db,'pairedPromotions',String(id)) : doc(collection(window.db,'pairedPromotions'));
+  await setDoc(ref, {
+    productId1: String(data.productId1||'').trim(),
+    productId2: String(data.productId2||'').trim(),
+    couponCode: String(data.couponCode||'').trim(),
+    title: String(data.title||'').trim(),
+    imageUrl: data.imageUrl || '',
+    active: !!data.active,
+    updatedAt: new Date().toISOString(),
+    createdAt: data.createdAt || new Date().toISOString(),
+  }, { merge: true });
+}
+
+async function deletePairedPromotion(id) {
+  await deleteDoc(doc(window.db,'pairedPromotions',String(id)));
+}
+
+async function togglePairedPromotionActive(id, active) {
+  await updateDoc(doc(window.db,'pairedPromotions',String(id)), { active: !!active, updatedAt: new Date().toISOString() });
+}
+
+async function renderPairedPromotionsList(container, promos, products) {
+  const map = new Map((products||[]).map(p=>[String(p.id), p]));
+  // Busca todos os cupons uma única vez
+  let couponsMap = new Map();
+  try {
+    const snapCoupons = await getDocs(collection(window.db, 'coupons'));
+    snapCoupons.forEach(d => {
+      const c = { id: d.id, ...d.data() };
+      if (c && c.code) couponsMap.set(String(c.code).toUpperCase(), c);
+    });
+  } catch(e) {
+    console.warn('Não foi possível carregar cupons para pré-visualização:', e);
+  }
+  const applyCoupon = (amount, coupon) => {
+    const val = Number(amount||0);
+    if (!coupon) return val;
+    const type = coupon.type || 'percent';
+    const cVal = Number(coupon.value||0);
+    if (type === 'percent') {
+      return Math.max(0, val * (1 - (cVal/100)));
+    }
+    // fixed
+    return Math.max(0, val - cVal);
+  };
+  const rows = (promos||[]).map(p=>{
+    const a = map.get(String(p.productId1));
+    const b = map.get(String(p.productId2));
+    const nameA = a ? `${a.id} - ${a.name||''}` : p.productId1;
+    const nameB = b ? `${b.id} - ${b.name||''}` : p.productId2;
+    return `
+      <tr>
+        <td>${escapeHtml(p.title || `${nameA} + ${nameB}`)}</td>
+        <td>${escapeHtml(nameA)}</td>
+        <td>${escapeHtml(nameB)}</td>
+        <td><code>${escapeHtml(p.couponCode||'')}</code></td>
+        <td style="text-align:center;">
+          <label class="switch">
+            <input type="checkbox" class="pp-toggle" data-id="${p._id}" ${p.active? 'checked':''}>
+            <span class="slider round"></span>
+          </label>
+        </td>
+        <td style="text-align:right; white-space:nowrap;">
+          <button class="btn btn-secondary pp-edit" data-id="${p._id}"><i class="fas fa-edit"></i></button>
+          <button class="btn btn-danger pp-delete" data-id="${p._id}" style="margin-left:6px;"><i class="fas fa-trash"></i></button>
+        </td>
+      </tr>`;
+  }).join('');
+
+  // Pré-visualização de cards das promoções em par
+  const previewCards = (promos||[]).map(p=>{
+    const a = map.get(String(p.productId1));
+    const b = map.get(String(p.productId2));
+    if (!a || !b) return '';
+    const pairImg = p.imageUrl && String(p.imageUrl).trim() ? String(p.imageUrl).trim() : '';
+    const imgA = a.imageUrl || a.image || '/img/placeholder.png';
+    const imgB = b.imageUrl || b.image || '/img/placeholder.png';
+    const title = p.title && p.title.trim() ? p.title.trim() : `${a.name||''} + ${b.name||''}`;
+    const oldA = Number(a.oldPrice || a.price || 0);
+    const oldB = Number(b.oldPrice || b.price || 0);
+    const priceA = Number(a.price || 0);
+    const priceB = Number(b.price || 0);
+    const pixA = Number(a.pixPrice || a.price || 0);
+    const pixB = Number(b.pixPrice || b.price || 0);
+    const oldSum = (oldA + oldB) || 0;
+    const basePriceSum = (priceA + priceB) || 0;
+    const basePixSum = (pixA + pixB) || 0;
+    const coupon = p.couponCode ? couponsMap.get(String(p.couponCode).toUpperCase()) : null;
+    const priceSum = applyCoupon(basePriceSum, coupon);
+    const pixSum = applyCoupon(basePixSum, coupon);
+    const couponLabel = p.couponCode ? `Utilizando o CUPOM <strong>${escapeHtml(p.couponCode)}</strong>` : '';
+    return `
+      <div class="pp-card" data-pair="${p._id}">
+        <div class="pp-card-img">
+          ${pairImg ? `<img class=\"pp-pair-image\" src=\"${pairImg}\" alt=\"${escapeHtml(title)}\" loading=\"lazy\"/>` : `
+          <div class=\"pp-duo\">
+            <img src=\"${imgA}\" alt=\"${escapeHtml(a.name||'Produto 1')}\" loading=\"lazy\"/>
+            <img src=\"${imgB}\" alt=\"${escapeHtml(b.name||'Produto 2')}\" loading=\"lazy\"/>
+          </div>`}
+          <span class="pp-badge">Promoção em Par</span>
+        </div>
+        <div class="pp-card-info">
+          <h4 class="pp-card-title">${escapeHtml(title)}</h4>
+          <div class="pp-prices">
+            <div class="pp-price-row"><span class="pp-label">De:</span> <span class="pp-old">R$ ${oldSum.toLocaleString('pt-BR',{minimumFractionDigits:2})}</span></div>
+            <div class="pp-price-row"><span class="pp-label">Por:</span> <span class="pp-current">R$ ${priceSum.toLocaleString('pt-BR',{minimumFractionDigits:2})}</span></div>
+            <div class="pp-price-row"><span class="pp-label">PIX:</span> <span class="pp-pix">R$ ${pixSum.toLocaleString('pt-BR',{minimumFractionDigits:2})}</span></div>
+          </div>
+          <div class="pp-meta">
+            <code class="pp-coupon" title="Cupom para o par">${escapeHtml(p.couponCode||'')}</code>
+            <span class="pp-active ${p.active? 'on':'off'}" title="Status">${p.active? 'Ativa':'Inativa'}</span>
+          </div>
+          ${couponLabel ? `<div class=\"pp-coupon-note\">${couponLabel}</div>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+
+  container.innerHTML = `
+    <div style="margin-bottom:12px; display:flex; gap:8px; align-items:center;">
+      <button id="ppNewBtn" class="btn btn-primary"><i class="fas fa-plus"></i> Nova Promoção em Par</button>
+    </div>
+    <div class="pp-cards-wrap">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 2px 6px 2px;">
+        <h4 style="margin:0;font-weight:600;">Pré-visualização dos Cards</h4>
+      </div>
+      <div class="pp-cards-grid">${previewCards || '<div style="padding:16px;text-align:center;color:#666;">Nenhuma promoção em par cadastrada.</div>'}</div>
+    </div>
+    <div class="table-responsive">
+      <table class="dashboard-table" style="width:100%;">
+        <thead>
+          <tr>
+            <th>Título</th>
+            <th>Produto 1</th>
+            <th>Produto 2</th>
+            <th>Cupom</th>
+            <th style="text-align:center;">Ativa</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <style>
+      .switch{ position:relative; display:inline-block; width:42px; height:22px; }
+      .switch input{ opacity:0; width:0; height:0; }
+      .slider{ position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0; background-color:#ccc; transition:.2s; border-radius:22px; }
+      .slider:before{ position:absolute; content:""; height:18px; width:18px; left:2px; bottom:2px; background:white; transition:.2s; border-radius:50%; }
+      input:checked + .slider{ background-color:#4caf50; }
+      input:checked + .slider:before{ transform: translateX(20px); }
+      /* Estilos dos cards de preview */
+      .pp-cards-wrap{ margin: 8px 0 16px 0; }
+      .pp-cards-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:14px; }
+      .pp-card{ box-shadow: 0 8px 32px #00000014, 0 2px 8px #0000000d; border-radius: 18px; background: #fff; overflow: hidden; display:flex; flex-direction:column; }
+      .pp-card-img{ position:relative; padding:10px; background: linear-gradient(180deg,#ffffff 0%, #faf7fb 100%); }
+      .pp-duo{ display:flex; gap:8px; align-items:center; justify-content:center; }
+      .pp-duo img{ width:48%; height:120px; object-fit:contain; border-radius:10px; background:#fff; box-shadow: inset 0 0 0 1px #00000010; }
+      .pp-pair-image{ width:100%; height:160px; object-fit:cover; border-radius:12px; box-shadow: inset 0 0 0 1px #00000010; }
+      .pp-badge{ position:absolute; top:8px; left:8px; background:#ff1493; color:#fff; font-size:12px; padding:4px 8px; border-radius:12px; }
+      .pp-card-info{ padding:10px 12px 12px 12px; }
+      .pp-card-title{ margin:4px 0 8px 0; font-size:14px; font-weight:600; color:#333; min-height:32px; }
+      .pp-prices{ display:flex; flex-direction:column; gap:4px; font-size:13px; }
+      .pp-label{ color:#666; margin-right:6px; }
+      .pp-old{ text-decoration: line-through; color:#888; }
+      .pp-current{ color:#111; font-weight:700; }
+      .pp-pix{ color:#008f5a; font-weight:600; }
+      .pp-meta{ display:flex; align-items:center; justify-content:space-between; margin-top:10px; }
+      .pp-coupon{ background:#f1f1f6; color:#333; padding:2px 6px; border-radius:6px; font-size:12px; }
+      .pp-active.on{ color:#2e7d32; font-weight:600; font-size:12px; }
+      .pp-active.off{ color:#b71c1c; font-weight:600; font-size:12px; }
+      .pp-coupon-note{ margin-top:8px; font-size:12px; color:#444; }
+    </style>
+  `;
+}
+
+async function openPairedPromotionModal(products, existing) {
+  const opt1 = renderProductSelectOptions(products, existing?.productId1);
+  const opt2 = renderProductSelectOptions(products, existing?.productId2);
+  const html = `
+    <form id="ppForm" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+      <div><label>Produto 1</label><select id="ppProd1" class="swal2-select" style="width:100%">${opt1}</select></div>
+      <div><label>Produto 2</label><select id="ppProd2" class="swal2-select" style="width:100%">${opt2}</select></div>
+      <div><label>Cupom</label><input id="ppCoupon" class="swal2-input" placeholder="Ex: PAR10" value="${existing?.couponCode||''}"/></div>
+      <div><label>Título (opcional)</label><input id="ppTitle" class="swal2-input" placeholder="Ex: Combo" value="${existing?.title||''}"/></div>
+      <div style="grid-column:1/3; display:flex; align-items:center; gap:12px;">
+        <div style="flex:1;">
+          <label>Imagem personalizada do combo</label>
+          <input type="file" id="ppImageInput" accept="image/*" class="swal2-input" style="height:auto; padding:6px;" />
+          <input type="hidden" id="ppImageData" value="${existing?.imageUrl? String(existing.imageUrl).replace(/"/g,'&quot;'):''}">
+        </div>
+        <div id="ppImagePreview" style="width:160px;height:100px;border:1px dashed #ddd;border-radius:8px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#fafafa;">
+          ${existing?.imageUrl ? `<img src='${String(existing.imageUrl).replace(/"/g,'&quot;')}' style="max-width:100%;max-height:100%;object-fit:cover;"/>` : `<span style='color:#999;font-size:12px;'>Prévia</span>`}
+        </div>
+        <button type="button" id="ppClearImage" class="swal2-confirm swal2-styled" style="background:#bbb;">Remover</button>
+      </div>
+      <div style="grid-column:1/3; display:flex; align-items:center; gap:8px;">
+        <input type="checkbox" id="ppActive" ${existing?.active?'checked':''}/>
+        <label for="ppActive">Ativa</label>
+      </div>
+    </form>`;
+  const result = await Swal.fire({
+    title: existing? 'Editar Promoção em Par' : 'Nova Promoção em Par',
+    html, showCancelButton: true, confirmButtonText: 'Salvar', cancelButtonText: 'Cancelar',
+    focusConfirm: false,
+    didOpen: () => {
+      const input = document.getElementById('ppImageInput');
+      const hidden = document.getElementById('ppImageData');
+      const preview = document.getElementById('ppImagePreview');
+      const clearBtn = document.getElementById('ppClearImage');
+      if (input) {
+        input.addEventListener('change', async (e) => {
+          const file = e.target.files && e.target.files[0];
+          if (!file) return;
+          try {
+            const base64 = await fileToBase64(file);
+            if (hidden) hidden.value = base64;
+            if (preview) preview.innerHTML = `<img src="${base64}" style="max-width:100%;max-height:100%;object-fit:cover;"/>`;
+          } catch(err) {
+            console.error('Erro ao ler imagem:', err);
+          }
+        });
+      }
+      if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+          if (hidden) hidden.value = '';
+          if (input) input.value = '';
+          if (preview) preview.innerHTML = `<span style='color:#999;font-size:12px;'>Prévia</span>`;
+        });
+      }
+    },
+    preConfirm: () => {
+      const productId1 = document.getElementById('ppProd1').value;
+      const productId2 = document.getElementById('ppProd2').value;
+      const couponCode = document.getElementById('ppCoupon').value.trim();
+      const title = document.getElementById('ppTitle').value.trim();
+      const imageUrl = (document.getElementById('ppImageData')||{}).value || '';
+      const active = document.getElementById('ppActive').checked;
+      if (!productId1 || !productId2 || !couponCode) {
+        Swal.showValidationMessage('Selecione os produtos e informe o cupom.');
+        return false;
+      }
+      if (String(productId1) === String(productId2)) {
+        Swal.showValidationMessage('Selecione dois produtos diferentes.');
+        return false;
+      }
+      return { productId1, productId2, couponCode, title, imageUrl, active };
+    }
+  });
+  if (result.isConfirmed) {
+    await upsertPairedPromotion(existing? existing._id : null, result.value);
+    Swal.fire('Sucesso','Promoção salva!','success');
+    await renderPairedPromotionsAccordion();
+  }
+}
+
+export async function renderPairedPromotionsAccordion() {
+  const container = document.getElementById('pairedPromosAccordionContent');
+  if (!container) return;
+  container.innerHTML = '<div style="padding:16px;text-align:center;">Carregando...</div>';
+  const [products, promos] = await Promise.all([fetchAllProductsForPairs(), fetchPairedPromotions()]);
+  await renderPairedPromotionsList(container, promos, products);
+  // Handlers
+  const newBtn = container.querySelector('#ppNewBtn');
+  if (newBtn) newBtn.onclick = () => openPairedPromotionModal(products, null);
+  container.querySelectorAll('.pp-edit').forEach(btn=>{
+    btn.onclick = () => {
+      const id = btn.getAttribute('data-id');
+      const existing = (promos||[]).find(p=>String(p._id)===String(id));
+      openPairedPromotionModal(products, existing);
+    };
+  });
+  container.querySelectorAll('.pp-delete').forEach(btn=>{
+    btn.onclick = async () => {
+      const id = btn.getAttribute('data-id');
+      const c = await Swal.fire({title:'Excluir?', text:'Confirma excluir a promoção?', icon:'warning', showCancelButton:true, confirmButtonText:'Excluir', cancelButtonText:'Cancelar'});
+      if (!c.isConfirmed) return;
+      await deletePairedPromotion(id);
+      Swal.fire('Excluída','Promoção removida','success');
+      await renderPairedPromotionsAccordion();
+    };
+  });
+  container.querySelectorAll('.pp-toggle').forEach(chk=>{
+    chk.onchange = async () => {
+      const id = chk.getAttribute('data-id');
+      await togglePairedPromotionActive(id, chk.checked);
+    };
+  });
+}
+
 // Exponha todas as funções públicas de uma vez, sem sobrescrever o objeto
 Object.assign(window.StockModule, {
   renderOrdersList,
@@ -6176,4 +6501,5 @@ Object.assign(window.StockModule, {
   openAgreementModal,
   saveAgreement,
   savePayment,
+  renderPairedPromotionsAccordion,
 });

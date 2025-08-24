@@ -1369,6 +1369,66 @@ body {
 }
 
 
+/* Promoções em Par - Carrossel */
+.special-offer-card.promo-pair {
+  padding-top: 1rem;
+}
+.promo-pair .special-offer-img-wrap {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  height: 220px;
+  background: #fff5f9;
+  border-radius: 1rem;
+  position: relative;
+}
+.promo-pair .special-offer-img-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: transparent;
+  box-shadow: none;
+}
+.promo-pair .special-offer-img-wrap::after {
+  content: "+";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 36px;
+  height: 36px;
+  background: #fff;
+  color: var(--color-accent);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  box-shadow: 0 2px 8px #ff149330;
+  z-index: 2;
+}
+.pair-promo-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: linear-gradient(90deg, #ff6fb5, #ff1493);
+  color: #fff;
+  font-size: 0.86rem;
+  font-weight: 800;
+  padding: 0.28em 0.8em;
+  border-radius: 1em;
+  box-shadow: 0 2px 8px #ff149340;
+  letter-spacing: 0.4px;
+  z-index: 3;
+}
+@media (max-width: 900px) {
+  .promo-pair .special-offer-img-wrap { height: 190px; gap: 8px; }
+}
+@media (max-width: 700px) {
+  .promo-pair .special-offer-img-wrap { height: 170px; gap: 8px; }
+  .promo-pair .special-offer-img-wrap::after { width: 28px; height: 28px; font-size: 1rem; }
+  .pair-promo-badge { font-size: 0.8rem; padding: 0.25em 0.7em; }
+}
 
 /* Waitlist Orphan Styles */
 .waitlist-orphan-row {
@@ -1769,17 +1829,19 @@ body {
 }
 
 .discount-badge {
-    display: inline-flex;
-    align-items: center;
+    display: inline-block;
     background: #2ecc71;
-    color: white;
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-size: 0.8rem;
+    color: #fff;
+    padding: 6px 10px;
+    border-radius: 12px;
+    font-size: 0.85rem;
     font-weight: 600;
     margin-left: 0.5rem;
-    height: fit-content;
-    white-space: nowrap;
+    margin-top: 6px;
+    line-height: 1.25;
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
 }
 
 /* Add to Cart Button */
@@ -3130,11 +3192,16 @@ body.login-bg {
 .discount-badge {
     display: inline-block;
     background: #2ecc71;
-    color: white;
-    padding: 2px 8px;
+    color: #fff;
+    padding: 6px 10px;
     border-radius: 12px;
-    font-size: 0.8rem;
+    font-size: 0.85rem;
     align-self: flex-start;
+    line-height: 1.25;
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    margin-top: 6px;
 }
 
 /* Buttons */

@@ -1,7 +1,7 @@
 import { loadProducts } from './products.js';
 import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.1.0/firebase-auth.js';
 // Import único do Firestore, sem duplicidade
-import { collection, onSnapshot, addDoc, getDocs, query, where, getDoc, doc, setDoc, updateDoc, increment, writeBatch, runTransaction, serverTimestamp, arrayUnion } from 'https://www.gstatic.com/firebasejs/10.1.0/firebase-firestore.js';
+import { getFirestore, collection, onSnapshot, addDoc, getDocs, query, where, getDoc, doc, setDoc, updateDoc, increment, writeBatch, runTransaction, serverTimestamp, arrayUnion } from 'https://www.gstatic.com/firebasejs/10.1.0/firebase-firestore.js';
 
 const auth = getAuth();
 const db = window.db || getFirestore();
@@ -1586,18 +1586,29 @@ function updateCartTotals() {
             const M = appliedCoupon.progressiveMultiple;
             // Calcula desconto progressivo sobre os preços normais (não PIX)
             let progressiveDiscountSum = 0;
-            cart.forEach(item => {
-                const eligible = appliedCoupon.productIds.some(pid => String(pid) === String(item.id));
-                if (!eligible) return;
-                const multiples = Math.floor((Number(item.quantity) || 0) / M);
-                if (multiples <= 0) return;
-                const unitPrice = Number(item.price) || 0;
-                if (appliedCoupon.type === 'percent') {
-                    progressiveDiscountSum += unitPrice * M * (appliedCoupon.value / 100) * multiples;
-                } else if (appliedCoupon.type === 'fixed') {
-                    progressiveDiscountSum += appliedCoupon.value * multiples;
+            if (appliedCoupon.type === 'fixed') {
+                // Desconto por par com limite máximo de M pares (pares = mínimo entre as quantidades dos productIds)
+                let discountPairs = 0;
+                if (Array.isArray(appliedCoupon.productIds) && appliedCoupon.productIds.length > 0) {
+                    const qtys = appliedCoupon.productIds.map(pid => {
+                        const cartItem = cart.find(it => String(it.id) === String(pid));
+                        return Number(cartItem?.quantity) || 0;
+                    });
+                    const pairs = qtys.length ? Math.min(...qtys) : 0; // pares possíveis (1 de cada)
+                    discountPairs = Math.min(pairs, M); // aplica no máximo M pares
                 }
-            });
+                if (discountPairs > 0) progressiveDiscountSum += appliedCoupon.value * discountPairs;
+            } else {
+                // Percentual permanece por item baseado nos múltiplos M
+                cart.forEach(item => {
+                    const eligible = appliedCoupon.productIds.some(pid => String(pid) === String(item.id));
+                    if (!eligible) return;
+                    const multiples = Math.floor((Number(item.quantity) || 0) / M);
+                    if (multiples <= 0) return;
+                    const unitPrice = Number(item.price) || 0;
+                    progressiveDiscountSum += unitPrice * M * (appliedCoupon.value / 100) * multiples;
+                });
+            }
             couponDiscount = Math.round(progressiveDiscountSum);
             finalTotal = Math.max(0, total - couponDiscount);
             if (appliedCoupon.type === 'percent') {
@@ -1636,18 +1647,28 @@ function updateCartTotals() {
             if (hasProgressive) {
                 const M = appliedCoupon.progressiveMultiple;
                 let progressivePixDiscount = 0;
-                cart.forEach(item => {
-                    const eligible = appliedCoupon.productIds.some(pid => String(pid) === String(item.id));
-                    if (!eligible) return;
-                    const multiples = Math.floor((Number(item.quantity) || 0) / M);
-                    if (multiples <= 0) return;
-                    const unitPix = Number(item.pixPrice || item.price) || 0;
-                    if (appliedCoupon.type === 'percent') {
-                        progressivePixDiscount += unitPix * M * (appliedCoupon.value / 100) * multiples;
-                    } else if (appliedCoupon.type === 'fixed') {
-                        progressivePixDiscount += appliedCoupon.value * multiples;
+                if (appliedCoupon.type === 'fixed') {
+                    // Desconto por par com limite máximo de M pares (pares = mínimo entre as quantidades dos productIds)
+                    let discountPairs = 0;
+                    if (Array.isArray(appliedCoupon.productIds) && appliedCoupon.productIds.length > 0) {
+                        const qtys = appliedCoupon.productIds.map(pid => {
+                            const cartItem = cart.find(it => String(it.id) === String(pid));
+                            return Number(cartItem?.quantity) || 0;
+                        });
+                        const pairs = qtys.length ? Math.min(...qtys) : 0;
+                        discountPairs = Math.min(pairs, M);
                     }
-                });
+                    if (discountPairs > 0) progressivePixDiscount += appliedCoupon.value * discountPairs;
+                } else {
+                    cart.forEach(item => {
+                        const eligible = appliedCoupon.productIds.some(pid => String(pid) === String(item.id));
+                        if (!eligible) return;
+                        const multiples = Math.floor((Number(item.quantity) || 0) / M);
+                        if (multiples <= 0) return;
+                        const unitPix = Number(item.pixPrice || item.price) || 0;
+                        progressivePixDiscount += unitPix * M * (appliedCoupon.value / 100) * multiples;
+                    });
+                }
                 pixCouponDiscount = Math.round(progressivePixDiscount);
                 pixFinalTotal = Math.max(0, pixTotalValue - pixCouponDiscount);
             } else if (appliedCoupon.type === 'percent') {
@@ -1962,6 +1983,60 @@ if (couponInput && applyCouponBtn) {
     // Removido o listener de input para só aplicar ao clicar
 }
 
+// Utilitário: aplicar cupom por código programaticamente
+async function applyCouponCode(code, options = { showFeedback: true }) {
+    try {
+        if (!code) return null;
+        const coupon = await getCouponByCode(String(code).trim().toUpperCase());
+        const couponInputEl = document.getElementById('couponInput');
+        const couponFeedbackEl = document.getElementById('couponFeedback');
+
+        if (!coupon) {
+            if (couponInputEl) couponInputEl.classList.add('input-error');
+            if (couponFeedbackEl && options.showFeedback) {
+                couponFeedbackEl.textContent = 'Cupom inválido.';
+                couponFeedbackEl.className = 'coupon-feedback feedback-error';
+            }
+            return null;
+        }
+
+        appliedCoupon = coupon;
+        if (couponInputEl) {
+            couponInputEl.value = coupon.code || String(code).trim().toUpperCase();
+            couponInputEl.classList.remove('input-error');
+            couponInputEl.classList.add('input-success');
+        }
+        if (typeof togglePaymentMethod === 'function') togglePaymentMethod();
+        if (typeof updateCartTotals === 'function') updateCartTotals();
+        if (couponFeedbackEl && options.showFeedback) {
+            couponFeedbackEl.textContent = 'Cupom aplicado com sucesso!';
+            couponFeedbackEl.className = 'coupon-feedback feedback-success';
+        }
+        return coupon;
+    } catch (e) {
+        console.error('Erro ao aplicar cupom por código:', e);
+        return null;
+    }
+}
+
+// Utilitário: adiciona dois produtos (promoção em par) e aplica cupom associado
+async function addPromoToCart(productId1, productId2, couponCode) {
+    try {
+        if (typeof addToCart !== 'function') return;
+        if (productId1 != null) await addToCart(String(productId1));
+        if (productId2 != null) await addToCart(String(productId2));
+        if (couponCode) await applyCouponCode(couponCode, { showFeedback: true });
+        if (typeof toggleCart === 'function') {
+            try { toggleCart(true); } catch { toggleCart(); }
+        }
+    } catch (e) {
+        console.error('Erro ao adicionar promoção ao carrinho:', e);
+    }
+}
+
+// Expor globalmente
+window.applyCouponCode = applyCouponCode;
+window.addPromoToCart = addPromoToCart;
 
 // Torna a função disponível globalmente
 window.togglePaymentMethod = togglePaymentMethod;
@@ -2311,18 +2386,37 @@ if (checkoutForm) {
                 if (hasProgressive) {
                     const M = appliedCoupon.progressiveMultiple;
                     let progressiveDiscountSum = 0;
-                    cart.forEach(item => {
-                        const eligible = appliedCoupon.productIds.some(pid => String(pid) === String(item.id));
-                        if (!eligible) return;
-                        const multiples = Math.floor((Number(item.quantity) || 0) / M);
-                        if (multiples <= 0) return;
-                        const unitPrice = Number(item.price) || 0;
-                        if (appliedCoupon.type === 'percent') {
-                            progressiveDiscountSum += unitPrice * M * (appliedCoupon.value / 100) * multiples;
-                        } else if (appliedCoupon.type === 'fixed') {
-                            progressiveDiscountSum += appliedCoupon.value * multiples;
+                    if (appliedCoupon.type === 'fixed') {
+                        // Desconto por par com limite máximo de M pares
+                        let discountPairs = 0;
+                        if (Array.isArray(appliedCoupon.productIds) && appliedCoupon.productIds.length > 0 && M === appliedCoupon.productIds.length) {
+                            const qtys = appliedCoupon.productIds.map(pid => {
+                                const cartItem = cart.find(it => String(it.id) === String(pid));
+                                return Number(cartItem?.quantity) || 0;
+                            });
+                            const pairs = qtys.length ? Math.min(...qtys) : 0; // pares possíveis (1 de cada)
+                            discountPairs = Math.min(pairs, M); // aplica no máximo M pares
+                        } else {
+                            // Fallback: limita por M também
+                            const totalEligibleQty = cart.reduce((q, item) => {
+                                const eligible = appliedCoupon.productIds.some(pid => String(pid) === String(item.id));
+                                return eligible ? q + (Number(item.quantity) || 0) : q;
+                            }, 0);
+                            const possiblePairs = Math.floor(totalEligibleQty / M);
+                            discountPairs = Math.min(possiblePairs, M);
                         }
-                    });
+                        if (discountPairs > 0) progressiveDiscountSum += appliedCoupon.value * discountPairs;
+                    } else {
+                        // Percentual permanece por item
+                        cart.forEach(item => {
+                            const eligible = appliedCoupon.productIds.some(pid => String(pid) === String(item.id));
+                            if (!eligible) return;
+                            const multiples = Math.floor((Number(item.quantity) || 0) / M);
+                            if (multiples <= 0) return;
+                            const unitPrice = Number(item.price) || 0;
+                            progressiveDiscountSum += unitPrice * M * (appliedCoupon.value / 100) * multiples;
+                        });
+                    }
                     couponDiscount = Math.round(progressiveDiscountSum);
                     finalTotal = Math.max(0, total - couponDiscount);
                     if (appliedCoupon.type === 'percent') {
@@ -2349,21 +2443,39 @@ if (checkoutForm) {
                 if (hasProgressive) {
                     const M = appliedCoupon.progressiveMultiple;
                     let progressivePixDiscount = 0;
-                    cart.forEach(item => {
-                        const eligible = appliedCoupon.productIds.some(pid => String(pid) === String(item.id));
-                        if (!eligible) return;
-                        const multiples = Math.floor((Number(item.quantity) || 0) / M);
-                        if (multiples <= 0) return;
-                        const unitPix = Number(item.pixPrice || item.price) || 0;
-                        if (appliedCoupon.type === 'percent') {
-                            progressivePixDiscount += unitPix * M * (appliedCoupon.value / 100) * multiples;
-                        } else if (appliedCoupon.type === 'fixed') {
-                            progressivePixDiscount += appliedCoupon.value * multiples;
+                    if (appliedCoupon.type === 'fixed') {
+                        // Desconto por par com limite máximo de M pares
+                        let discountPairs = 0;
+                        if (Array.isArray(appliedCoupon.productIds) && appliedCoupon.productIds.length > 0 && M === appliedCoupon.productIds.length) {
+                            const qtys = appliedCoupon.productIds.map(pid => {
+                                const cartItem = cart.find(it => String(it.id) === String(pid));
+                                return Number(cartItem?.quantity) || 0;
+                            });
+                            const pairs = qtys.length ? Math.min(...qtys) : 0;
+                            discountPairs = Math.min(pairs, M);
+                        } else {
+                            const totalEligibleQty = cart.reduce((q, item) => {
+                                const eligible = appliedCoupon.productIds.some(pid => String(pid) === String(item.id));
+                                return eligible ? q + (Number(item.quantity) || 0) : q;
+                            }, 0);
+                            const possiblePairs = Math.floor(totalEligibleQty / M);
+                            discountPairs = Math.min(possiblePairs, M);
                         }
-                    });
+                        if (discountPairs > 0) progressivePixDiscount += appliedCoupon.value * discountPairs;
+                    } else {
+                        cart.forEach(item => {
+                            const eligible = appliedCoupon.productIds.some(pid => String(pid) === String(item.id));
+                            if (!eligible) return;
+                            const multiples = Math.floor((Number(item.quantity) || 0) / M);
+                            if (multiples <= 0) return;
+                            const unitPix = Number(item.pixPrice || item.price) || 0;
+                            progressivePixDiscount += unitPix * M * (appliedCoupon.value / 100) * multiples;
+                        });
+                    }
                     pixCouponDiscount = Math.round(progressivePixDiscount);
                     pixFinalTotal = Math.max(0, pixTotal - pixCouponDiscount);
-                } else if (appliedCoupon.type === 'percent') {
+                }
+ else if (appliedCoupon.type === 'percent') {
                     pixCouponDiscount = Math.round(pixTotal * (appliedCoupon.value / 100));
                     pixFinalTotal = pixTotal - pixCouponDiscount;
                 } else if (appliedCoupon.type === 'fixed') {
@@ -2428,23 +2540,18 @@ if (checkoutForm) {
                             const M = appliedCoupon.progressiveMultiple;
                             const multiples = Math.floor((Number(item.quantity) || 0) / M);
                             if (multiples > 0) {
-                                let itemDiscount = 0;
+                                // Para progressivo FIXO, não redistribuímos por item para evitar divergências
                                 if (appliedCoupon.type === 'percent') {
-                                    itemDiscount = itemUnitPrice * M * (appliedCoupon.value / 100) * multiples;
-                                } else if (appliedCoupon.type === 'fixed') {
-                                    itemDiscount = appliedCoupon.value * multiples;
+                                    const itemDiscount = itemUnitPrice * M * (appliedCoupon.value / 100) * multiples;
+                                    const perUnit = itemDiscount / item.quantity;
+                                    itemUnitPrice = Math.max(0, itemUnitPrice - perUnit);
                                 }
-                                const perUnit = itemDiscount / item.quantity;
-                                itemUnitPrice = Math.max(0, itemUnitPrice - perUnit);
                             }
                         }
                     } else if (appliedCoupon.type === 'percent') {
                         itemUnitPrice = itemUnitPrice - (itemUnitPrice * (appliedCoupon.value / 100));
                     } else if (appliedCoupon.type === 'fixed') {
-                        // Distribui o desconto fixo proporcionalmente entre os itens
-                        const totalCartValue = isPix ? pixTotal : total;
-                        const itemShare = (itemUnitPrice * item.quantity) / totalCartValue;
-                        itemUnitPrice = itemUnitPrice - (appliedCoupon.value * itemShare / item.quantity);
+                        itemUnitPrice = Math.max(0, itemUnitPrice - (appliedCoupon.value / item.quantity));
                     }
                 }
                 const itemTotal = itemUnitPrice * item.quantity;
@@ -2672,7 +2779,9 @@ function updateOrderConfirmationUI(orderData, whatsappMessage) {
                     R$ ${itemTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
             </div>`;
+        promoRenderedCount++;
     });
+    console.log('[Carousel] Promoções em par renderizadas:', promoRenderedCount);
     
     summaryHTML += `
         <div class="order-totals">
@@ -3056,15 +3165,41 @@ async function loadSpecialOffersCarousel() {
     }
 }
 
-// Renderizar produtos de oferta especial no carrossel
-function renderSpecialOffersCarousel() {
+// Buscar promoções em par no Firestore
+async function fetchPairedPromotions() {
+    try {
+        const promosCol = collection(db, 'pairedPromotions');
+        const snap = await getDocs(promosCol);
+        return snap.docs.map(d => ({ id: d.id, ...d.data() }))
+            .filter(p => p && p.active !== false && p.productId1 && p.productId2);
+    } catch (e) {
+        console.warn('Sem coleção pairedPromotions ou erro ao buscar:', e);
+        return [];
+    }
+}
+
+// Renderizar ofertas especiais (simples) e promoções em par no carrossel
+async function renderSpecialOffersCarousel() {
     // DEBUG: Exibir todos os produtos e os filtrados
-    console.log('Todos os produtos carregados:', window.products);
-    const offers = (window.products || []).filter(p => p.specialOffer && p.active !== false);
+    const allProds = Array.isArray(window.products) && window.products.length
+      ? window.products
+      : (Array.isArray(products) ? products : []);
+    console.log('Todos os produtos carregados para o carrossel:', allProds);
+    // Aguarda produtos estarem disponíveis para montar promoções em par
+    if (!Array.isArray(allProds) || allProds.length === 0) {
+        console.warn('[Carousel] Produtos ainda não carregados. Tentando novamente em 300ms...');
+        setTimeout(renderSpecialOffersCarousel, 300);
+        return;
+    }
+    const offers = (allProds || []).filter(p => p.specialOffer && p.active !== false);
     const carousel = document.getElementById('specialOffersCarousel');
     if (!carousel) return;
     const track = carousel.querySelector('.carousel-track');
     if (!track) return;
+
+    // Carregar promoções em par
+    const pairedPromos = await fetchPairedPromotions();
+    console.log('[Carousel] Quantidade de promoções em par carregadas:', pairedPromos.length);
 
     // Carrossel infinito: duplicar primeiros e últimos
     let extendedOffers = [];
@@ -3080,6 +3215,47 @@ function renderSpecialOffersCarousel() {
     }
 
     let html = '';
+
+    // Primeiro: cards de promoções em par
+    let promoRenderedCount = 0;
+    pairedPromos.forEach((promo) => {
+        const p1 = (allProds || []).find(p => String(p.id) === String(promo.productId1));
+        const p2 = (allProds || []).find(p => String(p.id) === String(promo.productId2));
+        if (!p1 || !p2) {
+            console.warn('[Carousel] Produto não encontrado para promoção em par:', {
+                promoId: promo.id,
+                productId1: promo.productId1,
+                productId2: promo.productId2,
+                foundP1: !!p1,
+                foundP2: !!p2
+            });
+            return;
+        }
+        // Badge "Promoção!!" e botão que chama addPromoToCart
+        const title = `${p1.name} + ${p2.name}`;
+        const oldSum = (Number(p1.oldPrice)||0) + (Number(p2.oldPrice)||0);
+        const priceSum = (Number(p1.price)||0) + (Number(p2.price)||0);
+        const pixSum = (Number(p1.pixPrice)||0) + (Number(p2.pixPrice)||0);
+        html += `<div class="special-offer-card promo-pair" data-pair="${promo.id}">
+    <div class="special-offer-img-area">
+        <span class="special-offer-badge">Promoção!!</span>
+        <div class="special-offer-img-wrap" style="display:flex;gap:6px;justify-content:center;align-items:center;">
+            <img src="${p1.imageUrl || p1.image || '/img/placeholder.png'}" alt="${p1.name}" loading="lazy" style="width:48%;object-fit:contain;border-radius:8px;" />
+            <img src="${p2.imageUrl || p2.image || '/img/placeholder.png'}" alt="${p2.name}" loading="lazy" style="width:48%;object-fit:contain;border-radius:8px;" />
+        </div>
+    </div>
+    <div class="special-offer-info">
+        <h3 class="special-offer-title">${title}</h3>
+        <div class="offer-prices">
+            ${oldSum>0 ? `<span class='old-price'>De: ${oldSum.toLocaleString('pt-BR', {minimumFractionDigits:2})}</span>` : ''}
+            <span class="current-price">Por: R$ ${priceSum.toLocaleString('pt-BR', {minimumFractionDigits:2})}</span>
+            ${pixSum>0 && pixSum < priceSum ? `<span class="pix-price">PIX: R$ ${pixSum.toLocaleString('pt-BR', {minimumFractionDigits:2})}</span>` : ''}
+        </div>
+        <button class="btn-buy-offer" data-pair="${promo.id}"><i class="fas fa-bag-shopping"></i> Adicionar ao carrinho</button>
+    </div>
+</div>`;
+    });
+
     extendedOffers.forEach((p, i) => {
         // Verificar favoritos do usuário logado (localStorage)
         let isFavorite = false;
@@ -3119,31 +3295,69 @@ function renderSpecialOffersCarousel() {
 </div>`;
     });
     track.innerHTML = html;
-    setupCarouselLogic(offers.length, extendedOffers.length);
+    // DEBUG visual: destacar promoções em par e logar contagem
+    const pairCards = track.querySelectorAll('.special-offer-card.promo-pair');
+    console.log('[Carousel] .promo-pair no DOM após render:', pairCards.length);
+    pairCards.forEach(card => { card.style.outline = '2px dashed #e91e63'; card.style.outlineOffset = '2px'; });
+    // Ajustar início e navegação considerando a quantidade de cards de promoções em par
+    const promoOffset = pairedPromos.length;
+    const hasClones = offers.length > 3;
+    // Se existem promoções em par, iniciar exibindo-as (primeiro card)
+    // Caso contrário, iniciar no primeiro "real" (3) quando há clones
+    specialOffersCurrent = (promoOffset > 0)
+        ? 0
+        : (hasClones ? 3 : 0);
+    // Total de cards visíveis (pares + ofertas)
+    const totalCards = carousel.querySelectorAll('.special-offer-card').length;
+    console.log('[Carousel] totalCards no DOM:', totalCards, 'promoOffset:', promoOffset, 'hasClones:', hasClones);
+    setupCarouselLogic(offers.length, extendedOffers.length, hasClones, promoOffset, totalCards);
     // Integrar botões favoritos no carrossel
     document.querySelectorAll('.special-offer-card .favorite-btn').forEach(btn => {
         btn.onclick = (e) => {
             e.preventDefault();
             const productId = btn.getAttribute('data-id');
             if (!productId) return;
+            // Atualização otimista do ícone no DOM
+            const icon = btn.querySelector('i');
+            if (icon) {
+                if (icon.classList.contains('fa-solid') || icon.classList.contains('fas')) {
+                    icon.classList.remove('fa-solid', 'fas');
+                    icon.classList.add('fa-regular');
+                } else {
+                    icon.classList.remove('fa-regular');
+                    icon.classList.add('fa-solid', 'fas');
+                }
+            }
             toggleFavorite(productId);
         };
     });
-    // Integrar botões comprar
+    // Integrar botões comprar (produtos simples)
     document.querySelectorAll('.btn-buy-offer').forEach(btn => {
         btn.addEventListener('click', function() {
             const id = this.getAttribute('data-id');
-            if (window.addToCart) window.addToCart(id);
+            const pairId = this.getAttribute('data-pair');
+            if (pairId) {
+                const promo = pairedPromos.find(pp => String(pp.id) === String(pairId));
+                if (!promo) return;
+                if (window.addPromoToCart) window.addPromoToCart(promo.productId1, promo.productId2, promo.couponCode || promo.coupon || '');
+            } else if (id) {
+                if (window.addToCart) window.addToCart(id);
+            }
         });
     });
 }
 
 // Lógica de navegação do carrossel
-let specialOffersCurrent = 3; // Começa no primeiro card "real"
+let specialOffersCurrent = 3; // Começa no primeiro card "real" quando há clones
 let specialOffersTimer = null;
 let specialOffersCardsLength = 0;
-function setupCarouselLogic(total, extendedLength) {
-    specialOffersCardsLength = extendedLength || total;
+let specialOffersHasClones = false;
+function setupCarouselLogic(total, extendedLength, hasClones = false, promoOffset = 0, totalCardsFromDOM = 0) {
+    specialOffersHasClones = !!hasClones;
+    // Quando não há clones, usamos a contagem real de cards no DOM (inclui promo-pair)
+    specialOffersCardsLength = hasClones
+        ? (extendedLength || total)
+        : (totalCardsFromDOM || total || extendedLength);
     const carousel = document.getElementById('specialOffersCarousel');
     if (!carousel) return;
     const track = carousel.querySelector('.carousel-track');
@@ -3153,18 +3367,18 @@ function setupCarouselLogic(total, extendedLength) {
     const prev = document.getElementById('carouselPrevBtn');
     const next = document.getElementById('carouselNextBtn');
     if (prev && next) {
-        prev.onclick = () => moveCarousel(-1, cards, track);
-        next.onclick = () => moveCarousel(1, cards, track);
+        prev.onclick = () => moveCarousel(-1, cards, track, promoOffset);
+        next.onclick = () => moveCarousel(1, cards, track, promoOffset);
     }
     let startX = 0;
     carousel.ontouchstart = e => startX = e.touches[0].clientX;
     carousel.ontouchend = e => {
         const dx = e.changedTouches[0].clientX - startX;
-        if (dx > 50) moveCarousel(-1, cards, track);
-        if (dx < -50) moveCarousel(1, cards, track);
+        if (dx > 50) moveCarousel(-1, cards, track, promoOffset);
+        if (dx < -50) moveCarousel(1, cards, track, promoOffset);
     };
     clearInterval(specialOffersTimer);
-    specialOffersTimer = setInterval(() => moveCarousel(1, cards, track), 5000);
+    specialOffersTimer = setInterval(() => moveCarousel(1, cards, track, promoOffset), 5000);
 }
 
 
@@ -3180,34 +3394,54 @@ function showCarouselItem(idx, cards, track) {
 }
 
 
-function moveCarousel(dir, cards, track) {
+function moveCarousel(dir, cards, track, promoOffset = 0) {
     let cardsPerView = window.innerWidth <= 768 ? 1 : 3;
-    let maxReal = specialOffersCardsLength - 6; // Só os reais
-    specialOffersCurrent += dir;
-    showCarouselItem(specialOffersCurrent, cards, track);
-    // Transição suave e looping
-    setTimeout(() => {
-        if (specialOffersCurrent >= maxReal + 3) {
-            // Pulou pro "fim" duplicado, volta pro real
-            specialOffersCurrent = 3;
-            if (track) {
-                track.style.transition = 'none';
-                showCarouselItem(specialOffersCurrent, cards, track);
-                // Forçar repaint para garantir transição próxima
-                void track.offsetWidth;
-                track.style.transition = 'transform 0.55s cubic-bezier(.4,0,.2,1)';
+    if (specialOffersHasClones) {
+        let maxReal = specialOffersCardsLength - 6; // Só os reais quando há 3 clones em cada lado
+        specialOffersCurrent += dir;
+        showCarouselItem(specialOffersCurrent, cards, track);
+        // Transição suave e looping
+        setTimeout(() => {
+            const leadingCloneStart = promoOffset; // início dos 3 clones à esquerda dos reais
+            const leadingCloneEnd = promoOffset + 2;
+            if (specialOffersCurrent >= promoOffset + (maxReal + 3)) {
+                // Pulou pro "fim" duplicado, volta pro real
+                specialOffersCurrent = promoOffset + 3;
+                if (track) {
+                    track.style.transition = 'none';
+                    showCarouselItem(specialOffersCurrent, cards, track);
+                    // Forçar repaint para garantir transição próxima
+                    void track.offsetWidth;
+                    track.style.transition = 'transform 0.55s cubic-bezier(.4,0,.2,1)';
+                }
+            } else if (specialOffersCurrent >= leadingCloneStart && specialOffersCurrent <= leadingCloneEnd) {
+                // Entrou nos clones iniciais; pular para o primeiro real
+                specialOffersCurrent = promoOffset + 3;
+                if (track) {
+                    track.style.transition = 'none';
+                    showCarouselItem(specialOffersCurrent, cards, track);
+                    void track.offsetWidth;
+                    track.style.transition = 'transform 0.55s cubic-bezier(.4,0,.2,1)';
+                }
+            } else if (specialOffersCurrent < 0 && promoOffset > 0) {
+                // Navegação para trás a partir do primeiro card promo: ir para o último promo
+                specialOffersCurrent = promoOffset - 1;
+                if (track) {
+                    track.style.transition = 'none';
+                    showCarouselItem(specialOffersCurrent, cards, track);
+                    void track.offsetWidth;
+                    track.style.transition = 'transform 0.55s cubic-bezier(.4,0,.2,1)';
+                }
             }
-        } else if (specialOffersCurrent < 3) {
-            // Pulou pro "início" duplicado, volta pro real
-            specialOffersCurrent = maxReal + 2;
-            if (track) {
-                track.style.transition = 'none';
-                showCarouselItem(specialOffersCurrent, cards, track);
-                void track.offsetWidth;
-                track.style.transition = 'transform 0.55s cubic-bezier(.4,0,.2,1)';
-            }
-        }
-    }, 560);
+        }, 560);
+    } else {
+        // Sem clones: índice vai de 0 até último card
+        const lastIndex = specialOffersCardsLength - 1;
+        specialOffersCurrent += dir;
+        if (specialOffersCurrent > lastIndex) specialOffersCurrent = 0;
+        if (specialOffersCurrent < 0) specialOffersCurrent = lastIndex;
+        showCarouselItem(specialOffersCurrent, cards, track);
+    }
 }
 
 

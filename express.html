@@ -85,6 +85,9 @@
       .list{max-height:50vh}
       .cart-list{max-height:32vh}
     }
+    /* Mensagens de cupom */
+    .coupon-feedback{white-space:pre-line}
+    .coupon-feedback .coupon-plus{display:block;text-align:center;opacity:.8;margin:2px 0}
   </style>
   <link rel="icon" type="image/png" href="logo-light.png" media="(prefers-color-scheme: light)">
   <link rel="icon" type="image/png" href="logo-dark.png" media="(prefers-color-scheme: dark)">
@@ -233,6 +236,7 @@
           // Validação de datas
           let valid = true;
           let errorMsg = '';
+          let errorIsHTML = false;
           const today = new Date();
           if (!coupon.noExpiration) {
             if (coupon.startDate && today < new Date(coupon.startDate)) {
@@ -244,14 +248,51 @@
               errorMsg = 'Cupom expirado.';
             }
           }
+          // Validação de produtos obrigatórios (ex.: PAR15)
+          if (valid && Array.isArray(coupon.productIds) && coupon.productIds.length > 0) {
+            const cartIds = Array.isArray(cart) ? cart.map(it => String(it.id)) : [];
+            const allProductsPresent = coupon.productIds.every(pid => cartIds.includes(String(pid)));
+            if (!allProductsPresent) {
+              valid = false;
+              // Montar lista nominal dos produtos exigidos (mostrar apenas os que faltam)
+              const missing = coupon.productIds.filter(pid => !cartIds.includes(String(pid)));
+              const lines = missing.map((pid, idx) => {
+                const prod = (Array.isArray(products) ? products : []).find(p => String(p.id) === String(pid));
+                const name = prod?.nome || prod?.name || `Produto ${pid}`;
+                const size = prod?.tamanho || prod?.size ? ` (${prod.tamanho || prod.size})` : '';
+                return `1 - ${name}${size}`;
+              });
+              const formatted = lines.map((line, idx) => idx === 0 ? `<span>${line}</span>` : `<span class="coupon-plus">+</span><span>${line}</span>`).join('<br>');
+              errorMsg = `Para usar este cupom, inclua no carrinho:<br>${formatted}`;
+              errorIsHTML = true;
+            }
+          }
           if (valid) {
             appliedCoupon = coupon;
             localStorage.setItem('vendas_coupon', code);
             couponInput.classList.remove('input-error');
             couponInput.classList.add('input-success');
-            couponFeedback.textContent = coupon.description || 'Cupom aplicado com sucesso!';
+            // Mensagem de feedback incluindo restrições (em múltiplas linhas)
+            const pm = Array.isArray(coupon.allowedPaymentMethods) ? coupon.allowedPaymentMethods : [];
+            const pmMap = { pix: 'PIX', credit: 'Cartão', agreement: 'Acordo' };
+            const lines = [coupon.description || 'Cupom aplicado com sucesso!'];
+            if (pm.length === 1) {
+              const label = pmMap[pm[0]] || pm[0];
+              lines.push(`Válido apenas para pagamento ${label}`);
+            } else if (pm.length > 1) {
+              lines.push(`Válido para: ${pm.map(k => pmMap[k] || k).join(', ')}`);
+            }
+            if (Array.isArray(coupon.productIds) && coupon.productIds.length > 0) {
+              lines.push('Aplicável a produtos específicos.');
+            }
+            if (Number.isInteger(coupon.progressiveMultiple) && coupon.progressiveMultiple >= 2) {
+              lines.push(`Desconto progressivo a cada ${coupon.progressiveMultiple} un. elegíveis.`);
+            }
+            couponFeedback.textContent = lines.join('\n');
             couponFeedback.className = 'coupon-feedback feedback-success';
-            if (coupon.enableAgreement && acordoChip) {
+            // Mostrar chip Acordo se cupom requer/permite acordo
+            const allowsAgreement = (pm.length ? pm.includes('agreement') : !!coupon.enableAgreement);
+            if (allowsAgreement && acordoChip) {
               acordoChip.style.display = '';
             } else if (acordoChip) {
               acordoChip.style.display = 'none';
@@ -261,7 +302,11 @@
             localStorage.removeItem('vendas_coupon');
             couponInput.classList.remove('input-success');
             couponInput.classList.add('input-error');
-            couponFeedback.textContent = errorMsg;
+            if (typeof errorIsHTML !== 'undefined' && errorIsHTML) {
+              couponFeedback.innerHTML = errorMsg;
+            } else {
+              couponFeedback.textContent = errorMsg;
+            }
             couponFeedback.className = 'coupon-feedback feedback-error';
             if (acordoChip) acordoChip.style.display = 'none';
           }
@@ -506,21 +551,82 @@ renderCart();
       let price = p.preco;
       if (formaSelecionada === 'Pix') price = p.precoPix && p.precoPix < p.preco ? p.precoPix : p.preco;
       // Acordo: usar preço normal
-      // Aplica desconto do cupom, se houver
-      if (appliedCoupon) {
-        if (appliedCoupon.type === 'percent') {
-          price = price - (price * (appliedCoupon.value / 100));
-        } else if (appliedCoupon.type === 'fixed') {
-          // Desconto fixo será aplicado no total, não por item
-        }
-      }
+      // Descontos do cupom serão aplicados no total em cartTotal(),
+      // para suportar regras por produto, progressivo e fixo corretamente.
       return price;
     }
     function cartTotal(){
-      return cart.reduce((s,x)=> {
+      // Base sem cupom
+      const baseTotal = cart.reduce((s,x)=> {
         const p = products.find(prod=>prod.id===x.id);
         return s + (p ? getItemPrice(p) * x.qty : 0);
       }, 0);
+      if (!appliedCoupon) return baseTotal;
+      const c = appliedCoupon;
+      // Soma elegível quando cupom restringe por produto
+      const eligibleSum = cart.reduce((sum, x) => {
+        const p = products.find(prod=>prod.id===x.id);
+        if (!p) return sum;
+        const eligible = Array.isArray(c.productIds) && c.productIds.length > 0 ? c.productIds.some(pid => String(pid) === String(p.id)) : true;
+        if (!eligible) return sum;
+        return sum + (getItemPrice(p) * x.qty);
+      }, 0);
+      // Exigir todos os produtos obrigatórios presentes para o desconto (alinha com site principal)
+      if (Array.isArray(c.productIds) && c.productIds.length > 0) {
+        const cartIds = Array.isArray(cart) ? cart.map(it => String(it.id)) : [];
+        const allProductsPresent = c.productIds.every(pid => cartIds.includes(String(pid)));
+        if (!allProductsPresent) return baseTotal;
+      }
+      let discount = 0;
+      const hasProgressive = Number.isInteger(c.progressiveMultiple) && c.progressiveMultiple >= 2 && Array.isArray(c.productIds) && c.productIds.length > 0;
+      if (hasProgressive) {
+        const M = c.progressiveMultiple;
+        if (c.type === 'fixed') {
+          // Quando M é igual à quantidade de produtos obrigatórios, formar PARES pelo mínimo das quantidades
+          let discountPairs = 0; // número de pares efetivamente descontados
+          if (Array.isArray(c.productIds) && c.productIds.length > 0 && M === c.productIds.length) {
+            const qtys = c.productIds.map(pid => {
+              const cartItem = cart.find(it => String(it.id) === String(pid));
+              return Number(cartItem?.qty) || 0;
+            });
+            const pairs = qtys.length ? Math.min(...qtys) : 0; // pares possíveis (1 de cada)
+            discountPairs = Math.min(pairs, M); // desconta no máximo M pares
+          } else {
+            // Fallback: total elegível dividido por M
+            const totalEligibleQty = cart.reduce((q, item) => {
+              const p = products.find(prod => prod.id === item.id);
+              if (!p) return q;
+              const eligible = c.productIds.some(pid => String(pid) === String(p.id));
+              return eligible ? q + (Number(item.qty) || 0) : q;
+            }, 0);
+            const possiblePairs = Math.floor(totalEligibleQty / M);
+            discountPairs = Math.min(possiblePairs, M);
+          }
+          if (discountPairs > 0) discount += c.value * discountPairs;
+        } else {
+          // Percentual permanece por item para evitar mudanças não previstas
+          cart.forEach(item => {
+            const p = products.find(prod => prod.id === item.id);
+            if (!p) return;
+            const eligible = c.productIds.some(pid => String(pid) === String(p.id));
+            if (!eligible) return;
+            const multiples = Math.floor((Number(item.qty) || 0) / M);
+            if (multiples <= 0) return;
+            const unit = getItemPrice(p);
+            discount += unit * M * (c.value / 100) * multiples;
+          });
+        }
+      } else {
+        if (c.type === 'percent') {
+          // Percentual sobre itens elegíveis (ou todos caso não restrinja)
+          discount = eligibleSum * (c.value / 100);
+        } else if (c.type === 'fixed') {
+          // Desconto fixo limitado ao subtotal elegível
+          discount = Math.min(c.value, eligibleSum);
+        }
+      }
+      const final = Math.max(0, baseTotal - Math.round(discount));
+      return final;
     }
 
     function renderCart(){
@@ -569,10 +675,13 @@ renderCart();
     // ===================== PAGAMENTO =====================
     // Formas de pagamento dinâmicas: 'Acordo' só aparece se cupom permitir acordo
     function getFormasPagamento() {
-      // O cupom aplicado é exposto globalmente por vendas.js
-      if (window.getAppliedCoupon && window.getAppliedCoupon() && window.getAppliedCoupon().enableAgreement) {
-        return ['Pix', 'Cartão', 'Acordo'];
+      const c = window.getAppliedCoupon ? window.getAppliedCoupon() : null;
+      const map = { pix: 'Pix', credit: 'Cartão', agreement: 'Acordo' };
+      if (c && Array.isArray(c.allowedPaymentMethods) && c.allowedPaymentMethods.length) {
+        return c.allowedPaymentMethods.map(k => map[k]).filter(Boolean);
       }
+      // Fallback à flag enableAgreement
+      if (c && c.enableAgreement) return ['Pix', 'Cartão', 'Acordo'];
       return ['Pix', 'Cartão'];
     }
     
@@ -580,7 +689,7 @@ renderCart();
   const wrap = el('#payChips');
   wrap.innerHTML = '';
   const formas = getFormasPagamento();
-  if (!formas.includes(formaSelecionada)) formaSelecionada = 'Pix';
+  if (!formas.includes(formaSelecionada)) formaSelecionada = formas[0] || 'Pix';
   for(const f of formas){
     const chip = document.createElement('div');
     chip.className = 'chip'+(f===formaSelecionada?' active':'');
