@@ -186,27 +186,50 @@
     try {
       console.log('[vendas-feedback] Iniciando transação Firestore para finalizar pedido');
       await window.runTransaction(db, async (transaction) => {
-        // 1. Verificar estoque e baixar
-        for (const it of cart) {
-          const productRef = window.doc(db, 'products', String(it.id));
-          const productSnap = await transaction.get(productRef);
+        // 1. Primeiro, fazer todas as leituras necessárias
+        const productRefs = cart.map(it => window.doc(db, 'products', String(it.id)));
+        const productSnaps = await Promise.all(productRefs.map(ref => transaction.get(ref)));
+        
+        // Verificar estoque
+        for (let i = 0; i < cart.length; i++) {
+          const it = cart[i];
+          const productSnap = productSnaps[i];
           if (!productSnap.exists) throw new Error('Produto não encontrado: ' + it.nome);
           const prodData = productSnap.data();
           if (prodData.quantity < it.qty) throw new Error('Estoque insuficiente para ' + it.nome);
-          transaction.update(productRef, { quantity: prodData.quantity - it.qty });
         }
-        // 2. Salvar pedido
-        const ordersRef = window.collection(db, 'orders');
-        const orderDocRef = window.doc(ordersRef);
-        transaction.set(orderDocRef, {
+        
+        // 2. Agora que todas as leituras foram feitas, fazer as escritas
+        
+        // 2.1 Atualizar estoque
+        for (let i = 0; i < cart.length; i++) {
+          const it = cart[i];
+          const prodData = productSnaps[i].data();
+          const productRef = productRefs[i];
+          transaction.update(productRef, { 
+            quantity: prodData.quantity - it.qty 
+          });
+        }
+        
+        // 2.2 Salvar pedido
+        const orderRef = window.doc(window.collection(db, 'orders'));
+        transaction.set(orderRef, {
           ...order,
+          id: orderRef.id, // Garantir que o ID esteja no documento
           createdAt: window.serverTimestamp(),
           updatedAt: window.serverTimestamp()
         });
-        // 3. Atualizar array de pedidos do cliente
+        
+        // 2.3 Atualizar array de pedidos do cliente (se tiver CPF)
         if (cpf) {
           const clienteRef = window.doc(db, 'clientes', cpf);
-          transaction.set(clienteRef, { pedidos: window.arrayUnion(orderNumber) }, { merge: true });
+          transaction.set(clienteRef, { 
+            pedidos: window.arrayUnion(orderNumber),
+            nome: nome,
+            telefone: cel,
+            email: email || null,
+            updatedAt: window.serverTimestamp()
+          }, { merge: true });
         }
       });
     } catch(e){
