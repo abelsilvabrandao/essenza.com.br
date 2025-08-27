@@ -1599,16 +1599,21 @@ ${(() => {
             text: "Deseja realmente cancelar este pedido? O estoque será restaurado.",
             icon: "warning",
             showCancelButton: true,
-            confirmButtonColor: "#f44336",
+            confirmButtonColor: "#d33",
             cancelButtonColor: "#3085d6",
             confirmButtonText: "Sim, cancelar",
-            cancelButtonText: "Não",
+            cancelButtonText: "Não, manter pedido"
           });
+          
           if (result.isConfirmed) {
             if (typeof window.StockModule?.cancelOrder === "function") {
               await window.StockModule.cancelOrder(orderId);
             } else {
-              Swal.fire("Erro", "Função de cancelamento não encontrada.", "error");
+              // fallback direto
+              const orderRef = doc(window.db, "orders", orderId);
+              await setDoc(orderRef, { status: "Cancelado" }, { merge: true });
+              Swal.fire("Cancelado!", "O pedido foi cancelado com sucesso.", "success");
+              renderOrdersList();
             }
           }
         }

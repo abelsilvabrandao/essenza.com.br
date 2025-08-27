@@ -65,88 +65,120 @@
 
     // Montar objeto do pedido detalhado (padrão index.html)
     function generateOrderNumber() {
-  const date = new Date();
-  const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-  return `PEDEXPRESS${date.getFullYear()}${(date.getMonth() + 1).toString().padStart(2, '0')}${date.getDate().toString().padStart(2, '0')}${random}`;
-}
-const orderNumber = generateOrderNumber();
+      const date = new Date();
+      const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+      return `PEDEXPRESS${date.getFullYear()}${(date.getMonth() + 1).toString().padStart(2, '0')}${date.getDate().toString().padStart(2, '0')}${random}`;
+    }
+    const orderNumber = generateOrderNumber();
     const now = new Date();
+    
+    // Calcular totais e descontos
+    let subtotal = 0;
+    let total = 0;
+    let discount = 0;
+    
+    // Calcular subtotal (sem desconto)
+    const itemsWithPrices = cart.map(it => {
+      const p = products.find(prod => prod.id === it.id);
+      const price = p ? (formaSelecionada === 'pix' && p.precoPix && p.precoPix < p.preco ? p.precoPix : p.preco) : it.preco;
+      const subtotalItem = price * it.qty;
+      subtotal += subtotalItem;
+      return { ...it, price, subtotal: subtotalItem };
+    });
+    
+    // Aplicar desconto do cupom se existir
+    if (appliedCoupon) {
+      if (appliedCoupon.type === 'percent') {
+        discount = subtotal * (appliedCoupon.value / 100);
+      } else if (appliedCoupon.type === 'fixed') {
+        discount = Math.min(appliedCoupon.value, subtotal);
+      }
+      // Arredondar para 2 casas decimais
+      discount = Math.round(discount * 100) / 100;
+    }
+    
+    // Calcular total com desconto
+    total = subtotal - discount;
+    
     // === Parcelamento: construir paymentAgreement se for cartão ou acordo ===
     let paymentAgreement = null;
     if (formaSelecionada === 'credit' || formaSelecionada === 'agreement') {
       const nParcelas = window.selectedInstallments || 1;
-      const total = +cart.reduce((s,x)=> {
-        const p = products.find(prod=>prod.id===x.id);
-        let price = p ? (formaSelecionada==='pix' && p.precoPix && p.precoPix<p.preco ? p.precoPix : p.preco) : x.preco;
-        if (appliedCoupon) {
-          if (appliedCoupon.type==='percent') price = price - (price*(appliedCoupon.value/100));
-        }
-        return s + price * x.qty;
-      }, 0).toFixed(2);
       const valorParcela = +(total / nParcelas).toFixed(2);
       const today = new Date();
       const installmentsArr = [];
       const datesArr = [];
+      
+      // Ajustar a última parcela para compensar possíveis arredondamentos
+      let remaining = total;
       for (let i = 0; i < nParcelas; i++) {
         const dueDate = new Date(today.getFullYear(), today.getMonth() + i, today.getDate());
         const dueDateStr = dueDate.toISOString().split('T')[0];
+        const amount = (i === nParcelas - 1) ? remaining : valorParcela;
+        
         installmentsArr.push({
           number: i + 1,
           dueDate: dueDateStr,
-          amount: valorParcela,
+          amount: amount,
           status: 'Pendente'
         });
         datesArr.push(dueDateStr);
+        remaining = Math.max(0, remaining - amount);
       }
+      
       paymentAgreement = {
         installments: installmentsArr,
         dates: datesArr,
         total: total
       };
     }
+    // Calcular preços mantendo os valores originais
+    const orderItems = itemsWithPrices.map(item => {
+      const p = products.find(prod => prod.id === item.id);
+      const pixPrice = p?.precoPix || item.precoPix || item.price;
+      const normalPrice = p?.preco || item.price;
+      
+      // Calcular proporção do item no subtotal para o desconto
+      const ratio = item.subtotal / subtotal;
+      const discountAmount = discount * ratio;
+      const finalPrice = (item.subtotal - discountAmount) / item.qty;
+      
+      return {
+        id: String(item.id),
+        productId: String(item.id),
+        name: item.nome,
+        price: Number(normalPrice.toFixed(2)), // Preço normal
+        pixPrice: Number(pixPrice.toFixed(2)), // Preço PIX
+        originalPrice: Number(normalPrice.toFixed(2)), // Mesmo que price para compatibilidade
+        quantity: Number(item.qty),
+        subtotal: +(normalPrice * item.qty).toFixed(2), // Subtotal sem desconto
+        discount: +discountAmount.toFixed(2), // Valor do desconto
+        finalPrice: +finalPrice.toFixed(2) // Preço final com desconto
+      };
+    });
+    
     const order = {
-      orderNumber,
-      items: cart.map(it=> {
-        const p = products.find(prod=>prod.id===it.id);
-        let price = p ? (formaSelecionada==='pix' && p.precoPix && p.precoPix<p.preco ? p.precoPix : p.preco) : it.preco;
-        if (appliedCoupon && appliedCoupon.type==='percent') {
-          price = price - (price*(appliedCoupon.value/100));
-        }
-        return {
-          id: String(it.id),
-          productId: String(it.id), // Compatível com admin/stock.js
-          name: it.nome,
-          price: Number(price),
-          quantity: Number(it.qty),
-          subtotal: +(price*it.qty).toFixed(2)
-        };
-      }),
-      total: +cart.reduce((s,x)=> {
-        const p = products.find(prod=>prod.id===x.id);
-        let price = p ? (formaSelecionada==='pix' && p.precoPix && p.precoPix<p.preco ? p.precoPix : p.preco) : x.preco;
-        if (appliedCoupon) {
-          if (appliedCoupon.type==='percent') price = price - (price*(appliedCoupon.value/100));
-        }
-        return s + price * x.qty;
-      }, 0).toFixed(2),
-      paymentMethod: formaSelecionada,
-      installments: (formaSelecionada === 'credit' || formaSelecionada === 'agreement') ? (window.selectedInstallments || 1) : 1,
-      payment: {
-        method: formaSelecionada,
-        cashReceived: null,
-        change: 0
-      },
+      clienteCpf: cpf,
+      coupon: appliedCoupon ? {
+        code: appliedCoupon.code,
+        type: appliedCoupon.type,
+        value: appliedCoupon.value,
+        value2: appliedCoupon.value, // Same as value for compatibility
+        couponDiscount2: +discount.toFixed(2), // Same as discount for compatibility
+        createdAt: new Date().toISOString()
+      } : null,
+      customerEmail: email,
       customerName: nome,
       customerPhone: cel,
-      customerEmail: email,
-      clienteCpf: cpf,
-      customerUid: user?.uid || null,
+      installments: (formaSelecionada === 'credit' || formaSelecionada === 'agreement') ? (window.selectedInstallments || 1) : 1,
+      items: orderItems,
+      orderNumber: orderNumber,
+      paymentMethod: formaSelecionada,
       status: 'Pendente',
-      source: 'vendas',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      cupom: appliedCoupon ? { code: appliedCoupon.code, type: appliedCoupon.type, value: appliedCoupon.value } : null,
-      ...(paymentAgreement ? { paymentAgreement } : {})
+      subtotal: +subtotal.toFixed(2),
+      total: +total.toFixed(2),
+      updatedAt: new Date().toISOString(),
+      ...(user?.uid ? { customerUid: user.uid } : {})
     };
 
 
