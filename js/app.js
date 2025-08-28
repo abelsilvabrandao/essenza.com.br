@@ -2791,7 +2791,7 @@ if (checkoutForm) {
                 clearSavedCart();
             } else {
                 // Se estiver logado, limpar o carrinho no localStorage também
-                localStorage.setItem('cart', JSON.stringify([]));
+                clearSavedCart();
             }
             
             updateCartCount();
@@ -3075,7 +3075,7 @@ async function doResetOrder() {
             clearSavedCart();
         } else {
             // Se estiver logado, limpar o carrinho no localStorage também
-            localStorage.setItem('cart', JSON.stringify([]));
+            clearSavedCart();
         }
         
         // Resetar elementos do DOM
@@ -3200,6 +3200,26 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!ensureDOMReferences()) {
             console.warn('Algumas referências DOM não foram encontradas');
             return;
+        }
+        
+        // Carregar carrinho do localStorage
+        const savedCart = loadCartFromLocalStorage();
+        if (savedCart && savedCart.length > 0) {
+            // Verificar se há um usuário logado
+            const user = JSON.parse(localStorage.getItem('essenzaUser') || '{}');
+            if (user && user.uid) {
+                // Se estiver logado, carregar o carrinho do localStorage
+                cart = savedCart;
+                console.log('[Essenza] Carrinho carregado do localStorage:', cart);
+                // Atualizar a UI do carrinho
+                updateCartState();
+            } else {
+                // Se não estiver logado, carregar o carrinho do localStorage
+                cart = savedCart;
+                console.log('[Essenza] Carrinho de usuário não logado carregado do localStorage:', cart);
+                // Atualizar a UI do carrinho
+                updateCartState();
+            }
         }
 
         // Inicializar letreiro promocional
