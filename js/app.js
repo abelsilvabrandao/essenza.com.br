@@ -2090,11 +2090,19 @@ function autofillCheckoutForm() {
             }
             if (spanName) spanName.textContent = nomeCompleto;
             if (spanPhone) {
-                let phoneValue = user.phone || user.celular || '';
-                phoneValue = phoneValue.replace(/(\(\d{2}\))\s?(9)(\d{4}-\d{4})/, function(_, ddd, nine, rest) {
-                  if (rest[0] !== ' ') return `${ddd} ${nine} ${rest}`;
-                  return `${ddd} ${nine}${rest}`;
-                });
+                // Tenta obter o telefone de todas as possíveis fontes
+                let phoneValue = user.phone || user.celular || user.telefone || '';
+                
+                // Se o telefone não estiver formatado, formata (apenas números)
+                if (phoneValue && !/\(\d{2}\) \d/.test(phoneValue)) {
+                    const numbers = phoneValue.replace(/\D/g, '');
+                    if (numbers.length === 11) {
+                        phoneValue = `(${numbers.substring(0,2)}) ${numbers.substring(2,7)}-${numbers.substring(7)}`;
+                    } else if (numbers.length === 10) {
+                        phoneValue = `(${numbers.substring(0,2)}) ${numbers.substring(2,6)}-${numbers.substring(6)}`;
+                    }
+                }
+                
                 spanPhone.textContent = phoneValue;
             }
             if (spanEmail) spanEmail.textContent = user.email || '';
@@ -2103,7 +2111,12 @@ function autofillCheckoutForm() {
             if (userBlock) userBlock.style.display = 'flex';
             // Preencher os inputs (invisíveis) para submit do pedido
             if (nameField) nameField.value = nomeCompleto;
-            if (phoneField) phoneField.value = user.phone || user.celular || '';
+            if (phoneField) {
+                // Garante que o campo de telefone tenha o valor formatado corretamente
+                let phoneValue = user.phone || user.celular || user.telefone || '';
+                // Remove formatação para o valor do input
+                phoneField.value = phoneValue.replace(/\D/g, '');
+            }
             if (emailField) emailField.value = user.email || '';
         } else {
             // Mostrar inputs, esconder bloco visual
@@ -2344,13 +2357,26 @@ if (checkoutForm) {
                 return;
             }
             
-            // Validar telefone (formato brasileiro básico)
-            const phoneRegex = /^\d{10,11}$/;
+            // Validar telefone (formato brasileiro: DDD + 8 ou 9 dígitos)
             const cleanPhone = customerPhone.replace(/\D/g, '');
-            if (!phoneRegex.test(cleanPhone)) {
+            const phoneRegex = /^(?:[1-9]{2})(?:[2-9]\d{7,8})$/; // DDD + 8 ou 9 dígitos
+            
+            if (cleanPhone.length < 10 || cleanPhone.length > 11) {
                 Swal.fire({
                     title: 'Telefone inválido',
-                    text: 'Por favor, insira um número de telefone válido (DDD + número).',
+                    text: 'O telefone deve ter 10 ou 11 dígitos (DDD + número). Exemplo: 11987654321',
+                    icon: 'warning',
+                    confirmButtonColor: '#4CAF50'
+                });
+                submitButton.disabled = false;
+                submitButton.innerHTML = originalButtonText;
+                return;
+            }
+            
+            if (!phoneRegex.test(cleanPhone)) {
+                Swal.fire({
+                    title: 'Formato inválido',
+                    html: 'Por favor, insira um número de telefone válido.<br>Exemplos válidos:<br>- (11) 98765-4321<br>- (11) 3456-7890',
                     icon: 'warning',
                     confirmButtonColor: '#4CAF50'
                 });
