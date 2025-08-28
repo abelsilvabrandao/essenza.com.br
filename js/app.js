@@ -110,11 +110,41 @@ async function syncEssenzaUserFromFirestore(user) {
 }
 
 onAuthStateChanged(auth, async user => {
+  const previousUser = currentUser;
   currentUser = user;
   updateAccountUI(user);
-  console.log('[Essenza][debug] Chamando syncEssenzaUserFromFirestore');
-  await syncEssenzaUserFromFirestore(user);
-  renderProductList(); // Atualiza favoritos/estrelas do usuário
+  
+  if (user) {
+    // Usuário fez login
+    console.log('[Essenza][debug] Usuário autenticado, sincronizando dados...');
+    await syncEssenzaUserFromFirestore(user);
+    
+    // Se não havia usuário logado anteriormente, restaurar carrinho salvo
+    if (!previousUser) {
+      const savedCart = loadCartFromLocalStorage();
+      if (savedCart && savedCart.length > 0) {
+        // Verificar se há um carrinho vazio atual
+        if (cart.length === 0) {
+          cart = savedCart;
+          console.log('[Essenza] Carrinho restaurado do localStorage:', cart);
+          // Atualizar a UI do carrinho
+          updateCartState();
+          // Limpar o carrinho salvo após restaurar
+          clearSavedCart();
+        } else {
+          console.log('[Essenza] Carrinho não vazio, mantendo itens atuais');
+        }
+      }
+    }
+  } else {
+    // Usuário fez logout
+    console.log('[Essenza][debug] Usuário deslogado');
+    // Limpar dados sensíveis do usuário
+    localStorage.removeItem('essenzaUser');
+  }
+  
+  // Atualizar lista de produtos para refletir favoritos/estrelas
+  renderProductList();
 });
 
 // Funções de favoritos e avaliações
@@ -284,6 +314,40 @@ let cart = [];  // Carrinho de compras
 let products = [];  // Lista de produtos
 let currentOrderData = null;  // Dados do pedido atual
 
+// Função para salvar o carrinho no localStorage
+function saveCartToLocalStorage() {
+    try {
+        localStorage.setItem('pendingCart', JSON.stringify(cart));
+    } catch (e) {
+        console.error('Erro ao salvar carrinho no localStorage:', e);
+    }
+}
+
+// Função para carregar o carrinho do localStorage
+function loadCartFromLocalStorage() {
+    try {
+        const savedCart = localStorage.getItem('pendingCart');
+        if (savedCart) {
+            const parsedCart = JSON.parse(savedCart);
+            if (Array.isArray(parsedCart)) {
+                return parsedCart;
+            }
+        }
+    } catch (e) {
+        console.error('Erro ao carregar carrinho do localStorage:', e);
+    }
+    return [];
+}
+
+// Função para limpar o carrinho salvo no localStorage
+function clearSavedCart() {
+    try {
+        localStorage.removeItem('pendingCart');
+    } catch (e) {
+        console.error('Erro ao limpar carrinho do localStorage:', e);
+    }
+}
+
 // Exportar funções para uso no HTML
 export {
     removeFromCart,
@@ -417,6 +481,11 @@ async function addToCart(productId) {
 
         // Atualizar a interface
         await updateCartState();
+        
+        // Salvar carrinho no localStorage se o usuário não estiver logado
+        if (!currentUser) {
+            saveCartToLocalStorage();
+        }
         
         // Mostrar feedback visual
         const newRemaining = remaining - 1;
@@ -1185,6 +1254,11 @@ async function removeFromCart(productId) {
             // Remover o item do carrinho
             cart.splice(index, 1);
             
+            // Salvar carrinho no localStorage se o usuário não estiver logado
+            if (!currentUser) {
+                saveCartToLocalStorage();
+            }
+            
             // Atualizar a interface
             await updateCartState();
             
@@ -1266,6 +1340,12 @@ async function decreaseQuantity(productId) {
         // Verificar se a quantidade é maior que 1 antes de decrementar
         if (item.quantity > 1) {
             item.quantity--;
+            
+            // Salvar carrinho no localStorage se o usuário não estiver logado
+            if (!currentUser) {
+                saveCartToLocalStorage();
+            }
+            
             await updateCartState();
             
             // Atualizar a lista de produtos para refletir a mudança no estoque
@@ -1331,6 +1411,12 @@ async function increaseQuantity(productId) {
         // Verificar se ainda há estoque disponível
         if (currentCartQuantity < product.quantity) {
             item.quantity++;
+            
+            // Salvar carrinho no localStorage se o usuário não estiver logado
+            if (!currentUser) {
+                saveCartToLocalStorage();
+            }
+            
             await updateCartState();
             
             // Atualizar a lista de produtos para refletir a mudança no estoque
@@ -1451,6 +1537,12 @@ async function updateCartState() {
         updateCartTotals();
         updateCartVisibility();
         updateCartCount();
+        
+        // Salvar carrinho no localStorage se o usuário não estiver logado
+        const user = JSON.parse(localStorage.getItem('essenzaUser') || '{}');
+        if (!user || !user.uid) {
+            saveCartToLocalStorage();
+        }
         
         // Se houver uma lista de produtos, renderizar novamente para atualizar as mensagens de estoque
         if (elements.productsGrid) {
@@ -2693,7 +2785,15 @@ if (checkoutForm) {
             
             // Limpar o carrinho
             cart = [];
-            localStorage.setItem('cart', JSON.stringify(cart));
+            
+            // Limpar carrinho no localStorage se o usuário não estiver logado
+            if (!currentUser) {
+                clearSavedCart();
+            } else {
+                // Se estiver logado, limpar o carrinho no localStorage também
+                localStorage.setItem('cart', JSON.stringify([]));
+            }
+            
             updateCartCount();
             updateCartState();
 
@@ -2969,6 +3069,14 @@ async function doResetOrder() {
         // Limpar dados do pedido e carrinho
         currentOrderData = null;
         cart = [];
+        
+        // Limpar carrinho no localStorage se o usuário não estiver logado
+        if (!currentUser) {
+            clearSavedCart();
+        } else {
+            // Se estiver logado, limpar o carrinho no localStorage também
+            localStorage.setItem('cart', JSON.stringify([]));
+        }
         
         // Resetar elementos do DOM
         const elements = {
