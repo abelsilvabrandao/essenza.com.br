@@ -2719,6 +2719,11 @@ window.saveAgreement = async function (orderId, installments, dates) {
     // Atualizar a lista de pedidos
     await renderOrdersList();
 
+    // Após carregar os produtos, preencher o filtro de categorias
+    if (typeof window.StockModule !== 'undefined' && window.StockModule.populateCategoryFilter) {
+      window.StockModule.populateCategoryFilter();
+    }
+
     // Mostrar mensagem de sucesso
     alert("Acordo de pagamento criado com sucesso!");
   } catch (error) {
@@ -2729,7 +2734,7 @@ window.saveAgreement = async function (orderId, installments, dates) {
   }
 };
 
-// Função para salvar um novo pagamento
+// ...
 window.savePayment = async function (
   orderId,
   amount,
@@ -3209,9 +3214,20 @@ async function renderStockList() {
             <div class="stock-item-content">
                 <div class="stock-item-info">
   <h3>${product.name}</h3>
-  ${product.description ? `<div class="product-description">${formatProductDescription(product.description, product.descUnderlineColor)}</div>` : ""}
-  <div class="product-category-label">
+  <div class="product-category-label" style="margin-bottom: 0.5rem;">
     ${typeof product.category === "string" && product.category.trim() ? product.category : '<span style="color:#bbb;">Sem categoria</span>'}
+  </div>
+  <div style="font-size: 0.8em; color: #666; margin-bottom: 0.5rem;">
+    Código: ${product.id}
+  </div>
+  ${product.description ? `
+    <div class="product-description-container">
+      <div class="product-description" style="display: none;">${formatProductDescription(product.description, product.descUnderlineColor)}</div>
+      <button class="btn btn-link btn-sm p-0 mb-2" onclick="this.previousElementSibling.style.display = this.previousElementSibling.style.display === 'none' ? 'block' : 'none'; this.textContent = this.previousElementSibling.style.display === 'none' ? 'Saiba mais' : 'Mostrar menos';">
+        Saiba mais
+      </button>
+    </div>
+  ` : ""}
   </div>
   <div class="offer-prices">
     <div style="display: flex; flex-direction: column; align-items: flex-start; margin-bottom: 0.5em; gap: 0.2em;">
@@ -3319,11 +3335,21 @@ async function renderStockList() {
     fragment.appendChild(stockItem);
   });
 
-  // Adicionar fragmento ao DOM
+  // Adicionar o fragmento ao DOM
   stockList.appendChild(fragment);
 
-  // Atualizar badge da lista de espera
-  updateWaitlistBadge();
+  // Atualizar a lista de espera
+  await renderWaitlistList();
+
+  // Inicializar tooltips
+  if (window.initializeTooltips) {
+    initializeTooltips();
+  }
+  
+  // Preencher o filtro de categorias após carregar os produtos
+  if (window.StockModule && typeof window.StockModule.populateCategoryFilter === 'function') {
+    window.StockModule.populateCategoryFilter();
+  }
 }
 
 export async function updateWaitlistBadge() {
@@ -6525,6 +6551,76 @@ export async function renderPairedPromotionsAccordion() {
   });
 }
 
+// Função para aplicar os filtros de produtos
+function applyProductFilters() {
+  const nameFilter = document.getElementById('filterProductName')?.value?.toLowerCase() || '';
+  const codeFilter = document.getElementById('filterProductCode')?.value?.toLowerCase() || '';
+  const categoryFilter = document.getElementById('filterProductCategory')?.value?.toLowerCase() || '';
+  
+  const productItems = document.querySelectorAll('.stock-item');
+  
+  productItems.forEach(item => {
+    const productName = item.querySelector('h3')?.textContent?.toLowerCase() || '';
+    const productCode = item.getAttribute('data-product-id')?.toLowerCase() || '';
+    const productCategory = item.querySelector('.product-category-label')?.textContent?.trim().toLowerCase() || '';
+    
+    const matchesName = productName.includes(nameFilter);
+    const matchesCode = productCode.includes(codeFilter);
+    const matchesCategory = !categoryFilter || productCategory === categoryFilter || categoryFilter === 'todas as categorias';
+    
+    if (matchesName && matchesCode && matchesCategory) {
+      item.style.display = '';
+    } else {
+      item.style.display = 'none';
+    }
+  });
+}
+
+// Função para limpar todos os filtros
+function clearProductFilters() {
+  const nameInput = document.getElementById('filterProductName');
+  const codeInput = document.getElementById('filterProductCode');
+  const categorySelect = document.getElementById('filterProductCategory');
+  
+  if (nameInput) nameInput.value = '';
+  if (codeInput) codeInput.value = '';
+  if (categorySelect) categorySelect.value = '';
+  
+  // Aplicar filtros vazios para mostrar todos os itens
+  applyProductFilters();
+}
+
+// Função para preencher o dropdown de categorias
+function populateCategoryFilter() {
+  const categorySelect = document.getElementById('filterProductCategory');
+  if (!categorySelect) return;
+  
+  // Manter a opção padrão
+  const defaultOption = categorySelect.querySelector('option[value=""]');
+  categorySelect.innerHTML = '';
+  if (defaultOption) categorySelect.appendChild(defaultOption);
+  
+  // Obter categorias únicas dos produtos
+  const categories = new Set();
+  document.querySelectorAll('.product-category-label').forEach(el => {
+    const category = el.textContent.trim();
+    if (category && category !== 'Sem categoria') {
+      categories.add(category);
+    }
+  });
+  
+  // Ordenar categorias alfabeticamente
+  const sortedCategories = Array.from(categories).sort();
+  
+  // Adicionar opções ao select
+  sortedCategories.forEach(category => {
+    const option = document.createElement('option');
+    option.value = category.toLowerCase();
+    option.textContent = category;
+    categorySelect.appendChild(option);
+  });
+}
+
 // Exponha todas as funções públicas de uma vez, sem sobrescrever o objeto
 Object.assign(window.StockModule, {
   renderOrdersList,
@@ -6540,7 +6636,7 @@ Object.assign(window.StockModule, {
   toggleSpecialOffer,
   updateProductImage,
   refreshStock,
-  removeGiftItem, // garante que a função está disponível
+  removeGiftItem,
   completeOrder,
   cancelOrder,
   openPaymentModal,
@@ -6548,4 +6644,17 @@ Object.assign(window.StockModule, {
   saveAgreement,
   savePayment,
   renderPairedPromotionsAccordion,
+  applyProductFilters,
+  clearProductFilters,
+  populateCategoryFilter
+});
+
+// Preencher categorias quando o DOM estiver pronto
+document.addEventListener('DOMContentLoaded', () => {
+  // Executar após um pequeno delay para garantir que os elementos estejam renderizados
+  setTimeout(() => {
+    if (window.StockModule && window.StockModule.populateCategoryFilter) {
+      window.StockModule.populateCategoryFilter();
+    }
+  }, 1000);
 });

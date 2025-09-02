@@ -1,0 +1,318 @@
+/* Estilos para o Header */
+.header {
+    background-color: #fff;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+}
+
+.header-top {
+    background: linear-gradient(90deg, #ff69b4, #ff1493);
+    padding: 8px 0;
+    font-size: 0.9rem;
+    color: white;
+    text-align: center;
+    font-weight: 500;
+    position: relative;
+    overflow: hidden;
+}
+
+.header-promo {
+    margin: 0;
+    padding: 0 20px;
+    white-space: nowrap;
+    animation: scrollText 20s linear infinite;
+    display: inline-block;
+    min-width: 100%;
+    box-sizing: border-box;
+}
+
+@keyframes scrollText {
+    0% {
+        transform: translateX(100%);
+    }
+    100% {
+        transform: translateX(-100%);
+    }
+}
+
+.header-main {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 15px 0;
+    position: relative;
+}
+
+/* Estilo do Logo */
+.header-logo {
+    flex: 0 0 auto;
+    margin-right: 20px;
+}
+
+.logo-title {
+    display: flex;
+    align-items: center;
+    text-decoration: none;
+    color: inherit;
+}
+
+.logo-title h1 {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #333;
+    margin-left: 10px;
+}
+
+.logo {
+    height: 40px;
+    width: auto;
+}
+
+/* Estilo da Barra de Busca */
+.header-search {
+    flex: 0 1 60%;
+    max-width: 800px;
+    min-width: 300px;
+    margin: 0 20px;
+}
+
+.search-container {
+    position: relative;
+    width: 100%;
+}
+
+#searchInput {
+    width: 100%;
+    padding: 12px 50px 12px 20px;
+    border: 1px solid #ddd;
+    border-radius: 25px;
+    font-size: 0.95rem;
+    transition: all 0.3s ease;
+    background-color: #f8f9fa;
+}
+
+#searchInput:focus {
+    outline: none;
+    border-color: #7e57c2;
+    box-shadow: 0 0 0 2px rgba(126, 87, 194, 0.2);
+    background-color: #fff;
+}
+
+#searchButton {
+    position: absolute;
+    right: 5px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: #6c757d;
+    cursor: pointer;
+    padding: 8px 15px;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+}
+
+#searchButton:hover {
+    color: #7e57c2;
+    background-color: rgba(126, 87, 194, 0.1);
+}
+
+/* Estilo da Barra de Categorias */
+.categories-scroll-container {
+    position: relative;
+    margin-top: 10px;
+    width: 100%;
+    overflow: hidden;
+    padding: 0 30px; /* Espaço para os botões de rolagem */
+}
+
+.categories-scroll {
+    display: flex;
+    gap: 10px;
+    padding: 8px 5px;
+    overflow-x: auto;
+    scroll-behavior: smooth;
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+    scroll-padding: 0 20px;
+    width: 100%;
+}
+
+/* Mostra a barra de rolagem em dispositivos móveis para melhor usabilidade */
+@media (max-width: 768px) {
+    .categories-scroll {
+        scrollbar-width: thin;
+        padding-bottom: 12px;
+    }
+    
+    .categories-scroll::-webkit-scrollbar {
+        height: 4px;
+        display: block;
+    }
+    
+    .categories-scroll::-webkit-scrollbar-thumb {
+        background-color: #7e57c2;
+        border-radius: 2px;
+    }
+}
+
+.categories-scroll::-webkit-scrollbar {
+    display: none;  /* Chrome, Safari, Opera */
+}
+
+.category-item {
+    white-space: nowrap;
+    padding: 6px 14px;
+    border-radius: 18px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: #555;
+    background-color: #f5f5f5;
+    border: 1px solid #e0e0e0;
+    flex-shrink: 0;
+}
+
+.category-item:hover {
+    color: #7e57c2;
+    background-color: #f0e6ff;
+    border-color: #d1c4e9;
+}
+
+.category-item.active {
+    color: #fff;
+    background: linear-gradient(135deg, #7e57c2, #5e35b1);
+    border-color: #5e35b1;
+    box-shadow: 0 2px 5px rgba(126, 87, 194, 0.3);
+}
+
+.scroll-button {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background-color: #fff;
+    border: 1px solid #e0e0e0;
+    color: #7e57c2;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    z-index: 10;
+    transition: all 0.2s ease;
+    opacity: 0.9;
+}
+
+.scroll-button:hover {
+    background-color: #7e57c2;
+    color: #fff;
+    transform: translateY(-50%) scale(1.1);
+    opacity: 1;
+}
+
+.scroll-button:active {
+    transform: translateY(-50%) scale(0.95);
+}
+
+.scroll-button.hidden {
+    display: none;
+}
+
+.scroll-left {
+    left: 0;
+}
+
+.scroll-right {
+    right: 0;
+}
+
+/* Melhorias de responsividade */
+@media (max-width: 768px) {
+    .categories-scroll-container {
+        padding: 0 25px;
+    }
+    
+    .category-item {
+        padding: 5px 12px;
+        font-size: 0.8rem;
+    }
+    
+    .scroll-button {
+        width: 26px;
+        height: 26px;
+        font-size: 0.8rem;
+    }
+}
+
+/* Estilo dos Botões de Ação do Usuário */
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    flex: 0 0 auto;
+}
+
+/* Responsividade */
+@media (max-width: 992px) {
+    .header-main {
+        flex-wrap: wrap;
+        padding: 10px 0;
+    }
+    
+    .header-search {
+        order: 3;
+        flex: 1 1 100%;
+        margin: 15px 0 0 0;
+    }
+    
+    .header-logo {
+        margin-right: auto;
+    }
+    
+    .header-actions {
+        margin-left: auto;
+    }
+}
+
+@media (max-width: 576px) {
+    .logo-title h1 {
+        font-size: 1.2rem;
+    }
+    
+    .logo {
+        height: 32px;
+    }
+    
+    #searchInput {
+        padding: 10px 45px 10px 15px;
+        font-size: 0.9rem;
+    }
+    
+    .category-item {
+        font-size: 0.8rem;
+        padding: 4px 10px;
+    }
+    
+    .scroll-button {
+        width: 24px;
+        height: 24px;
+        font-size: 0.8rem;
+    }
+}
+
+/* Animações */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.header-search {
+    animation: fadeIn 0.3s ease-out;
+}

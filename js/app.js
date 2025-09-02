@@ -3,6 +3,19 @@ import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signO
 // Import único do Firestore, sem duplicidade
 import { getFirestore, collection, onSnapshot, addDoc, getDocs, query, where, getDoc, doc, setDoc, updateDoc, increment, writeBatch, runTransaction, serverTimestamp, arrayUnion } from 'https://www.gstatic.com/firebasejs/10.1.0/firebase-firestore.js';
 
+// Função para fechar o modal do carrinho
+function closeCartModal() {
+    const cartModal = document.getElementById('cartModal');
+    const cartOverlay = document.getElementById('cartOverlay');
+    
+    if (cartModal && cartOverlay) {
+        cartModal.classList.remove('open');
+        cartOverlay.classList.remove('open');
+        document.documentElement.style.overflow = ''; // Restaura rolagem da página
+        window.cartOpen = false;
+    }
+}
+
 const auth = getAuth();
 const db = window.db || getFirestore();
 const provider = new GoogleAuthProvider();
@@ -313,6 +326,8 @@ export async function refreshProducts() {
 let cart = [];  // Carrinho de compras
 let products = [];  // Lista de produtos
 let currentOrderData = null;  // Dados do pedido atual
+let currentCategory = 'Todas as Categorias';
+let currentSearchTerm = '';
 
 // Função para salvar o carrinho no localStorage
 function saveCartToLocalStorage() {
@@ -352,6 +367,7 @@ function clearSavedCart() {
 export {
     removeFromCart,
     updateCartState,
+    renderProductList,
     updateCartCount,
     updateCartTotals,
     toggleCart,
@@ -392,11 +408,20 @@ function ensureDOMReferences() {
         return false;
     }
 
-    // Adicionar event listeners
-    if (elements.closeCart) elements.closeCart.addEventListener('click', closeCartModal);
-    if (elements.cartOverlay) elements.cartOverlay.addEventListener('click', closeCartModal);
+    // Adicionar event listeners apenas se não estiverem configurados
+    if (elements.closeCart && !elements.closeCart._hasCartListener) {
+        elements.closeCart.addEventListener('click', closeCartModal);
+        elements.closeCart._hasCartListener = true;
+    }
+    if (elements.cartOverlay && !elements.cartOverlay._hasCartListener) {
+        elements.cartOverlay.addEventListener('click', closeCartModal);
+        elements.cartOverlay._hasCartListener = true;
+    }
     if (elements.installments) elements.installments.addEventListener('change', updateInstallments);
-    if (elements.cartIcon) elements.cartIcon.addEventListener('click', toggleCart);
+    if (elements.cartIcon && !elements.cartIcon._hasCartListener) {
+        elements.cartIcon.addEventListener('click', toggleCart);
+        elements.cartIcon._hasCartListener = true;
+    }
 
     return true;
 }
@@ -701,75 +726,123 @@ let productsCache = new Map();
 let lastCartState = JSON.stringify([]);
 
 async function renderProductList() {
-    if (!productsGrid) return;
-
     try {
+        // Use the productsGrid from window object or try to find it
+        const productsGrid = window.productsGrid || document.getElementById('productsGrid');
+        
+        if (!productsGrid) {
+            console.error('productsGrid element not found in the DOM');
+            return;
+        }
+        
+        let allProducts = [];
+        console.log('=== RENDER PRODUCT LIST ===');
+        console.log('Current category:', window.currentCategory);
+        console.log('Window.products exists:', !!window.products);
+        
+        if (window.products) {
+            console.log('Number of products:', window.products.length);
+            console.log('First product:', window.products[0] ? {
+                id: window.products[0].id,
+                name: window.products[0].name,
+                category: window.products[0].category
+            } : 'No products');
+        }
+
         // Buscar favoritos do usuário logado e marcar nos produtos
         let userFavorites = [];
         // Buscar CPF do cliente logado salvo no localStorage
         let essenzaUser = null;
         try {
-            essenzaUser = JSON.parse(localStorage.getItem('essenzaUser'));
-        } catch {}
+            essenzaUser = JSON.parse(localStorage.getItem('essenzaUser') || '{}');
+        } catch (e) {
+            console.warn('Erro ao analisar dados do usuário do localStorage:', e);
+        }
+        
         // Usar favoritos do localStorage para resposta instantânea
-        if (currentUser && essenzaUser && essenzaUser.cpf && Array.isArray(essenzaUser.favoritos)) {
-            userFavorites = essenzaUser.favoritos;
-        } else if (currentUser && essenzaUser && essenzaUser.cpf) {
-            // fallback: tenta buscar do Firestore se não houver no localStorage
-            try {
-                const clienteRef = doc(db, 'clientes', essenzaUser.cpf);
-                const clienteDoc = await getDoc(clienteRef);
-                userFavorites = (clienteDoc.exists() && clienteDoc.data().favoritos) || [];
-            } catch (e) {
-                console.warn('Não foi possível carregar favoritos do cliente:', e);
+        if (currentUser && essenzaUser && essenzaUser.cpf) {
+            if (Array.isArray(essenzaUser.favoritos)) {
+                userFavorites = essenzaUser.favoritos;
+            } else {
+                // fallback: tenta buscar do Firestore se não houver no localStorage
+                try {
+                    const clienteRef = doc(db, 'clientes', essenzaUser.cpf);
+                    const clienteDoc = await getDoc(clienteRef);
+                    if (clienteDoc.exists()) {
+                        const clienteData = clienteDoc.data();
+                        userFavorites = Array.isArray(clienteData.favoritos) ? clienteData.favoritos : [];
+                        // Atualiza o localStorage com os favoritos do Firestore
+                        if (essenzaUser) {
+                            essenzaUser.favoritos = userFavorites;
+                            localStorage.setItem('essenzaUser', JSON.stringify(essenzaUser));
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Não foi possível carregar favoritos do cliente:', e);
+                }
             }
         }
-        // Marcar isFavorite em cada produto
+        
+        // Atualizar favoritos e filtrar produtos
         if (window.products && Array.isArray(window.products)) {
-            window.products.forEach(prod => {
-                prod.isFavorite = userFavorites.includes(prod.id);
+            // Atualizar favoritos e processar produtos
+            const currentCategory = window.currentCategory || 'Todas as Categorias';
+            const searchTerm = (window.currentSearchTerm || '').toLowerCase().trim();
+            
+            // Filtrar produtos
+            allProducts = window.products
+                .filter(product => {
+                    if (!product) return false;
+                    
+                    // Atualizar favorito
+                    product.isFavorite = userFavorites.includes(product.id);
+                    
+                    // Filtrar por categoria
+                    const categoryMatch = currentCategory === 'Todas as Categorias' || 
+                                       (product.category && product.category.trim() === currentCategory);
+                    
+                    // Filtrar por termo de busca
+                    const searchMatch = !searchTerm || 
+                        (product.name && product.name.toLowerCase().includes(searchTerm)) ||
+                        (product.description && product.description.toLowerCase().includes(searchTerm)) ||
+                        (product.category && product.category.toLowerCase().includes(searchTerm)) ||
+                        (product.id && product.id.toString().includes(searchTerm));
+                    
+                    return categoryMatch && searchMatch;
+                })
+                // Ordenar por ID numérico
+                .sort((a, b) => {
+                    const idA = parseInt(a.id) || 0;
+                    const idB = parseInt(b.id) || 0;
+                    return idA - idB;
+                });
+
+            console.log(`Produtos filtrados: ${allProducts.length} de ${window.products.length}`, {
+                categoria: currentCategory,
+                termoBusca: searchTerm,
+                produtos: allProducts.map(p => ({id: p.id, name: p.name}))
             });
-        }
-        // Exibir todos os produtos, inclusive desativados
-        const allProducts = Array.isArray(window.products) ? window.products.slice() : [];
-        
-        // Verificar se houve mudanças no carrinho
-        const currentCartState = JSON.stringify(cart.map(item => ({
-            id: item.id,
-            quantity: item.quantity
-        })));
-        
-        // Se não houve mudanças no carrinho e já temos os produtos em cache, não precisa renderizar novamente
-        if (currentCartState === lastCartState && productsCache.size > 0) {
+
+            // Mostrar skeleton loader se não houver produtos
+            if (allProducts.length === 0) {
+                productsGrid.innerHTML = Array.from({length: 6}).map(() => `
+                    <div class="skeleton-card">
+                        <div class="skeleton-heart"></div>
+                        <div class="skeleton-image"></div>
+                        <div class="skeleton-title"></div>
+                        <div class="skeleton-stars"></div>
+                        <div class="skeleton-desc"></div>
+                        <div class="skeleton-price"></div>
+                        <div class="skeleton-btn"></div>
+                    </div>
+                `).join('');
+                return;
+            }
+        } else {
+            console.error('Erro ao renderizar a lista de produtos: produtos não encontrados');
             return;
         }
         
-        lastCartState = currentCartState;
-        console.log('Atualizando lista de produtos. Total:', allProducts.length);
-
-
-        // Ordenar produtos pelo ID numérico
-        allProducts.sort((a, b) => {
-            const idA = parseInt(a.id);
-            const idB = parseInt(b.id);
-            return idA - idB;
-        });
-
-        // Skeleton loader: se não há produtos carregados, mostra 6 skeletons
-        if (!Array.isArray(window.products) || window.products.length === 0) {
-            productsGrid.innerHTML = Array.from({length: 6}).map(() => `
-                <div class="skeleton-card">
-                    <div class="skeleton-heart"></div>
-                    <div class="skeleton-image"></div>
-                    <div class="skeleton-title"></div>
-                    <div class="skeleton-stars"></div>
-                    <div class="skeleton-desc"></div>
-                    <div class="skeleton-price"></div>
-                    <div class="skeleton-btn"></div>
-                </div>
-            `).join('');
-            return;
-        }
         // Limpar o grid antes de adicionar os novos produtos
         productsGrid.innerHTML = '';
 
@@ -839,7 +912,7 @@ async function renderProductList() {
               ${[1,2,3,4,5].map(star => `<i class="fa${product.userRating && product.userRating >= star ? 's' : 'r'} fa-star" data-star="${star}"></i>`).join('')}
             </div>
             <div class="product-category-label" style="font-size:0.93em;color:#888;margin-top:-0.15em;margin-bottom:0.6em;">
-                ${typeof product.category === 'string' && product.category.trim() ? product.category : '<span style=\"color:#bbb;\">Sem categoria</span>'}
+                ${typeof product.category === 'string' && product.category.trim() ? escapeHtml(product.category) : '<span style="color:#bbb;">Sem categoria</span>'}
             </div>
             <div class="product-description">
   ${(() => {
@@ -1538,9 +1611,15 @@ async function updateCartState() {
         updateCartVisibility();
         updateCartCount();
         
-        // Salvar carrinho no localStorage se o usuário não estiver logado
+        // Verificar se o usuário está logado
         const user = JSON.parse(localStorage.getItem('essenzaUser') || '{}');
-        if (!user || !user.uid) {
+        const isLoggedIn = user && user.uid;
+        
+        // Se o carrinho estiver vazio, limpar do localStorage
+        if (cart.length === 0) {
+            clearSavedCart();
+        } else if (!isLoggedIn) {
+            // Caso contrário, salvar o carrinho atualizado se não estiver logado
             saveCartToLocalStorage();
         }
         
@@ -2206,8 +2285,16 @@ function autofillCheckoutForm() {
             if (phoneField) {
                 // Garante que o campo de telefone tenha o valor formatado corretamente
                 let phoneValue = user.phone || user.celular || user.telefone || '';
-                // Remove formatação para o valor do input
-                phoneField.value = phoneValue.replace(/\D/g, '');
+                // Formata o telefone se não estiver formatado
+                if (phoneValue && !/\(\d{2}\) \d/.test(phoneValue)) {
+                    const numbers = phoneValue.replace(/\D/g, '');
+                    if (numbers.length === 11) {
+                        phoneValue = `(${numbers.substring(0,2)}) ${numbers.substring(2,7)}-${numbers.substring(7)}`;
+                    } else if (numbers.length === 10) {
+                        phoneValue = `(${numbers.substring(0,2)}) ${numbers.substring(2,6)}-${numbers.substring(6)}`;
+                    }
+                }
+                phoneField.value = phoneValue;
             }
             if (emailField) emailField.value = user.email || '';
         } else {
@@ -2226,6 +2313,7 @@ function toggleCart() {
     // Garante exibição correta dos métodos de pagamento
     const agreementOption = document.getElementById('paymentMethodAgreement')?.closest('.payment-option');
     const couponValue = document.getElementById('couponInput')?.value.trim().toUpperCase();
+    
     if (agreementOption) {
         if (couponValue === 'ACORDO2025') {
             agreementOption.style.display = '';
@@ -2246,43 +2334,102 @@ function toggleCart() {
     const cartOverlay = document.getElementById('cartOverlay');
     
     if (cartModal && cartOverlay) {
-        if (cartOpen) {
-            cartModal.classList.remove('open');
-            cartOverlay.classList.remove('open');
-        } else {
+        // Alterna o estado do carrinho
+        window.cartOpen = !window.cartOpen;
+        
+        if (window.cartOpen) {
+            // Abre o carrinho
             cartModal.classList.add('open');
             cartOverlay.classList.add('open');
-            // Preencher formulário do checkout ao abrir o carrinho
-            autofillCheckoutForm();
+            document.documentElement.style.overflow = 'hidden'; // Impede rolagem da página
+            
+            // Atualiza o carrinho quando aberto
+            updateCartState();
+        } else {
+            // Função para fechar o modal do carrinho
+            function closeCartModal() {
+                const cartModal = document.getElementById('cartModal');
+                const cartOverlay = document.getElementById('cartOverlay');
+                
+                if (cartModal && cartOverlay) {
+                    cartModal.classList.remove('open');
+                    cartOverlay.classList.remove('open');
+                    document.documentElement.style.overflow = ''; // Restaura rolagem da página
+                    window.cartOpen = false;
+                }
+            }
+            closeCartModal();
         }
-        cartOpen = !cartOpen;
     }
 }
 
-
-let cartOpen = false;
+// Initialize DOM references when the document is ready
+document.addEventListener('DOMContentLoaded', () => {
+    // Find the products grid
+    const productsGrid = document.getElementById('productsGrid');
+    if (!productsGrid) {
+        console.error('Products grid element not found in the DOM');
+        return;
+    }
+    
+    console.log('Products grid element found:', productsGrid);
+    
+    // Store the products grid in the window object for global access
+    window.productsGrid = productsGrid;
+    
+    // Initialize other DOM references
+    window.cartModal = document.getElementById('cartModal');
+    window.cartOverlay = document.getElementById('cartOverlay');
+    window.cartButton = document.getElementById('cartButton');
+    window.closeCart = document.getElementById('closeCart');
+    window.cartItems = document.getElementById('cartItems');
+    window.cartTotal = document.getElementById('cartTotal');
+    window.checkoutButton = document.getElementById('checkoutButton');
+    window.searchInput = document.getElementById('searchInput');
+    window.searchButton = document.getElementById('searchButton');
+    window.backToTopButton = document.getElementById('backToTop');
+    window.cartCount = document.getElementById('cartCount');
+    window.cartIcon = document.getElementById('cartIcon');
+    window.cartCountMobile = document.getElementById('cartCountMobile');
+    
+    // Initialize cart state
+    window.cartOpen = false;
+    
+    // Load special offers
+    if (typeof loadSpecialOffersCarousel === 'function') {
+        loadSpecialOffersCarousel();
+    }
+    
+    // Check if products are loaded and render them
+    if (window.products && window.products.length > 0) {
+        console.log('Products already loaded, rendering...');
+        if (typeof window.renderProductList === 'function') {
+            window.renderProductList();
+        }
+    }
+});
 
 async function openCart() {
-    cartOpen = true;
-    const cartModal = document.getElementById('cartModal');
-    const cartOverlay = document.getElementById('cartOverlay');
-    const orderConfirmation = document.getElementById('orderConfirmation');
-    const checkoutFormElement = document.getElementById('checkoutForm');
-    const cartTotalContainer = document.getElementById('cartTotalContainer');
-    const emptyCartMessage = document.getElementById('emptyCart');
-    const displayOrderNumber = document.getElementById('displayOrderNumber');
-    const orderSummary = document.getElementById('orderSummary');
-    const whatsappButton = document.getElementById('whatsappButton');
+cartOpen = true;
+const cartModal = document.getElementById('cartModal');
+const cartOverlay = document.getElementById('cartOverlay');
+const orderConfirmation = document.getElementById('orderConfirmation');
+const checkoutFormElement = document.getElementById('checkoutForm');
+const cartTotalContainer = document.getElementById('cartTotalContainer');
+const emptyCartMessage = document.getElementById('emptyCart');
+const displayOrderNumber = document.getElementById('displayOrderNumber');
+const orderSummary = document.getElementById('orderSummary');
+const whatsappButton = document.getElementById('whatsappButton');
 
-    cartModal.classList.add('open');
-    cartOverlay.classList.add('open');
+cartModal.classList.add('open');
+cartOverlay.classList.add('open');
 
-    // Se houver um pedido confirmado, mostrar a confirmação
-    if (currentOrderData) {
-        checkoutFormElement.style.display = 'none';
-        cartTotalContainer.style.display = 'none';
-        emptyCartMessage.style.display = 'none';
-        orderConfirmation.classList.add('show');
+// Se houver um pedido confirmado, mostrar a confirmação
+if (currentOrderData) {
+checkoutFormElement.style.display = 'none';
+cartTotalContainer.style.display = 'none';
+emptyCartMessage.style.display = 'none';
+orderConfirmation.classList.add('show');
 
         // Restaurar dados do pedido
         displayOrderNumber.textContent = `Pedido #${currentOrderData.orderNumber}`;
@@ -2961,14 +3108,6 @@ function updateOrderConfirmationUI(orderData, whatsappMessage) {
     orderConfirmation.scrollIntoView({ behavior: 'smooth' });
 }
 
-// Reset checkout form when closing cart
-function closeCartModal() {
-    cartOpen = false;
-    const cartModal = document.getElementById('cartModal');
-    const cartOverlay = document.getElementById('cartOverlay');
-    cartModal.classList.remove('open');
-    cartOverlay.classList.remove('open');
-}
 
 // Verificar se o pedido foi enviado para o WhatsApp
 let orderSentToWhatsApp = false;
@@ -3166,10 +3305,9 @@ function initializeEventListeners() {
     const waitlistForm = document.getElementById('waitlistForm');
     const waitlistPhone = document.getElementById('waitlistPhone');
 
-    if (cartIcon) cartIcon.addEventListener('click', toggleCart);
-    if (closeCart) closeCart.addEventListener('click', closeCartModal);
-    if (cartOverlay) cartOverlay.addEventListener('click', closeCartModal);
-    if (installmentsSelect) installmentsSelect.addEventListener('change', updateInstallments);
+    // Removendo a duplicação de event listeners
+    // Os listeners já foram configurados na função ensureDOMReferences()
+    
     if (waitlistForm) waitlistForm.addEventListener('submit', handleWaitlistSubmit);
     if (waitlistPhone) waitlistPhone.addEventListener('input', maskPhone);
 
@@ -3196,30 +3334,35 @@ function initializePromoMarquee() {
 // Inicializar a aplicação
 document.addEventListener('DOMContentLoaded', async () => {
     try {
-        // Inicializar referências DOM e event listeners
+        // Inicializar variáveis globais
+        window.currentCategory = 'Todas as Categorias';
+        window.currentSearchTerm = '';
+        
+        // Inicializar referências DOM
         if (!ensureDOMReferences()) {
             console.warn('Algumas referências DOM não foram encontradas');
             return;
         }
+
+        // Expor funções globalmente
+        window.renderProductList = renderProductList;
+        
+        // Carregar produtos do Firestore
+        const productsLoaded = await loadProducts();
+        
+        // Atualizar a lista de produtos após carregar
+        if (window.renderProductList) {
+            window.renderProductList();
+        }
         
         // Carregar carrinho do localStorage
-        const savedCart = loadCartFromLocalStorage();
+        const savedCart = loadCartFromLocalStorage() || [];
+        const user = JSON.parse(localStorage.getItem('essenzaUser') || '{}');
+        
         if (savedCart && savedCart.length > 0) {
-            // Verificar se há um usuário logado
-            const user = JSON.parse(localStorage.getItem('essenzaUser') || '{}');
-            if (user && user.uid) {
-                // Se estiver logado, carregar o carrinho do localStorage
-                cart = savedCart;
-                console.log('[Essenza] Carrinho carregado do localStorage:', cart);
-                // Atualizar a UI do carrinho
-                updateCartState();
-            } else {
-                // Se não estiver logado, carregar o carrinho do localStorage
-                cart = savedCart;
-                console.log('[Essenza] Carrinho de usuário não logado carregado do localStorage:', cart);
-                // Atualizar a UI do carrinho
-                updateCartState();
-            }
+            cart = savedCart;
+            console.log('[Essenza] Carrinho carregado do localStorage:', cart);
+            updateCartState();
         }
 
         // Inicializar letreiro promocional
@@ -3232,28 +3375,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Carregar produtos do Firestore
         const productsFromFirestore = await loadProducts();
         if (productsFromFirestore) {
-            products = productsFromFirestore;
-            renderSpecialOffersCarousel();
             
-            // Configurar listener em tempo real para produtos
-            const productsCollection = collection(window.db, 'products');
-            onSnapshot(productsCollection, (snapshot) => {
-                const updatedProducts = [];
-                snapshot.forEach(doc => {
-                    const product = { id: doc.id, ...doc.data() };
-                    updatedProducts.push(product);
-                });
-                
-                // Atualizar produtos globalmente
-                products = updatedProducts;
-                renderSpecialOffersCarousel();
-                
-                // Re-renderizar listas
-                renderProductList();
-                
-                // Atualizar carrinho se necessário
-                updateCartState();
-            });
+            // Atualizar carrinho se necessário
+            updateCartState();
             
             // Listener em tempo real para pairedPromotions
             try {
@@ -3278,61 +3402,36 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
-// Função para inicializar a aplicação
-async function initializeApp() {
-    try {
-        // Inicializar referências DOM e event listeners
-        if (!ensureDOMReferences()) {
-            console.warn('Algumas referências DOM não foram encontradas');
-            return;
+// Inicializar listeners de mudanças em tempo real
+if (typeof listenProductsRealtime !== 'function') {
+    function listenProductsRealtime() {
+    const productsCollection = collection(window.db, 'products');
+    onSnapshot(productsCollection, (snapshot) => {
+        const updatedProducts = [];
+        snapshot.forEach(doc => {
+            const product = { id: doc.id, ...doc.data() };
+            updatedProducts.push(product);
+        });
+        
+        // Atualizar produtos globalmente
+        products = updatedProducts;
+        
+        // Re-renderizar carrossel de ofertas especiais e listas
+        try {
+            if (typeof renderSpecialOffersCarousel === 'function') {
+                renderSpecialOffersCarousel();
+            }
+        } catch (e) {
+            console.warn('[Carousel] Erro ao re-renderizar após atualização de produtos:', e);
         }
 
-        // Inicializar grid de produtos
-        initializeProductsGrid();
-        initializeEventListeners();
-
-        // Carregar produtos do Firestore
-        const productsFromFirestore = await loadProducts();
-        if (productsFromFirestore) {
-            products = productsFromFirestore;
-            
-            // Configurar listener em tempo real para produtos
-            const productsCollection = collection(window.db, 'products');
-            onSnapshot(productsCollection, (snapshot) => {
-                const updatedProducts = [];
-                snapshot.forEach(doc => {
-                    const product = { id: doc.id, ...doc.data() };
-                    updatedProducts.push(product);
-                });
-                
-                // Atualizar produtos globalmente
-                products = updatedProducts;
-                
-                // Re-renderizar carrossel de ofertas especiais e listas
-                try {
-                    if (typeof renderSpecialOffersCarousel === 'function') {
-                        renderSpecialOffersCarousel();
-                    }
-                } catch (e) {
-                    console.warn('[Carousel] Erro ao re-renderizar após atualização de produtos:', e);
-                }
-
-                // Re-renderizar listas
-                renderProductList();
-                
-                // Atualizar carrinho se necessário
-                updateCartState();
-            });
-        } else {
-            console.error('Erro ao carregar produtos do Firestore');
-        }
-
-        // Inicializar interface
+        // Re-renderizar listas
         renderProductList();
-        updateCartCount();
-    } catch (error) {
-        console.error('Erro ao inicializar app:', error);
-    }
+        
+        // Atualizar carrinho se necessário
+        updateCartState();
+    });
+}
 }
 
 // Carregar HTML do carrossel de ofertas especiais e inicializar carrossel
@@ -3713,13 +3812,50 @@ window.addEventListener('resize', () => {
     showCarouselItem(specialOffersCurrent, cards, track);
 });
 
-// Inicializar a aplicação quando o DOM estiver pronto
+// Função para verificar se o grid de produtos está carregando corretamente
+function checkProductsGrid() {
+    const grid = document.getElementById('products-grid');
+    console.log('=== DEBUG: checkProductsGrid ===');
+    console.log('productsGrid element:', grid);
+    console.log('window.products:', window.products);
+    console.log('window.renderProductList:', typeof window.renderProductList);
+    console.log('window.currentCategory:', window.currentCategory);
+    console.log('window.products length:', window.products ? window.products.length : 0);
+    
+    if (grid) {
+        console.log('productsGrid children:', grid.children.length);
+    } else {
+        console.error('productsGrid element not found in the DOM');
+    }
+    console.log('==============================');
+}
+
+// Inicializar o carrossel de ofertas especiais quando o DOM estiver pronto
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
         loadSpecialOffersCarousel();
-        initializeApp();
+        // Run check after a short delay to ensure everything is loaded
+        setTimeout(checkProductsGrid, 1000);
+        // Force render after a delay if nothing is showing
+        setTimeout(() => {
+            if (window.products && window.products.length > 0 && window.renderProductList) {
+                console.log('Forçando nova renderização dos produtos...');
+                window.renderProductList();
+            }
+        }, 2000);
     });
 } else {
     loadSpecialOffersCarousel();
-    initializeApp();
+    // Run check after a short delay to ensure everything is loaded
+    setTimeout(checkProductsGrid, 1000);
+    // Force render after a delay if nothing is showing
+    setTimeout(() => {
+        if (window.products && window.products.length > 0 && window.renderProductList) {
+            console.log('Forçando nova renderização dos produtos...');
+            window.renderProductList();
+        }
+    }, 2000);
 }
+
+// Expor a função de debug globalmente
+window.checkProductsGrid = checkProductsGrid;

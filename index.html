@@ -25,6 +25,7 @@
     <meta name="robots" content="index, follow">
     <title>Essenza Sua Loja OnLine</title>
     <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/header.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11.0.19/dist/sweetalert2.min.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.0.19/dist/sweetalert2.all.min.js"></script>
@@ -40,12 +41,38 @@
             </div>
         </div>
         <div class="header-main container">
-            <div class="logo-title">
-            <img class="logo" src="img/logo.png" alt="Logo">
-            <h1>ESSENZA</h1>
+            <!-- Logo à esquerda -->
+            <div class="header-logo">
+                <a href="/" class="logo-title">
+                    <img class="logo" src="img/logo.png" alt="Logo">
+                    <h1>ESSENZA</h1>
+                </a>
             </div>
+
+            <!-- Barra de busca centralizada -->
+            <div class="header-search">
+                <div class="search-container">
+                    <input type="text" id="searchInput" placeholder="O que você procura hoje?" aria-label="Buscar produtos">
+                    <button type="button" id="searchButton" aria-label="Buscar">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+                <div class="categories-scroll-container">
+                    <div class="categories-scroll" id="categoriesScroll">
+                        <!-- As categorias serão preenchidas dinamicamente via JavaScript -->
+                    </div>
+                    <button class="scroll-button scroll-left" aria-label="Rolar categorias para a esquerda">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <button class="scroll-button scroll-right" aria-label="Rolar categorias para a direita">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Ações do usuário à direita -->
             <div class="header-actions">
-    <div class="account-dropdown" id="accountDropdown" style="position:relative;">
+                <div class="account-dropdown" id="accountDropdown" style="position:relative;">
   <button id="accountBtnEssenza" aria-haspopup="true" aria-expanded="false" tabindex="0" style="all:unset!important;display:flex!important;flex-direction:column!important;align-items:flex-start!important;gap:0!important;min-width:150px!important;cursor:pointer!important;background:none!important;border:none!important;box-shadow:none!important;padding:0!important;margin:0!important;outline:none!important;transition:box-shadow 0.22s cubic-bezier(.4,0,.2,1),background 0.22s cubic-bezier(.4,0,.2,1)!important;">
   <span style="display:flex!important;align-items:center!important;gap:7px!important;background:none!important;border:none!important;box-shadow:none!important;padding:0!important;margin:0!important;">
     <i class="fa-regular fa-user" style="font-size:1.28em!important;color:#6b6b9d!important;background:none!important;border:none!important;"></i>
@@ -218,18 +245,16 @@
     </header>
 
     <main>
-
-        <!-- Carrossel de Ofertas Especiais -->
-        <div id="carouselOffersInclude"></div>
-
         <section class="products-section">
             <div class="container">
-        <section class="categories">
-            
-            <div class="products-grid" id="productsGrid">
-                <!-- Products will be inserted here via JavaScript -->
+                <div class="products-grid" id="productsGrid">
+                    <!-- Products will be inserted here via JavaScript -->
+                </div>
             </div>
         </section>
+        
+        <!-- Carrossel de Ofertas Especiais -->
+        <div id="carouselOffersInclude"></div>
     </main>
 
     <footer class="footer">
@@ -632,6 +657,8 @@ document.getElementById('waitlistForm')?.addEventListener('submit', validateWait
     <script type="module" src="js/products.js"></script>
     <script type="module" src="js/app.js"></script>
     <script src="js/accountDropdown.js"></script>
+    <!-- Adiciona o header.js como módulo para garantir que o DOM esteja totalmente carregado -->
+    <script type="module" src="js/header.js"></script>
 
     <script>
         // Botão de voltar ao topo

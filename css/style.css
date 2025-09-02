@@ -875,8 +875,12 @@ body {
 }
 
 .header-promo {
+    background: linear-gradient(90deg, var(--color-primary), var(--color-secondary));
     color: white;
-    font-size: 0.9rem;
+    padding: 8px 0;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 500;
     margin: 0;
     letter-spacing: 0.5px;
     white-space: nowrap;
