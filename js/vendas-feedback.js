@@ -40,9 +40,13 @@
     if (formaSelecionada === 'cartão') formaSelecionada = 'credit';
     if (formaSelecionada === 'acordo') formaSelecionada = 'agreement';
     const db = window.db;
-    const user = (window.currentUser || null);
+    // Verificar se estamos no contexto do express.html - não vincular a usuário
+    const isExpressContext = window.location.pathname.includes('express.html');
+    const user = isExpressContext ? null : (window.currentUser || null);
     let essenzaUser = null;
-    try { essenzaUser = JSON.parse(localStorage.getItem('essenzaUser')); } catch {}
+    try { 
+      essenzaUser = isExpressContext ? null : JSON.parse(localStorage.getItem('essenzaUser')); 
+    } catch {}
 
     // Validação
     if(cart.length===0){
