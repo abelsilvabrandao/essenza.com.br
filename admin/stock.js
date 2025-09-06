@@ -1190,15 +1190,25 @@ export async function renderOrdersList() {
                const parcelaPagamentos = (order.payments || []).filter(
                  (p) => p.installmentIndex === idx,
                );
-               const valorParcela =
-                 Math.round(
-                   ((order.total || 0) / order.paymentAgreement.installments) *
-                     100,
-                 ) / 100;
-               const totalPagoParcela = parcelaPagamentos.reduce(
-                 (sum, p) => sum + (Number(p.amount) || 0),
-                 0,
-               );
+               // Obter informações da parcela do acordo de pagamento
+              const parcelaInfo = order.paymentAgreement.installmentsArray && 
+                                order.paymentAgreement.installmentsArray[idx] ?
+                                order.paymentAgreement.installmentsArray[idx] : null;
+              
+              // Usar o valor original da parcela, se disponível, senão calcular
+              const valorOriginalParcela = parcelaInfo ? 
+                  (parcelaInfo.originalAmount || parcelaInfo.amount) : 
+                  (order.total / order.paymentAgreement.installments);
+              
+              // Usar o valor pago da parcela, se disponível
+              const valorPagoParcela = parcelaInfo ? 
+                  (parcelaInfo.amountPaid || 0) : 
+                  parcelaPagamentos.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+              
+              // Arredondar valores
+              const valorParcela = Math.round(valorOriginalParcela * 100) / 100;
+              const totalPagoParcela = Math.round(valorPagoParcela * 100) / 100;
+               // Já calculado acima
                let status = "Pendente",
                  cor = "#fff3cd",
                  txt = "#856404",
@@ -1838,6 +1848,45 @@ window.createPaymentAgreement = async function (
       throw new Error("Dados do acordo de pagamento inválidos");
     }
 
+    // Obter os dados atuais do pedido
+    const orderRef = doc(db, "orders", orderId);
+    const orderDoc = await getDoc(orderRef);
+    const orderData = orderDoc.data();
+    
+    // Calcular valor total pago até o momento
+    const totalPaid = orderData.payments 
+      ? orderData.payments.reduce((sum, payment) => sum + parseFloat(payment.amount || 0), 0)
+      : 0;
+      
+    // Calcular valor pendente
+    let pendingAmount = 0;
+    // Calcular o total pago em parcelas (pagamentos com installmentIndex definido)
+    const totalPagoParcelas = orderData.payments 
+      ? orderData.payments
+          .filter(p => p.installmentIndex !== undefined && p.installmentIndex !== null)
+          .reduce((sum, payment) => sum + parseFloat(payment.amount || 0), 0)
+      : 0;
+    
+    // Calcular o total pago em pagamentos avulsos (sem installmentIndex)
+    const totalPagoAvulso = orderData.payments
+      ? orderData.payments
+          .filter(p => p.installmentIndex === undefined || p.installmentIndex === null)
+          .reduce((sum, payment) => sum + parseFloat(payment.amount || 0), 0)
+      : 0;
+    
+    // O valor pendente é o total do pedido menos o total pago em parcelas e avulsos
+    pendingAmount = Math.max(0, parseFloat(orderData.total || 0) - totalPagoParcelas - totalPagoAvulso);
+    
+    // Se já existe um acordo, verifica se o remainingAmount é menor que o valor pendente calculado
+    if (orderData.paymentAgreement && orderData.paymentAgreement.remainingAmount !== undefined) {
+      // Usa o menor valor entre o remainingAmount existente e o valor pendente calculado
+      pendingAmount = Math.min(orderData.paymentAgreement.remainingAmount, pendingAmount);
+    }
+    
+    // Calcular valor de cada parcela (dividir o valor pendente pelo número de parcelas)
+    // Garantir que estamos usando o valor pendente correto, não o total do pedido
+    const installmentAmount = (pendingAmount > 0 ? pendingAmount : 0) / parseInt(installments);
+
     let paymentDates = [];
     // Se receber um array, usa as datas fornecidas (novo fluxo SweetAlert2)
     if (Array.isArray(datesOrFirstPaymentDate)) {
@@ -1853,13 +1902,43 @@ window.createPaymentAgreement = async function (
       }
     }
 
-    const orderRef = doc(db, "orders", orderId);
+    // Criar array de parcelas com valores calculados
+    const installmentsArray = [];
+    const totalInstallments = parseInt(installments);
+    const baseAmount = parseFloat((pendingAmount / totalInstallments).toFixed(2));
+    let remainingAmount = pendingAmount;
+    
+    // Distribui o valor entre as parcelas, garantindo que a soma seja exatamente o valor pendente
+    for (let i = 0; i < totalInstallments; i++) {
+      let currentAmount;
+      if (i === totalInstallments - 1) {
+        // Última parcela recebe o restante para evitar problemas de arredondamento
+        currentAmount = parseFloat(remainingAmount.toFixed(2));
+      } else {
+        currentAmount = baseAmount;
+        remainingAmount -= baseAmount;
+      }
+      
+      installmentsArray.push({
+        number: i + 1,
+        dueDate: paymentDates[i],
+        amount: currentAmount, // Valor atual (pode ser reduzido por pagamentos parciais)
+        originalAmount: currentAmount, // Valor original fixo da parcela
+        amountPaid: 0, // Inicialmente nenhum valor pago
+        status: 'Pendente'
+      });
+    }
+
     await updateDoc(orderRef, {
       paymentAgreement: {
         installments: parseInt(installments),
         dates: paymentDates,
+        installmentsArray: installmentsArray,
+        totalAmount: pendingAmount,
+        remainingAmount: pendingAmount
       },
       updatedAt: new Date().toISOString(),
+      paymentStatus: 'Parcial' // Garantir que o status seja atualizado para Parcial
     });
 
     // Recarregar a lista de pedidos
@@ -2796,20 +2875,108 @@ window.savePayment = async function (
       0,
     );
 
+    // Calcular valor pendente
+    // Se existir um acordo de pagamento, usa o remainingAmount para calcular o valor pendente
+    let pendingAmount;
+    if (orderData.paymentAgreement && orderData.paymentAgreement.remainingAmount !== undefined) {
+      // Usa o remainingAmount do acordo de pagamento
+      pendingAmount = orderData.paymentAgreement.remainingAmount - amount;
+    } else {
+      // Se não existir acordo, calcula baseado no total e no total pago
+      pendingAmount = (orderData.total || 0) - totalPaid;
+    }
+    // Garante que o valor pendente não seja negativo
+    pendingAmount = Math.max(0, pendingAmount);
+    
+    // Verificar se todas as parcelas foram pagas
+    let allInstallmentsPaid = true;
+    if (orderData.paymentAgreement && orderData.paymentAgreement.installmentsArray) {
+      allInstallmentsPaid = orderData.paymentAgreement.installmentsArray.every(
+        installment => installment.status === 'Pago'
+      );
+    }
+
     // Determinar o novo status
     let paymentStatus = "Pendente";
-    if (totalPaid >= (orderData.total || 0)) {
+    if (pendingAmount <= 0 || allInstallmentsPaid) {
       paymentStatus = "Pago";
     } else if (totalPaid > 0) {
       paymentStatus = "Parcial";
     }
 
-    // Atualizar o pedido
-    await updateDoc(orderRef, {
+    // Preparar atualização do pedido
+    const updateData = {
       payments: updatedPayments,
       paymentStatus,
       updatedAt: new Date().toISOString(),
-    });
+    };
+
+    // Atualizar o acordo de pagamento se existir
+    if (orderData.paymentAgreement) {
+      const installmentsArray = orderData.paymentAgreement.installmentsArray || [];
+      let remainingAmount = orderData.paymentAgreement.remainingAmount !== undefined 
+        ? orderData.paymentAgreement.remainingAmount 
+        : parseFloat(orderData.total || 0) - (totalPaid - amount);
+      
+      // Atualiza o remainingAmount subtraindo o valor do pagamento atual
+      remainingAmount = Math.max(0, remainingAmount - amount);
+      
+      // Se for um pagamento de parcela específica (com installmentIndex)
+      if (typeof installmentIndex !== 'undefined' && installmentIndex !== null) {
+        const installment = installmentsArray[installmentIndex];
+        if (installment) {
+          // Atualiza o valor pago da parcela
+          const amountPaid = Number(installment.amountPaid || 0) + amount;
+          const isFullyPaid = amountPaid >= installment.originalAmount;
+          
+          // Atualiza o status da parcela mantendo o valor original
+          installmentsArray[installmentIndex] = {
+            ...installment,
+            amount: installment.originalAmount || installment.amount, // Mantém o valor original
+            originalAmount: installment.originalAmount || installment.amount, // Garante que originalAmount está definido
+            amountPaid: parseFloat(amountPaid.toFixed(2)),
+            status: isFullyPaid ? 'Pago' : 'Parcial'
+          };
+        }
+      } else {
+        // Para pagamentos avulsos, distribui o valor entre as parcelas pendentes
+        let remainingPayment = amount;
+        installmentsArray.forEach((installment, idx) => {
+          if (installment.status !== 'Pago' && remainingPayment > 0) {
+            const originalAmount = installment.originalAmount || installment.amount;
+            const amountPaid = Number(installment.amountPaid || 0);
+            const amountDue = originalAmount - amountPaid;
+            const amountToPay = Math.min(amountDue, remainingPayment);
+            
+            if (amountToPay > 0) {
+              const newAmountPaid = amountPaid + amountToPay;
+              const isFullyPaid = newAmountPaid >= originalAmount;
+              
+              installmentsArray[idx] = {
+                ...installment,
+                amount: originalAmount, // Mantém sempre o valor original
+                originalAmount: originalAmount, // Preserva o valor original
+                amountPaid: parseFloat(newAmountPaid.toFixed(2)),
+                status: isFullyPaid ? 'Pago' : 'Parcial',
+                // Adiciona o valor pendente como uma propriedade separada para exibição
+                pendingAmount: Math.max(0, originalAmount - newAmountPaid).toFixed(2)
+              };
+              
+              remainingPayment -= amountToPay;
+            }
+          }
+        });
+      }
+
+      updateData.paymentAgreement = {
+        ...orderData.paymentAgreement,
+        installmentsArray,
+        remainingAmount: parseFloat(remainingAmount.toFixed(2))
+      };
+    }
+
+    // Atualizar o pedido
+    await updateDoc(orderRef, updateData);
 
     // Fechar o modal
     const modal = document.getElementById("paymentModal");

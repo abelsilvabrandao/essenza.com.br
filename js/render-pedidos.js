@@ -74,15 +74,24 @@ export async function renderPedidosConta() {
       // Status de pagamento
       let statusPagamento = 'Pendente';
       const method = (pedido.paymentMethod || pedido.formaPagamento || '').toLowerCase();
+      const pagamentos = Array.isArray(pedido.payments) ? pedido.payments : [];
+      const totalPago = pagamentos.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+      const totalPedido = Number(pedido.total || 0);
+      
       if (pedido.paymentAgreement && Array.isArray(pedido.paymentAgreement.dates) && pedido.paymentAgreement.installments) {
-         // Lógica para acordo/parcelamento (igual admin)
+         // Lógica para acordo/parcelamento
          const agr = pedido.paymentAgreement;
-         const totalPedido = Number(pedido.total || 0);
          const qtdParcelas = Number(agr.installments);
          const valorParcela = qtdParcelas > 0 ? Math.round((totalPedido / qtdParcelas) * 100) / 100 : 0;
-         const pagamentos = Array.isArray(pedido.payments) ? pedido.payments : [];
+         
+         // Verificar se há pagamentos avulsos
+         const pagamentosAvulsos = pagamentos.filter(p => p.installmentIndex === undefined || p.installmentIndex === null);
+         const totalPagoAvulso = pagamentosAvulsos.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+         
+         // Verificar status das parcelas
          let totalParcelasPagas = 0;
          let totalParcelasParciais = 0;
+         
          if (qtdParcelas > 0 && Array.isArray(agr.dates)) {
            agr.dates.forEach((dt, idx) => {
              const parcelaPagamentos = pagamentos.filter(p => p.installmentIndex === idx);
@@ -91,9 +100,23 @@ export async function renderPedidosConta() {
              else if (totalPagoParcela > 0) totalParcelasParciais++;
            });
          }
-         if (totalParcelasPagas === qtdParcelas) statusPagamento = 'Pago';
-         else if (totalParcelasPagas > 0 || totalParcelasParciais > 0) statusPagamento = 'Parcial';
-         else statusPagamento = 'Pendente';
+         
+         // Verificar primeiro se o total pago é maior ou igual ao total do pedido
+        if (totalPago >= totalPedido) {
+          statusPagamento = 'Pago';
+        } 
+        // Se todas as parcelas foram pagas, mas ainda há valor pendente (devido a pagamentos parciais)
+        else if (totalParcelasPagas === qtdParcelas) {
+          statusPagamento = 'Pago';
+        } 
+        // Se houver pagamentos avulsos ou parcelas parciais/pagas, status é Parcial
+        else if (totalPago > 0) {
+          statusPagamento = 'Parcial';
+        } 
+        // Se não houver nenhum pagamento
+        else {
+          statusPagamento = 'Pendente';
+        }
       } else {
         // Preferir campo explícito de status de pagamento, caso exista
         if (pedido.paymentStatus) {
@@ -290,7 +313,107 @@ export async function renderPedidosConta() {
                 </tfoot>
               </table>
             </div>
-              <!-- Detalhes do acordo/parcelamento dentro do mesmo container -->
+            
+            <!-- Resumo Financeiro -->
+            <div style='margin:18px 0 0 0;padding:15px 12px 12px 12px;background:#f8fafd;border-radius:10px;box-shadow:0 1px 4px #0001;'>
+              <b style='color:#7b1fa2;font-size:1.08em;'><i class="fa fa-calculator" style="margin-right:6px;"></i>Resumo Financeiro</b>
+              <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                <div style="background:#fff;border-radius:8px;padding:12px;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+                  <div style="color:#666;font-size:0.95em;margin-bottom:5px;">Total do Pedido</div>
+                  <div style="font-size:1.3em;font-weight:700;color:#333;">R$ ${(pedido.total || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
+                </div>
+                ${(() => {
+                  const pagamentos = Array.isArray(pedido.payments) ? pedido.payments : [];
+                  
+                  // Calcular total pago em parcelas
+                  const pagamentosParcelas = pagamentos.filter(p => p.installmentIndex !== undefined && p.installmentIndex !== null);
+                  const totalPagoParcelas = pagamentosParcelas.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+                  
+                  // Calcular total pago em avulsos
+                  const pagamentosAvulsos = pagamentos.filter(p => p.installmentIndex === undefined || p.installmentIndex === null);
+                  const totalPagoAvulso = pagamentosAvulsos.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+                  
+                  // Calcular total geral pago
+                  const totalPagoGeral = totalPagoParcelas + totalPagoAvulso;
+                  
+                  // Calcular valor pendente
+                  const valorPendente = Math.max(0, (pedido.total || 0) - totalPagoGeral);
+                  
+                  return `
+                    <div style="background:#fff;border-radius:8px;padding:12px;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+                      <div style="color:#666;font-size:0.95em;margin-bottom:5px;">Total Pago (Parcelas)</div>
+                      <div style="font-size:1.1em;font-weight:700;color:#2e7d32;">R$ ${totalPagoParcelas.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
+                    </div>
+                    <div style="background:#fff;border-radius:8px;padding:12px;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+                      <div style="color:#666;font-size:0.95em;margin-bottom:5px;">Total Pago (Avulsos)</div>
+                      <div style="font-size:1.1em;font-weight:700;color:#2e7d32;">R$ ${totalPagoAvulso.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
+                    </div>
+                    <div style="background:#fff;border-radius:8px;padding:12px;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+                      <div style="color:#666;font-size:0.95em;margin-bottom:5px;">Total Pago</div>
+                      <div style="font-size:1.3em;font-weight:700;color:#2e7d32;">R$ ${totalPagoGeral.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
+                    </div>
+                    <div style="background:#fff;border-radius:8px;padding:12px;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+                      <div style="color:#666;font-size:0.95em;margin-bottom:5px;">Valor Pendente</div>
+                      <div style="font-size:1.3em;font-weight:700;color:#c62828;">R$ ${valorPendente.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
+                    </div>
+                    <div style="background:#fff;border-radius:8px;padding:12px;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+                      <div style="color:#666;font-size:0.95em;margin-bottom:5px;">Status do Pagamento</div>
+                      <div style="font-size:1.1em;font-weight:700;color:#1565c0;">${pedido.paymentStatus || 'Pendente'}</div>
+                    </div>
+                  `;
+                })()}
+              </div>
+            </div>
+            
+            <!-- Seção de Pagamentos Avulsos -->
+            ${(() => {
+              const pagamentos = Array.isArray(pedido.payments) ? pedido.payments : [];
+              const pagamentosAvulsos = pagamentos.filter(p => p.installmentIndex === undefined || p.installmentIndex === null);
+              
+              if (pagamentosAvulsos.length > 0) {
+                const totalPagoAvulso = pagamentosAvulsos.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+                
+                return `
+                <div style='margin-top:18px;'>
+                  <b style='color:#7b1fa2;font-size:1.08em;'><i class="fa fa-money-bill-wave" style="margin-right:6px;"></i>Pagamentos Avulsos</b>
+                  <div class="pedido-itens-scroll" style="width:100%;overflow-x:auto;">
+                    <table style="width:100%;margin-top:7px;background:none;border-collapse:collapse;font-size:0.99em;">
+                      <thead>
+                        <tr style="background:#f3e5f5;color:#7b1fa2;">
+                          <th style="padding:8px 6px;text-align:left;">Data</th>
+                          <th style="padding:8px 6px;text-align:right;">Valor</th>
+                          <th style="padding:8px 6px;text-align:left;">Forma de Pagamento</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        ${pagamentosAvulsos.map(pagamento => {
+                          const data = pagamento.date || pagamento.createdAt || new Date();
+                          const dataFormatada = data.toDate ? data.toDate().toLocaleDateString('pt-BR') : new Date(data).toLocaleDateString('pt-BR');
+                          const valor = Number(pagamento.amount) || 0;
+                          const formaPagamento = pagamento.method || 'Não informado';
+                          
+                          return `
+                            <tr>
+                              <td style="padding:8px 6px;vertical-align:middle;">${dataFormatada}</td>
+                              <td style="padding:8px 6px;text-align:right;font-weight:500;">R$ ${valor.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                              <td style="padding:8px 6px;text-align:left;">${formaPagamento}</td>
+                            </tr>
+                          `;
+                        }).join('')}
+                        <tr>
+                          <td style="padding:8px 6px;font-weight:700;border-top:1px solid #eee;">Total Pago:</td>
+                          <td style="padding:8px 6px;text-align:right;font-weight:700;border-top:1px solid #eee;">R$ ${totalPagoAvulso.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                          <td style="padding:8px 6px;border-top:1px solid #eee;"></td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>`;
+              }
+              return '';
+            })()}
+            
+            <!-- Detalhes do acordo/parcelamento dentro do mesmo container -->
               ${(function(){
                 if (pedido.paymentAgreement && Array.isArray(pedido.paymentAgreement.installments) && pedido.paymentAgreement.installments.length > 0) {
                   const parcelas = pedido.paymentAgreement.installments;
@@ -349,7 +472,19 @@ export async function renderPedidosConta() {
        const agr = pedido.paymentAgreement;
        const totalPedido = Number(pedido.total || 0);
        const qtdParcelas = Number(agr.installments);
-       const valorParcela = qtdParcelas > 0 ? Math.round((totalPedido / qtdParcelas) * 100) / 100 : 0;
+       
+       // Calcular o total já pago em pagamentos avulsos (sem installmentIndex)
+       const totalPagoAvulso = Array.isArray(pedido.payments) 
+         ? pedido.payments
+             .filter(p => p.installmentIndex === undefined || p.installmentIndex === null)
+             .reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+         : 0;
+       
+       // Calcular o valor pendente (total - pagamentos avulsos)
+       const valorPendente = Math.max(0, totalPedido - totalPagoAvulso);
+       
+       // Calcular o valor de cada parcela baseado no valor pendente
+       const valorParcela = qtdParcelas > 0 ? Math.round((valorPendente / qtdParcelas) * 100) / 100 : 0;
        const pagamentos = Array.isArray(pedido.payments) ? pedido.payments : [];
        let parcelas = agr.dates.map((dt, idx) => {
          // Pagamentos vinculados a esta parcela
@@ -372,10 +507,9 @@ export async function renderPedidosConta() {
          };
        });
        if (parcelas.length) {
-         // Calcular saldo pendente
-         const totalAcordo = valorParcela * qtdParcelas;
-         const totalPagoAcordo = parcelas.reduce((sum, p) => sum + (Number(p.totalPagoParcela) || 0), 0);
-         const saldoPendente = Math.max(0, totalAcordo - totalPagoAcordo);
+         // Calcular saldo pendente considerando pagamentos avulsos e parcelas
+        const totalPagoParcelas = parcelas.reduce((sum, p) => sum + (Number(p.totalPagoParcela) || 0), 0);
+        const saldoPendente = Math.max(0, valorPendente - totalPagoParcelas);
         return `<div style="margin:18px 0 0 0;padding:15px 12px 12px 12px;background:#f8fafd;border-radius:10px;box-shadow:0 1px 4px #0001;">
           <b style='color:#7b1fa2;font-size:1.08em;'><i class="fa fa-handshake" style="margin-right:6px;"></i>Detalhes do Acordo/Parcelamento</b>
           <div class="pedido-itens-scroll" style="width:100%;overflow-x:auto;">
