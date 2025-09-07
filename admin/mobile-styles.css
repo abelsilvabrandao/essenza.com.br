@@ -1,0 +1,291 @@
+/* Mobile-first responsive styles for inventory management */
+
+/* Base mobile styles */
+@media (max-width: 768px) {
+    /* General layout adjustments */
+    .admin-container {
+        padding: 10px;
+    }
+
+    .container {
+        width: 100%;
+        padding: 0 5px;
+    }
+
+    /* Header adjustments */
+    .admin-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 10px 0;
+    }
+
+    .admin-header h1 {
+        font-size: 1.5rem;
+        margin: 0;
+    }
+
+    /* Action buttons */
+    .actions {
+        flex-direction: column;
+        gap: 8px;
+        margin-bottom: 15px;
+    }
+
+    .actions button {
+        width: 100%;
+        margin: 0 !important;
+        padding: 10px;
+        font-size: 0.9rem;
+    }
+
+    /* Tab navigation */
+    .tab-buttons {
+        flex-direction: column;
+        gap: 5px;
+        margin-bottom: 15px;
+    }
+
+    .tab-button {
+        width: 100%;
+        padding: 12px 10px;
+        border-radius: 6px;
+        margin: 2px 0;
+    }
+
+    /* Filter forms */
+    .filters, 
+    .coupon-filters,
+    .stock-movements-filters {
+        flex-direction: column;
+        gap: 10px !important;
+    }
+
+    .filter-group {
+        width: 100%;
+        margin-bottom: 8px;
+    }
+
+    .filter-input,
+    .filter-select {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+
+    /* Tables */
+    .dashboard-table-wrapper {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        margin: 10px 0;
+        width: 100%;
+    }
+
+    .dashboard-table {
+        font-size: 0.85rem;
+        min-width: 100%;
+        table-layout: fixed;
+    }
+
+    .dashboard-table th,
+    .dashboard-table td {
+        padding: 8px 4px;
+        word-wrap: break-word;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    /* Order status and payment status badges */
+    .status-badge,
+    .payment-status-badge {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 0.8rem;
+        font-weight: 500;
+        text-align: center;
+        white-space: nowrap;
+        min-width: 70px;
+    }
+    
+    /* Order date/time */
+    .order-date {
+        white-space: nowrap;
+        font-size: 0.85rem;
+    }
+    
+    /* Responsive table cells */
+    .dashboard-table td:first-child,
+    .dashboard-table th:first-child {
+        position: sticky;
+        left: 0;
+        z-index: 2;
+        background-color: #fff;
+        min-width: 100px;
+    }
+    
+    /* Make status and payment status columns fixed width */
+    .status-column,
+    .payment-status-column {
+        width: 90px !important;
+        max-width: 90px !important;
+    }
+    
+    /* Order date column */
+    .order-date-column {
+        width: 120px !important;
+        max-width: 120px !important;
+    }
+
+    /* Accordion sections */
+    .accordion-section {
+        margin-bottom: 10px;
+    }
+
+    .accordion-header {
+        padding: 12px 15px;
+        font-size: 1rem;
+    }
+
+    .accordion-content {
+        padding: 10px;
+    }
+
+    /* Form controls */
+    .input-with-icon,
+    .select-wrapper {
+        width: 100%;
+    }
+
+    /* Buttons in forms */
+    .btn {
+        width: 100%;
+        margin: 5px 0 !important;
+        padding: 10px;
+    }
+
+    /* Modal dialogs */
+    .modal-content {
+        width: 95%;
+        margin: 20px auto;
+        padding: 15px;
+    }
+
+    .form-group {
+        margin-bottom: 12px;
+    }
+
+    /* Stock list items */
+    .stock-item {
+        flex-direction: column;
+        padding: 12px 10px;
+    }
+
+    .stock-item-info {
+        width: 100%;
+        margin-bottom: 10px;
+    }
+
+    .stock-item-actions {
+        width: 100%;
+        justify-content: space-between;
+    }
+}
+
+/* Adjustments for very small screens */
+@media (max-width: 480px) {
+    /* Make table cells stack on very small screens */
+    .dashboard-table {
+        display: block;
+    }
+    
+    .dashboard-table thead {
+        display: none;
+    }
+    
+    .dashboard-table tbody {
+        display: block;
+        width: 100%;
+    }
+    
+    .dashboard-table tr {
+        display: block;
+        margin-bottom: 15px;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        padding: 10px;
+        position: relative;
+    }
+    
+    .dashboard-table td {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px 5px;
+        border: none;
+        border-bottom: 1px solid #f0f0f0;
+    }
+    
+    .dashboard-table td:before {
+        content: attr(data-label);
+        font-weight: 600;
+        margin-right: 10px;
+        flex: 0 0 40%;
+    }
+    
+    .dashboard-table td:last-child {
+        border-bottom: none;
+    }
+    
+    /* Adjust status badges for mobile */
+    .status-badge,
+    .payment-status-badge {
+        padding: 3px 6px;
+        font-size: 0.75rem;
+        min-width: 60px;
+    }
+    
+    /* Hide the first cell's sticky behavior on mobile */
+    .dashboard-table td:first-child {
+        position: static;
+        background-color: transparent;
+    }
+    .admin-header h1 {
+        font-size: 1.3rem;
+    }
+
+    .tab-button {
+        font-size: 0.9rem;
+        padding: 10px 8px;
+    }
+
+    .dashboard-table {
+        font-size: 0.8rem;
+    }
+
+    .dashboard-table th,
+    .dashboard-table td {
+        padding: 6px 4px;
+    }
+}
+
+/* Landscape mode adjustments */
+@media (max-width: 768px) and (orientation: landscape) {
+    .actions {
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+    
+    .actions button {
+        width: calc(50% - 5px);
+    }
+    
+    .tab-buttons {
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+    
+    .tab-button {
+        width: calc(50% - 4px);
+        padding: 10px 5px;
+        font-size: 0.8rem;
+    }
+}
