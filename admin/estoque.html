@@ -279,7 +279,7 @@
     <input type="date" id="filterDate" class="filter-input">
   </div>
   <div class="filter-group">
-    <label for="filterStatus">Status:</label>
+    <label for="filterStatus">Status do Pedido:</label>
     <select id="filterStatus" class="filter-select">
       <option value="">Todos os status</option>
       <option value="Pendente">Pendente</option>
@@ -287,11 +287,26 @@
       <option value="Cancelado">Cancelado</option>
     </select>
   </div>
+  <div class="filter-group">
+    <label for="filterPaymentStatus">Pagamento:</label>
+    <select id="filterPaymentStatus" class="filter-select">
+      <option value="todos">Todos</option>
+      <option value="Pendente">Pendente</option>
+      <option value="Pago">Pago</option>
+      <option value="Parcial">Parcial</option>
+    </select>
+  </div>
   <button id="applyFilters" class="btn">
     <i class="fas fa-search"></i> Buscar
   </button>
   <button id="clearFilters" class="btn btn-secondary">
     <i class="fas fa-times"></i> Limpar
+  </button>
+  <button id="exportToExcel" class="btn btn-success">
+    <i class="fas fa-file-excel"></i> Exportar para Excel
+  </button>
+  <button id="updatePurchasePrices" class="btn btn-primary" title="Atualizar preços de compra nos pedidos">
+    <i class="fas fa-sync-alt"></i> Atualizar Preços
   </button>
 </div>
         

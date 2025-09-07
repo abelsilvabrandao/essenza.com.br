@@ -67,6 +67,8 @@ import {
   writeBatch,
   setDoc,
   onSnapshot,
+  query,
+  where
 } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-firestore.js";
 import { getCategories, addCategory, editCategory, removeCategory } from './categories-data.js';
 
@@ -352,10 +354,12 @@ export function applyFilters() {
     document.getElementById("searchTerm")?.value?.trim().toLowerCase() || "";
   const filterDate = document.getElementById("filterDate")?.value || "";
   const filterStatus = document.getElementById("filterStatus")?.value || "";
+  const filterPaymentStatus = document.getElementById("filterPaymentStatus")?.value || "";
 
   // Atualizar a URL com os parâmetros de filtro
   const urlParams = new URLSearchParams();
   if (filterStatus) urlParams.set("status", filterStatus);
+  if (filterPaymentStatus) urlParams.set("paymentStatus", filterPaymentStatus);
   if (searchTerm) urlParams.set("search", encodeURIComponent(searchTerm));
   if (filterDate) urlParams.set("date", filterDate);
 
@@ -376,7 +380,7 @@ export function applyFilters() {
   }
 
   let visibleCount = 0;
-  let anyFilterActive = searchTerm || filterDate || filterStatus;
+  let anyFilterActive = searchTerm || filterDate || filterStatus || filterPaymentStatus;
 
   // Log dos dados do primeiro pedido para debug
   if (orderCards.length > 0) {
@@ -430,6 +434,30 @@ export function applyFilters() {
         statusMatches = true;
       }
     }
+    
+    // 2.1 Verificar se o pedido corresponde ao filtro de status de pagamento
+    let paymentStatusMatches = !filterPaymentStatus || filterPaymentStatus === 'todos';
+    if (filterPaymentStatus && filterPaymentStatus !== 'todos') {
+      // Tenta obter o status de pagamento do card
+      const paymentStatusElement = card.querySelector('.payment-status-badge');
+      let cardPaymentStatus = 'Pendente';
+      
+      if (paymentStatusElement) {
+        // Pega o texto do elemento de status de pagamento
+        cardPaymentStatus = paymentStatusElement.textContent.trim().split('\n')[0].trim();
+      }
+      
+      const filterPaymentStatusLower = filterPaymentStatus.toLowerCase();
+      const cardPaymentStatusLower = cardPaymentStatus.toLowerCase();
+      
+      paymentStatusMatches = cardPaymentStatusLower === filterPaymentStatusLower;
+      
+      // Se não encontrou o status no card, verifica se há um atributo data-payment-status
+      if (!paymentStatusMatches && card.hasAttribute('data-payment-status')) {
+        const dataPaymentStatus = card.getAttribute('data-payment-status').toLowerCase();
+        paymentStatusMatches = dataPaymentStatus === filterPaymentStatusLower;
+      }
+    }
 
     // 3. Verificar se o pedido corresponde ao filtro de data
     let dateMatches = !filterDate;
@@ -470,8 +498,8 @@ export function applyFilters() {
       }
     }
     // Lógica de decisão:
-    // 1. Primeiro verifica se os filtros básicos estão atendidos (status e data)
-    const basicFiltersMatch = statusMatches && dateMatches;
+    // 1. Primeiro verifica se os filtros básicos estão atendidos (status, status de pagamento e data)
+    const basicFiltersMatch = statusMatches && dateMatches && paymentStatusMatches;
 
     // 2. Se houver termo de busca, deve corresponder à busca E aos filtros básicos
     // 3. Se não houver termo de busca, basta que os filtros básicos sejam atendidos
@@ -512,8 +540,8 @@ export function applyFilters() {
       const activeFilters = [];
 
       if (filterStatus) activeFilters.push(`status "${filterStatus}"`);
-      if (filterDate)
-        activeFilters.push(`data "${formatISODateToBR(filterDate)}"`);
+      if (filterPaymentStatus && filterPaymentStatus !== 'todos') activeFilters.push(`pagamento "${filterPaymentStatus}"`);
+      if (filterDate) activeFilters.push(`data "${formatISODateToBR(filterDate)}"`);
       if (searchTerm) activeFilters.push(`termo de busca "${searchTerm}"`);
 
       if (activeFilters.length > 0) {
@@ -541,6 +569,7 @@ export function clearFilters() {
   document.getElementById("searchTerm").value = "";
   document.getElementById("filterDate").value = "";
   document.getElementById("filterStatus").value = "";
+  document.getElementById("filterPaymentStatus").value = "todos";
   applyFilters();
 }
 
@@ -550,10 +579,537 @@ function filterOrdersByStatus(status) {
   applyFilters();
 }
 
+// Função para atualizar os pedidos com purchasePrice
+async function updateOrdersWithPurchasePrice() {
+  try {
+    const confirm = await Swal.fire({
+      title: 'Atualizar Pedidos',
+      html: 'Esta operação irá atualizar todos os pedidos com os preços de compra dos produtos. Deseja continuar?',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sim, atualizar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#3085d6',
+      cancelButtonColor: '#d33'
+    });
+
+    if (!confirm.isConfirmed) return;
+
+    // Mostra o modal de progresso
+    let progressModal = Swal.fire({
+      title: 'Atualizando pedidos',
+      html: 'Buscando pedidos...',
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading();
+      }
+    });
+
+    // Busca todos os pedidos
+    const ordersRef = collection(window.db, 'orders');
+    const ordersSnapshot = await getDocs(ordersRef);
+    const orders = [];
+    
+    ordersSnapshot.forEach(doc => {
+      orders.push({ id: doc.id, ...doc.data() });
+    });
+
+    // Coleta todos os productIds únicos
+    const productIds = [];
+    const productMap = new Map();
+    
+    orders.forEach(order => {
+      if (order.items && order.items.length > 0) {
+        order.items.forEach(item => {
+          if (item.productId) {
+            // Garante que o ID seja uma string
+            const productId = String(item.productId);
+            if (!productIds.includes(productId)) {
+              productIds.push(productId);
+            }
+          }
+        });
+      }
+    });
+
+    // Atualiza o progresso
+    await progressModal.update({
+      html: `Buscando ${productIds.length} produtos...`
+    });
+
+    // Busca todos os produtos individualmente
+    if (productIds.length > 0) {
+      const productsRef = collection(window.db, 'products');
+      
+      for (let i = 0; i < productIds.length; i++) {
+        let productId = productIds[i];
+        
+        // Garante que o ID seja uma string
+        if (typeof productId !== 'string') {
+          productId = String(productId);
+        }
+        
+        try {
+          const productDoc = await getDoc(doc(productsRef, productId));
+          
+          if (productDoc.exists()) {
+            productMap.set(productId, { id: productDoc.id, ...productDoc.data() });
+          }
+        } catch (error) {
+          console.warn(`Erro ao buscar produto com ID ${productId}:`, error);
+          continue;
+        }
+
+        // Atualiza o progresso a cada 10 produtos para não sobrecarregar
+        if (i % 10 === 0 || i === productIds.length - 1) {
+          const progress = Math.round(((i + 1) / productIds.length) * 100);
+          await progressModal.update({
+            html: `Buscando produtos...<br>${i + 1} de ${productIds.length} (${progress}%)`
+          });
+        }
+      }
+    }
+
+    // Atualiza os pedidos em lotes menores
+    let updatedCount = 0;
+    const BATCH_SIZE = 25; // Tamanho reduzido do lote
+    
+    for (let i = 0; i < orders.length; i++) {
+      const order = orders[i];
+      let needsUpdate = false;
+      const updatedItems = [];
+
+      if (order.items && order.items.length > 0) {
+        for (const item of order.items) {
+          let purchasePrice = null;
+          
+          if (item.productId && productMap.has(item.productId)) {
+            const product = productMap.get(item.productId);
+            
+            // Tenta encontrar o preço de compra na variação ou no produto principal
+            if (item.variationId && product.variations) {
+              const variation = product.variations.find(v => v.id === item.variationId);
+              if (variation && variation.purchasePrice !== undefined) {
+                purchasePrice = variation.purchasePrice;
+              }
+            }
+            
+            if (purchasePrice === null && product.purchasePrice !== undefined) {
+              purchasePrice = product.purchasePrice;
+            }
+          }
+
+          // Se encontrou um preço de compra e é diferente do atual, atualiza o item
+          if (purchasePrice !== null && item.purchasePrice !== purchasePrice) {
+            needsUpdate = true;
+            updatedItems.push({
+              ...item,
+              purchasePrice: purchasePrice
+            });
+          } else {
+            updatedItems.push(item);
+          }
+        }
+      }
+
+      // Se precisa atualizar o pedido, atualiza individualmente
+      if (needsUpdate) {
+        const orderRef = doc(window.db, 'orders', order.id);
+        await updateDoc(orderRef, { items: updatedItems });
+        updatedCount++;
+        
+        // Atualiza o progresso a cada lote
+        if (updatedCount % BATCH_SIZE === 0 || i === orders.length - 1) {
+          const progress = Math.round(((i + 1) / orders.length) * 100);
+          await progressModal.update({
+            html: `Atualizando pedidos...<br>${i + 1} de ${orders.length} (${progress}%)<br>${updatedCount} pedidos atualizados`
+          });
+          
+          // Pequena pausa entre lotes para evitar sobrecarga
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+    }
+
+    // Fecha o modal de progresso
+    await Swal.close();
+    
+    // Mostra o resumo
+    Swal.fire({
+      icon: 'success',
+      title: 'Atualização concluída!',
+      html: `Foram atualizados ${updatedCount} de ${orders.length} pedidos com os preços de compra.`,
+      confirmButtonText: 'OK'
+    });
+
+  } catch (error) {
+    console.error('Erro ao atualizar pedidos:', error);
+    Swal.fire({
+      icon: 'error',
+      title: 'Erro',
+      text: 'Ocorreu um erro ao atualizar os pedidos. Verifique o console para mais detalhes.',
+      confirmButtonText: 'OK'
+    });
+  }
+}
+
+// Função para exportar pedidos para Excel
+async function exportOrdersToExcel() {
+  console.log('[Export] Iniciando exportação para Excel...');
+  
+  try {
+    // Fecha qualquer modal aberto
+    Swal.close();
+    
+    if (!window.ordersCache || window.ordersCache.length === 0) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Nenhum pedido encontrado',
+        text: 'Não há pedidos para exportar.',
+        confirmButtonText: 'OK'
+      });
+      return;
+    }
+    
+    // Obtém os filtros atuais
+    const searchTerm = document.getElementById("searchTerm")?.value?.trim().toLowerCase() || "";
+    const filterDate = document.getElementById("filterDate")?.value || "";
+    const filterStatus = document.getElementById("filterStatus")?.value || "";
+    const filterPaymentStatus = document.getElementById("filterPaymentStatus")?.value || "";
+    
+    // Filtra os pedidos com base nos filtros ativos
+    const filteredOrders = window.ordersCache.filter(order => {
+      // Filtro de busca
+      if (searchTerm) {
+        const searchFields = [
+          order.orderNumber || '',
+          order.customerName || '',
+          order.customerEmail || '',
+          order.shippingAddress?.recipientName || ''
+        ];
+        
+        const matchesSearch = searchFields.some(field => 
+          field.toLowerCase().includes(searchTerm)
+        );
+        
+        if (!matchesSearch) return false;
+      }
+      
+      // Filtro de data
+      if (filterDate) {
+        try {
+          const orderDate = order.createdAt?.toDate ? 
+            order.createdAt.toDate() : 
+            new Date(order.createdAt?.seconds * 1000 || order.createdAt || new Date());
+          
+          const filterDateObj = new Date(filterDate);
+          if (orderDate.toDateString() !== filterDateObj.toDateString()) {
+            return false;
+          }
+        } catch (e) {
+          console.error('Erro ao filtrar por data:', e);
+        }
+      }
+      
+      // Filtro de status do pedido
+      if (filterStatus) {
+        const normalizedStatus = getNormalizedStatus(order.status || 'Pendente');
+        const normalizedFilter = getNormalizedStatus(filterStatus);
+        
+        if (normalizedStatus !== normalizedFilter) {
+          return false;
+        }
+      }
+      
+      // Filtro de status de pagamento
+      if (filterPaymentStatus && filterPaymentStatus !== 'todos') {
+        const paymentStatus = order.paymentStatus || 'Pendente';
+        if (paymentStatus.toLowerCase() !== filterPaymentStatus.toLowerCase()) {
+          return false;
+        }
+      }
+      
+      return true;
+    });
+    
+    if (filteredOrders.length === 0) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Nenhum pedido corresponde aos filtros',
+        text: 'Não há pedidos para exportar com os filtros atuais.',
+        confirmButtonText: 'OK'
+      });
+      return;
+    }
+
+    // Mostra loading
+    const loading = Swal.fire({
+      title: 'Gerando relatório',
+      html: 'Preparando exportação...',
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading()
+    });
+
+    try {
+      // Cria o conteúdo do CSV com BOM para garantir UTF-8
+      const BOM = '\uFEFF';
+      let csvContent = 'data:text/csv;charset=utf-8,' + BOM;
+      
+      // Função para formatar o método de pagamento
+      const formatPaymentMethod = (method) => {
+        if (!method) return 'Não especificado';
+        
+        const methods = {
+          'pix': 'PIX',
+          'credit': 'Cartão de Crédito',
+          'debit': 'Cartão de Débito',
+          'boleto': 'Boleto',
+          'agreement': 'Acordo',
+          'transfer': 'Transferência Bancária',
+          'cash': 'Dinheiro',
+          'pix_parcelado': 'PIX Parcelado',
+          'credit_parcelado': 'Cartão de Crédito Parcelado'
+        };
+        
+        return methods[method.toLowerCase()] || method;
+      };
+
+      // Função robusta para converter diferentes formatos de data
+      const parseDate = (dateInput) => {
+        if (!dateInput) return new Date(); // Retorna data atual se não houver entrada
+        
+        try {
+          // Se for um objeto Firestore Timestamp
+          if (typeof dateInput.toDate === 'function') {
+            return dateInput.toDate();
+          }
+          // Se for um timestamp em segundos
+          if (dateInput.seconds) {
+            return new Date(dateInput.seconds * 1000);
+          }
+          // Se for uma string de data ISO
+          if (typeof dateInput === 'string') {
+            // Tenta converter a string para data
+            const date = new Date(dateInput);
+            // Verifica se a data é válida
+            if (!isNaN(date.getTime())) {
+              return date;
+            }
+          }
+          // Se for um timestamp numérico
+          if (typeof dateInput === 'number') {
+            // Se for em segundos (mais de 10 dígitos), converte para milissegundos
+            const timestamp = dateInput > 1e10 ? dateInput * 1000 : dateInput;
+            return new Date(timestamp);
+          }
+        } catch (error) {
+          console.error('Erro ao converter data:', error, 'Valor original:', dateInput);
+        }
+        
+        // Se tudo falhar, retorna a data atual
+        console.warn('Formato de data não reconhecido, usando data atual. Valor:', dateInput);
+        return new Date();
+      };
+      
+      // Função para formatar data no padrão brasileiro
+      const formatDateToBR = (date) => {
+        try {
+          return date.toLocaleDateString('pt-BR');
+        } catch (error) {
+          console.error('Erro ao formatar data:', error, 'Valor original:', date);
+          return 'Data inválida';
+        }
+      };
+
+      // Função para escapar caracteres especiais e garantir quebras de linha corretas
+      const escapeCsvField = (field) => {
+        if (field === null || field === undefined) return '';
+        const str = String(field);
+        // Se contém quebra de linha, aspas ou ponto-e-vírgula, coloca entre aspas
+        if (/[\r\n";]/.test(str)) {
+          return '"' + str.replace(/"/g, '""') + '"';
+        }
+        return str;
+      };
+      
+      // Cabeçalhos do CSV
+      const headers = [
+        'Nº Pedido', 'Data', 'Cliente', 'Telefone', 'E-mail',
+        'Itens', 'Quantidade', 'Valor de Compra (R$)', 'Valor Total (R$)',
+        'Status', 'Forma de Pagamento', 'Status do Pagamento', 'Endereço'
+      ];
+      
+      // Adiciona cabeçalhos ao CSV
+      csvContent += headers.join(';') + '\r\n';
+      
+      console.log(`[Export] Iniciando processamento de ${window.ordersCache.length} pedidos`);
+
+      // Processa os pedidos em lotes para evitar travamentos
+      const processBatch = async () => {
+        const batchSize = 10;
+        const totalBatches = Math.ceil(filteredOrders.length / batchSize);
+        
+        for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+          const batch = filteredOrders.slice(batchIndex * batchSize, (batchIndex + 1) * batchSize);
+          console.log(`[Export] Processando lote ${batchIndex + 1}/${totalBatches} (${filteredOrders.length} pedidos no total)`);
+          
+          // Atualiza o status
+          if (loading.update) {
+            loading.update({
+              html: `Processando pedidos...<br>Lote ${batchIndex + 1} de ${totalBatches} (${filteredOrders.length} pedidos no total)`
+            });
+          }
+          
+          for (const order of batch) {
+            try {
+              console.log(`[Export] Processando pedido:`, order.orderNumber || order.orderId || 'N/A');
+              
+              const orderDate = parseDate(order.createdAt);
+              const formattedDate = formatDateToBR(orderDate);
+              
+              // Formata endereço
+              let endereco = '';
+              if (order.shippingAddress) {
+                const addr = order.shippingAddress;
+                endereco = `${addr.street}, ${addr.number || 'S/N'}${addr.complement ? ' - ' + addr.complement : ''} - ${addr.neighborhood}, ${addr.city}/${addr.state} - CEP: ${addr.postalCode}`;
+              }
+              
+              // Status do pedido
+              const statusPedido = order.status ? order.status.normalize('NFD').replace(/[\u0300-\u036f]/g, '') : 'Pendente';
+              
+              // Status do pagamento
+              let statusPagamento = 'Pendente';
+              if (order.payments?.length > 0) {
+                const totalPago = order.payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+                const totalPedido = Number(order.total || 0);
+                statusPagamento = totalPago >= totalPedido ? 'Pago' : 
+                                totalPago > 0 ? `Parcial (R$ ${totalPago.toFixed(2)} de R$ ${totalPedido.toFixed(2)})` : 'Pendente';
+              }
+              
+              // Processa itens do pedido
+              if (!order.items?.length) {
+                const row = [
+                  escapeCsvField(order.orderNumber || order.orderId || 'N/A'),
+                  escapeCsvField(formattedDate),
+                  escapeCsvField(order.customerName || order.shippingAddress?.recipientName || 'N/A'),
+                  escapeCsvField(order.customerPhone || order.shippingAddress?.phone || 'N/A'),
+                  escapeCsvField(order.customerEmail || 'N/A'),
+                  'Nenhum item',
+                  '0',
+                  '0,00',
+                  escapeCsvField((order.total || 0).toFixed(2).replace('.', ',')),
+                  escapeCsvField(statusPedido),
+                  escapeCsvField(formatPaymentMethod(order.paymentMethod)),
+                  escapeCsvField(statusPagamento),
+                  escapeCsvField(endereco)
+                ];
+                csvContent += row.join(';') + '\r\n';
+                continue;
+              }
+              
+              // Processa cada item do pedido
+              for (const item of order.items) {
+                const quantidade = Number(item.quantity) || 0;
+                const custoUnitario = Number(item.purchasePrice) || 0;
+                // Usa o valor unitário de compra, sem multiplicar pela quantidade
+                // Usa o total do pedido (order.total) em vez do subtotal do item
+                const precoTotal = Number(order.total) || 0;
+                
+                const row = [
+                  escapeCsvField(order.orderNumber || order.orderId || 'N/A'),
+                  escapeCsvField(formattedDate),
+                  escapeCsvField(order.customerName || order.shippingAddress?.recipientName || 'N/A'),
+                  escapeCsvField(order.customerPhone || order.shippingAddress?.phone || 'N/A'),
+                  escapeCsvField(order.customerEmail || 'N/A'),
+                  escapeCsvField(item.name || 'Produto sem nome'),
+                  escapeCsvField(quantidade),
+                  escapeCsvField(custoUnitario.toFixed(2).replace('.', ',')),
+                  escapeCsvField(precoTotal.toFixed(2).replace('.', ',')),
+                  escapeCsvField(statusPedido),
+                  escapeCsvField(formatPaymentMethod(order.paymentMethod)),
+                  escapeCsvField(statusPagamento),
+                  escapeCsvField(endereco)
+                ];
+                
+                csvContent += row.join(';') + '\r\n';
+              }
+              
+            } catch (error) {
+              console.error(`[Export] Erro ao processar pedido ${order.orderNumber || order.orderId || 'N/A'}:`, error);
+              // Continua para o próximo pedido mesmo em caso de erro
+            }
+          }
+          
+          // Pequena pausa entre lotes para não travar a UI
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      };
+      
+      // Executa o processamento em lotes
+      await processBatch();
+      
+      console.log('[Export] Processamento concluído, gerando arquivo...');
+    
+    // Cria um link para download do arquivo
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `pedidos_${new Date().toISOString().split('T')[0]}.csv`);
+    console.log('[Export] Disparando download do arquivo...');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    console.log('[Export] Download concluído com sucesso!');
+    
+    // Fecha o modal de loading
+    if (loading.close) loading.close();
+    
+    } catch (error) {
+      console.error('[Export] Erro ao exportar para Excel:', error);
+      
+      // Fecha o modal de loading em caso de erro
+      if (loading.close) loading.close();
+      
+      // Mostra mensagem de erro
+      Swal.fire({
+        icon: 'error',
+        title: 'Erro ao exportar',
+        html: `Ocorreu um erro ao exportar os pedidos para Excel.<br><br>
+               <small>${error.message || 'Erro desconhecido'}</small>`,
+        confirmButtonText: 'Entendi'
+      });
+    }
+
+  } catch (error) {
+    console.error('[Export] Erro ao exportar para Excel:', error);
+    
+    // Mostra o erro completo no console
+    if (error instanceof Error) {
+      console.error('[Export] Stack trace:', error.stack);
+    }
+    
+    // Fecha qualquer modal de loading que possa estar aberto
+    Swal.close();
+    
+    // Mostra mensagem de erro detalhada
+    Swal.fire({
+      icon: 'error',
+      title: 'Erro ao exportar',
+      html: `Ocorreu um erro ao exportar os pedidos para Excel.<br><br>
+             <small>${error.message || 'Erro desconhecido'}</small>`,
+      confirmButtonText: 'Entendi'
+    });
+  } finally {
+    // Garante que o loading seja fechado mesmo em caso de erro
+    Swal.close();
+  }
+}
+
 // Torna as funções disponíveis globalmente
 window.filterOrdersByStatus = filterOrdersByStatus;
 window.applyFilters = applyFilters;
 window.clearFilters = clearFilters;
+window.exportOrdersToExcel = exportOrdersToExcel;
 
 // Função para renderizar pedidos
 export async function renderOrdersList() {
@@ -644,6 +1200,13 @@ export async function renderOrdersList() {
 
     // Atualiza cache global para handlers dos botões de acordo
     window.ordersCache = orders;
+    
+    // Mostra/oculta o botão de exportação baseado na existência de pedidos
+    const exportBtn = document.getElementById('exportToExcel');
+    if (exportBtn) {
+      exportBtn.style.display = orders.length > 0 ? 'inline-flex' : 'none';
+    }
+    
     console.log(
       "[DEBUG] window.ordersCache atualizado:",
       window.ordersCache.length,
@@ -1781,6 +2344,7 @@ ${(() => {
         const filterStatus = document.getElementById("filterStatus");
         const searchInput = document.getElementById("searchTerm");
         const filterDate = document.getElementById("filterDate");
+        const filterPaymentStatus = document.getElementById("filterPaymentStatus");
         const applyFiltersBtn = document.getElementById("applyFilters");
         const clearFiltersBtn = document.getElementById("clearFilters");
 
@@ -1802,31 +2366,34 @@ ${(() => {
             }
           });
 
-          // Aplica o filtro ao mudar a seleção de status ou data
+          // Aplica o filtro ao mudar a seleção de status, status de pagamento ou data
           filterStatus.addEventListener("change", applyFilter);
+          filterPaymentStatus.addEventListener("change", applyFilter);
           filterDate.addEventListener("change", applyFilter);
 
           // Aplica o filtro inicial se houver parâmetros na URL
           const urlParams = new URLSearchParams(window.location.search);
           const statusParam = urlParams.get("status");
+          const paymentStatusParam = urlParams.get("paymentStatus");
           const searchParam = urlParams.get("search");
           const dateParam = urlParams.get("date");
 
-          if (statusParam || searchParam || dateParam) {
-            // Pequeno atraso para garantir que o DOM esteja pronto
-            setTimeout(() => {
-              if (statusParam) {
-                filterStatus.value = statusParam;
-              }
-              if (searchParam) {
-                searchInput.value = decodeURIComponent(searchParam);
-              }
-              if (dateParam) {
-                filterDate.value = dateParam;
-              }
-              applyFilters();
-            }, 100);
-          }
+          // Pequeno atraso para garantir que o DOM esteja pronto
+          setTimeout(() => {
+            if (statusParam) {
+              filterStatus.value = statusParam;
+            }
+            if (paymentStatusParam) {
+              filterPaymentStatus.value = paymentStatusParam;
+            }
+            if (searchParam) {
+              searchInput.value = decodeURIComponent(searchParam);
+            }
+            if (dateParam) {
+              filterDate.value = dateParam;
+            }
+            applyFilters();
+          }, 100);
         }
       }); // Fecha o setTimeout
     }
@@ -2362,12 +2929,11 @@ window.openWhatsAppModal = async function (order) {
     "\n\nEssenza agradece pela comprinha! Aproveite o máximo do cuidado!🌻Deus te abençoe!\n\nhttps://essenzasite.vercel.app/";
 
   // Modelo 2: Cobrança/lembrança de pagamento
-  // Modelo 2: Cobrança/lembrança de pagamento
-  let msg2 = `Olá ${customerName}!\n\nLembrando sobre o pagamento do pedido #${orderNumber}.`;
+  let msg2 = `Olá, ${customerName}!\n\nLembrando sobre o pagamento do pedido #${orderNumber}.`;
 
+  // Adiciona informações de acordo se existir
   if (agreement && agreement.installments > 1) {
-    const valorParcela =
-      Math.round((total / agreement.installments) * 100) / 100;
+    const valorParcela = Math.round((total / agreement.installments) * 100) / 100;
     const valorFormatado = valorParcela.toLocaleString("pt-BR", {
       minimumFractionDigits: 2,
     });
@@ -2395,15 +2961,66 @@ window.openWhatsAppModal = async function (order) {
         msg2 += `\n   Valor: R$ ${valorFormatado}`;
       }
     });
-
-    msg2 += `\n\nValor total: R$ ${formattedTotal}`;
-  } else {
-    msg2 += `\n\nValor: R$ ${formattedTotal}`;
   }
+  
+  // Adiciona informações de pagamento
+  msg2 += `\n\nValor: R$ ${formattedTotal}`;
   msg2 += `\nForma de pagamento: ${paymentLabel}`;
-  if (pending > 0)
+  
+  // Adiciona chave PIX se o pagamento for PIX
+  if (paymentMethod && paymentMethod.toLowerCase().includes('pix')) {
+    msg2 += '\nChave pix: 71991427989';
+  }
+  
+  // Adiciona valor em aberto se houver
+  if (pending > 0) {
     msg2 += `\nValor em aberto: R$ ${pending.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
-  msg2 += `\n\nSe já realizou o pagamento, por favor desconsidere. Em caso de dúvida, estamos à disposição.`;
+  }
+  
+  // Mensagem final com link do site
+  msg2 += '\n\nSe já realizou o pagamento, por favor desconsidere. Em caso de dúvida, estamos à disposição.\n\nhttps://essenzasite.vercel.app/';
+
+  // Modelo 3: Confirmação de pagamento PIX total
+  let msg3 = `Olá, ${customerName}!\n\nFinalizado o pedido #${orderNumber}\n\nValor: R$ ${formattedTotal}\nForma de pagamento: ${paymentLabel}\n\nPedido FINALIZADO em sua área do cliente em Meus Pedidos. Em caso de dúvida, estamos à disposição. \nObrigado pela confiança! Deus te abençoe!\n\nhttps://essenzasite.vercel.app/`;
+
+  // Modelo 4: Confirmação de acordo de pagamento finalizado
+  let msg4 = `Olá, ${customerName}!\n\nFinalizado o pagamento do pedido #${orderNumber}\n\n`;
+
+  if (agreement && agreement.installments > 1) {
+    const valorParcela = Math.round((total / agreement.installments) * 100) / 100;
+    const valorFormatado = valorParcela.toLocaleString("pt-BR", {
+      minimumFractionDigits: 2,
+    });
+
+    msg4 += `Acordo: ${agreement.installments}x de R$ ${valorFormatado}\n`;
+    msg4 += "Próximas parcelas:\n";
+
+    (agreement.dates || []).forEach((date, idx) => {
+      const [ano, mes, dia] = date.split("-");
+      const dataFormatada = `${dia}/${mes}/${ano}`;
+      const parcelaPagamentos = (order.payments || []).filter(
+        (p) => p.installmentIndex === idx,
+      );
+      const totalPagoParcela = parcelaPagamentos.reduce(
+        (sum, p) => sum + (Number(p.amount) || 0),
+        0,
+      );
+      const statusParcela = totalPagoParcela >= valorParcela ? "Pago" : "Pendente";
+      msg4 += `${idx + 1}ª parcela: R$ ${valorFormatado} - ${statusParcela}\n`;
+    });
+  }
+  
+  msg4 += `\nValor total: R$ ${formattedTotal}\n`;
+  msg4 += `Forma de pagamento: ${paymentLabel}\n\n`;
+  
+  if (pending <= 0) {
+    msg4 += "Acordo finalizado! ✅\n\n";
+  }
+  
+  msg4 += "Pedido Atualizado em sua área do cliente em Meus Pedidos. Em caso de dúvida, estamos à disposição.\n\n";
+  msg4 += "📲 Cadastre-se ou entre com sua conta Google:\n";
+  msg4 += "👉 https://essenzasite.vercel.app/\n\n";
+  msg4 += "Muito obrigado pela troca de confiança, Deus te abençoe!!";
 
   // SweetAlert2 Modal
   const { value: selectedMsg } = await Swal.fire({
@@ -2415,10 +3032,20 @@ window.openWhatsAppModal = async function (order) {
         <span style='margin-left:8px;'>Agradecimento/Confirmação de entrega</span>
         <pre style='background:#f8f9fa;padding:8px;border-radius:5px;margin-top:4px;white-space:pre-wrap;font-size:0.95em;'>${msg1}</pre>
       </label>
-      <label style='display:block;'>
+      <label style='display:block;margin-bottom:10px;'>
         <input type='radio' name='waMsg' value='msg2'>
         <span style='margin-left:8px;'>Cobrança/Lembrete de pagamento</span>
         <pre style='background:#f8f9fa;padding:8px;border-radius:5px;margin-top:4px;white-space:pre-wrap;font-size:0.95em;'>${msg2}</pre>
+      </label>
+      <label style='display:block;margin-bottom:10px;'>
+        <input type='radio' name='waMsg' value='msg3'>
+        <span style='margin-left:8px;'>Confirmação de pagamento PIX total</span>
+        <pre style='background:#f8f9fa;padding:8px;border-radius:5px;margin-top:4px;white-space:pre-wrap;font-size:0.95em;'>${msg3}</pre>
+      </label>
+      <label style='display:block;'>
+        <input type='radio' name='waMsg' value='msg4'>
+        <span style='margin-left:8px;'>Confirmação de acordo finalizado</span>
+        <pre style='background:#f8f9fa;padding:8px;border-radius:5px;margin-top:4px;white-space:pre-wrap;font-size:0.95em;'>${msg4}</pre>
       </label>
     </div>`,
     showCancelButton: true,
@@ -2445,8 +3072,13 @@ window.openWhatsAppModal = async function (order) {
   }
 
   // Mensagem escolhida
-  const message = selectedMsg === "msg1" ? msg1 : msg2;
-  const whatsappUrl = `https://wa.me/55${phoneNumber}?text=${encodeURIComponent(message)}`;
+  let selectedMessage = msg1; // Default to msg1
+  if (selectedMsg === 'msg2') selectedMessage = msg2;
+  else if (selectedMsg === 'msg3') selectedMessage = msg3;
+  else if (selectedMsg === 'msg4') selectedMessage = msg4;
+  else if (selectedMsg === 'msg5') selectedMessage = msg5;
+  else if (selectedMsg === 'msg6') selectedMessage = msg6;
+  const whatsappUrl = `https://wa.me/55${phoneNumber}?text=${encodeURIComponent(selectedMessage)}`;
   window.open(whatsappUrl, "_blank");
 };
 
@@ -5642,6 +6274,7 @@ async function setupEventListeners() {
     const searchInput = document.getElementById("searchTerm");
     const dateFilter = document.getElementById("filterDate");
     const statusFilter = document.getElementById("filterStatus");
+    const paymentStatusFilter = document.getElementById("filterPaymentStatus");
     const applyFiltersBtn = document.getElementById("applyFilters");
     const clearFiltersBtn = document.getElementById("clearFilters");
 
@@ -5665,6 +6298,16 @@ async function setupEventListeners() {
 
     if (clearFiltersBtn) {
       clearFiltersBtn.addEventListener("click", clearFilters);
+    }
+    
+    const exportToExcelBtn = document.getElementById('exportToExcel');
+    if (exportToExcelBtn) {
+      exportToExcelBtn.addEventListener('click', exportOrdersToExcel);
+    }
+    
+    const updatePurchasePricesBtn = document.getElementById('updatePurchasePrices');
+    if (updatePurchasePricesBtn) {
+      updatePurchasePricesBtn.addEventListener('click', updateOrdersWithPurchasePrice);
     }
 
     if (stockTabBtn) {
