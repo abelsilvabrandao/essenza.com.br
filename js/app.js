@@ -3,6 +3,16 @@ import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signO
 // Import único do Firestore, sem duplicidade
 import { getFirestore, collection, onSnapshot, addDoc, getDocs, query, where, getDoc, doc, setDoc, updateDoc, increment, writeBatch, runTransaction, serverTimestamp, arrayUnion } from 'https://www.gstatic.com/firebasejs/10.1.0/firebase-firestore.js';
 
+// Função para obter o preço do item considerando a forma de pagamento
+function getItemPrice(p) {
+    if (!p) return 0;
+    let price = p.price || 0;
+    if (window.formaSelecionada === 'Pix' && p.pixPrice && p.pixPrice < price) {
+        price = p.pixPrice;
+    }
+    return price;
+}
+
 // Função para fechar o modal do carrinho
 function closeCartModal() {
     const cartModal = document.getElementById('cartModal');
@@ -1760,23 +1770,34 @@ function updateCartTotals() {
             if (appliedCoupon.type === 'fixed') {
                 // Desconto por par com limite máximo de M pares (pares = mínimo entre as quantidades dos productIds)
                 let discountPairs = 0;
-                if (Array.isArray(appliedCoupon.productIds) && appliedCoupon.productIds.length > 0) {
+                if (Array.isArray(appliedCoupon.productIds) && appliedCoupon.productIds.length > 0 && M === appliedCoupon.productIds.length) {
                     const qtys = appliedCoupon.productIds.map(pid => {
                         const cartItem = cart.find(it => String(it.id) === String(pid));
                         return Number(cartItem?.quantity) || 0;
                     });
                     const pairs = qtys.length ? Math.min(...qtys) : 0; // pares possíveis (1 de cada)
-                    discountPairs = Math.min(pairs, M); // aplica no máximo M pares
+                    discountPairs = Math.min(pairs, M); // desconta no máximo M pares
+                } else {
+                    // Fallback: total elegível dividido por M
+                    const totalEligibleQty = cart.reduce((q, cartItem) => {
+                        const eligible = appliedCoupon.productIds.some(pid => String(pid) === String(cartItem.id));
+                        return eligible ? q + (Number(cartItem.quantity) || 0) : q;
+                    }, 0);
+                    const possiblePairs = Math.floor(totalEligibleQty / M);
+                    discountPairs = Math.min(possiblePairs, M);
                 }
-                if (discountPairs > 0) progressiveDiscountSum += appliedCoupon.value * discountPairs;
+                if (discountPairs > 0) {
+                    progressiveDiscountSum += appliedCoupon.value * discountPairs;
+                }
             } else {
-                // Percentual permanece por item baseado nos múltiplos M
+                // Percentual por item baseado nos múltiplos M
                 cart.forEach(item => {
                     const eligible = appliedCoupon.productIds.some(pid => String(pid) === String(item.id));
                     if (!eligible) return;
                     const multiples = Math.floor((Number(item.quantity) || 0) / M);
                     if (multiples <= 0) return;
-                    const unitPrice = Number(item.price) || 0;
+                    const product = products.find(p => p.id === item.id) || item;
+                    const unitPrice = getItemPrice(product);
                     progressiveDiscountSum += unitPrice * M * (appliedCoupon.value / 100) * multiples;
                 });
             }
@@ -1821,22 +1842,34 @@ function updateCartTotals() {
                 if (appliedCoupon.type === 'fixed') {
                     // Desconto por par com limite máximo de M pares (pares = mínimo entre as quantidades dos productIds)
                     let discountPairs = 0;
-                    if (Array.isArray(appliedCoupon.productIds) && appliedCoupon.productIds.length > 0) {
+                    if (Array.isArray(appliedCoupon.productIds) && appliedCoupon.productIds.length > 0 && M === appliedCoupon.productIds.length) {
                         const qtys = appliedCoupon.productIds.map(pid => {
                             const cartItem = cart.find(it => String(it.id) === String(pid));
                             return Number(cartItem?.quantity) || 0;
                         });
-                        const pairs = qtys.length ? Math.min(...qtys) : 0;
-                        discountPairs = Math.min(pairs, M);
+                        const pairs = qtys.length ? Math.min(...qtys) : 0; // pares possíveis (1 de cada)
+                        discountPairs = Math.min(pairs, M); // desconta no máximo M pares
+                    } else {
+                        // Fallback: total elegível dividido por M
+                        const totalEligibleQty = cart.reduce((q, cartItem) => {
+                            const eligible = appliedCoupon.productIds.some(pid => String(pid) === String(cartItem.id));
+                            return eligible ? q + (Number(cartItem.quantity) || 0) : q;
+                        }, 0);
+                        const possiblePairs = Math.floor(totalEligibleQty / M);
+                        discountPairs = Math.min(possiblePairs, M);
                     }
-                    if (discountPairs > 0) progressivePixDiscount += appliedCoupon.value * discountPairs;
+                    if (discountPairs > 0) {
+                        progressivePixDiscount += appliedCoupon.value * discountPairs;
+                    }
                 } else {
+                    // Percentual por item baseado nos múltiplos M
                     cart.forEach(item => {
                         const eligible = appliedCoupon.productIds.some(pid => String(pid) === String(item.id));
                         if (!eligible) return;
                         const multiples = Math.floor((Number(item.quantity) || 0) / M);
                         if (multiples <= 0) return;
-                        const unitPix = Number(item.pixPrice || item.price) || 0;
+                        const product = products.find(p => p.id === item.id) || item;
+                        const unitPix = product.pixPrice && product.pixPrice < product.price ? product.pixPrice : product.price;
                         progressivePixDiscount += unitPix * M * (appliedCoupon.value / 100) * multiples;
                     });
                 }
