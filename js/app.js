@@ -100,10 +100,10 @@ async function syncEssenzaUserFromFirestore(user) {
   } catch (e) {
     console.warn('[Essenza][sync] Erro ao recuperar essenzaUser do localStorage:', e);
   }
-  // Para teste: se não houver CPF, usar fixo
+  // Se não houver CPF, não sincronizar e exigir cadastro completo
   if (!cpf) {
-    cpf = '03950372555';
-    console.warn('[Essenza][sync] CPF não encontrado no localStorage, usando CPF fixo para teste:', cpf);
+    console.warn('[Essenza][sync] CPF não encontrado no localStorage. Usuário precisa completar o cadastro (CPF obrigatório). Abortando sync.');
+    return;
   }
 
   try {

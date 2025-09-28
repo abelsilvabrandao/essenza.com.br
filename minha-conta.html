@@ -186,7 +186,7 @@
                     <div style='display:flex;gap:1em;'>
                       <div style='flex:1;'>
                         <label style='color:#b8b8b8;font-size:0.97em;'>CPF :</label>
-                        <input type='text' value='${cpf}' disabled style='width:100%;background:#f6f6f6;border:1px solid #eee;border-radius:6px;padding:0.7em 1em;margin-bottom:0.7em;font-size:1em;'>
+                        <input type='text' value='${mascaraCpf(cpf)}' disabled style='width:100%;background:#f6f6f6;border:1px solid #eee;border-radius:6px;padding:0.7em 1em;margin-bottom:0.7em;font-size:1em;'>
                       </div>
                       <div style='flex:1;'>
                         <label style='color:#b8b8b8;font-size:0.97em;'>Data de Nascimento :</label>
@@ -292,16 +292,317 @@ return { nome, sobrenome, apelido, dataNascimento, celular, genero, senha, senha
           </script>
         </div>
       </div>
-      <h2 style="font-family:'Poppins',sans-serif;color:#ff69b4;font-size:2em;font-weight:700;margin-bottom:0.7em;text-align:center;">Endereços</h2>
+      <h2 style="font-family:'Poppins',sans-serif;color:#ff69b4;font-size:2em;font-weight:700;margin-bottom:0.7em;text-align:center;">Endereço</h2>
       <div class="account-address-box" style="background:#fff;border-radius:12px;box-shadow:0 2px 16px #ff69b41a;padding:2em 1em 1.2em 1em;display:flex;justify-content:center;align-items:center;max-width:980px;margin:0 auto;">
-        <button id="addAddressBtn" style="display:flex;flex-direction:column;align-items:center;gap:0.7em;background:transparent;border:none;cursor:pointer;outline:none;">
-          <span style="display:flex;align-items:center;justify-content:center;width:58px;height:58px;background:#faf7fd;border-radius:50%;box-shadow:0 2px 8px #ff69b41a;">
-            <i class="fa-solid fa-plus" style="color:#ff69b4;font-size:2em;"></i>
-          </span>
-          <span style="font-size:1.09em;color:#222;font-weight:500;">Adicionar novo endereço</span>
-        </button>
+        <button id="addAddressBtn" style="display:flex;flex-direction:column;align-items:center;gap:0.7em;background:transparent;border:none;cursor:pointer;outline:none;transition:background 0.15s;">
+  <span style="display:flex;align-items:center;justify-content:center;width:58px;height:58px;background:#f3e5f5;border-radius:50%;box-shadow:0 2px 8px #ffb6d5a0;transition:background 0.15s;">
+    <i class="fa fa-plus" style="color:#8f4be9;font-size:2em;transition:color 0.15s;"></i>
+  </span>
+  <span id="addAddressBtnText" style="font-size:1.09em;color:#8f4be9;font-weight:600;">Adicionar novo endereço</span>
+</button>
+<script>
+// Exibir ou ocultar botão adicionar conforme existência de endereço
+function toggleAddAddressBtn(temEndereco) {
+  const btn = document.getElementById('addAddressBtn');
+  if (btn) btn.style.display = temEndereco ? 'none' : 'flex';
+}
+</script>
+        <form id="formEndereco" style="display:none;flex-direction:column;gap:0.7em;width:100%;max-width:420px;margin-top:1.2em;">
+          <div style="display:flex;gap:0.7em;">
+            <div style="flex:2;">
+              <label for="inputCEP" style="color:#b8b8b8;font-size:0.97em;">CEP:</label>
+              <input id="inputCEP" name="cep" type="text" maxlength="9" placeholder="00000-000" required style="width:100%;border:1.5px solid #ffb6d5;border-radius:6px;padding:0.7em 1em;font-size:1em;">
+            </div>
+            <div style="flex:1;">
+              <label for="inputNumero" style="color:#b8b8b8;font-size:0.97em;">Nº:</label>
+              <input id="inputNumero" name="numero" type="text" placeholder="Número" required style="width:100%;border:1.5px solid #ffb6d5;border-radius:6px;padding:0.7em 1em;font-size:1em;">
+            </div>
+          </div>
+          <label for="inputRua" style="color:#b8b8b8;font-size:0.97em;">Rua:</label>
+          <input id="inputRua" name="rua" type="text" placeholder="Rua" required style="width:100%;border:1.5px solid #ffb6d5;border-radius:6px;padding:0.7em 1em;font-size:1em;">
+          <label for="inputComplemento" style="color:#b8b8b8;font-size:0.97em;">Complemento:</label>
+          <input id="inputComplemento" name="complemento" type="text" placeholder="Complemento" style="width:100%;border:1.5px solid #ffb6d5;border-radius:6px;padding:0.7em 1em;font-size:1em;">
+          <div style="display:flex;gap:0.7em;">
+            <div style="flex:2;">
+              <label for="inputBairro" style="color:#b8b8b8;font-size:0.97em;">Bairro:</label>
+              <input id="inputBairro" name="bairro" type="text" placeholder="Bairro" required style="width:100%;border:1.5px solid #ffb6d5;border-radius:6px;padding:0.7em 1em;font-size:1em;">
+            </div>
+            <div style="flex:2;">
+              <label for="inputCidade" style="color:#b8b8b8;font-size:0.97em;">Cidade:</label>
+              <input id="inputCidade" name="cidade" type="text" placeholder="Cidade" required style="width:100%;border:1.5px solid #ffb6d5;border-radius:6px;padding:0.7em 1em;font-size:1em;">
+            </div>
+            <div style="flex:1;">
+              <label for="inputEstado" style="color:#b8b8b8;font-size:0.97em;">UF:</label>
+              <input id="inputEstado" name="estado" type="text" maxlength="2" placeholder="UF" required style="width:100%;border:1.5px solid #ffb6d5;border-radius:6px;padding:0.7em 1em;font-size:1em;">
+            </div>
+          </div>
+          <div style="display:flex;gap:0.7em;margin-top:1.1em;">
+  <button type="submit" class="account-action-btn" style="background:#8f4be9;">Salvar Endereço</button>
+  <button type="button" id="cancelarEnderecoBtn" class="account-action-btn" style="background:#f3e5f5;color:#8f4be9;border:1.5px solid #8f4be9;">Cancelar</button>
+</div>
+        </form>
+        <div id="enderecoMsg" style="margin-top:0.6em;min-height:32px;font-size:1.02em;display:flex;align-items:center;gap:0.5em;"></div>
+<style>
+.essenza-spinner {
+  width: 22px; height: 22px; border: 3px solid #eee; border-top: 3px solid #8f4be9; border-radius: 50%; animation: essenza-spin 0.9s linear infinite; display:inline-block; vertical-align:middle;
+}
+@keyframes essenza-spin { 100% { transform: rotate(360deg); } }
+.essenza-alert-success {
+  background: #eaf8f0; color: #3ec486; border-radius: 7px; padding: 0.4em 1em; display:inline-block; font-weight:600; box-shadow:0 2px 8px #3ec48620;
+}
+.essenza-alert-error {
+  background: #fff0f3; color: #ff69b4; border-radius: 7px; padding: 0.4em 1em; display:inline-block; font-weight:600; box-shadow:0 2px 8px #ff69b420;
+}
+</style>
+<div id="enderecoSalvoBox" style="margin-top:2.3em;"></div>
+<script>
+// Exibir endereço salvo ao carregar
+async function carregarEnderecoSalvo() {
+  let cpf = '';
+  try {
+    const user = JSON.parse(localStorage.getItem('essenzaUser'));
+    cpf = user && user.cpf ? user.cpf : '';
+  } catch {}
+  if (!cpf) return;
+  try {
+    const docRef = window.db.doc('clientes/' + cpf);
+    const docSnap = await docRef.get();
+    if (docSnap.exists) {
+      const data = docSnap.data();
+      if (data.endereco) {
+        const e = data.endereco;
+        document.getElementById('enderecoSalvoBox').innerHTML =
+          `<div style='background:#faf7fd;border-radius:10px;padding:1.1em 1.2em 1.1em 1.2em;box-shadow:0 2px 8px #8f4be91a;max-width:420px;'>`
+          + `<div style='display:flex;justify-content:flex-end;margin-bottom:0.5em;'>`
+          + `<button id='btnEditarEndereco' title='Editar endereço' style='background:#eaf0ff;border:1px solid #8f4be9;color:#8f4be9;border-radius:7px;padding:0.45em 0.8em;cursor:pointer;font-size:1.15em;display:flex;align-items:center;gap:0.4em;transition:background .18s,border .18s;box-shadow:0 2px 8px #8f4be920;outline:none;'><i class='fa fa-pen'></i></button>`
+          + `</div>`
+          + `<div><b>Endereço cadastrado:</b><br>`
+          + `${e.rua || ''}, Nº ${e.numero || ''}${e.complemento ? ' - ' + e.complemento : ''}<br>`
+          + `${e.bairro || ''} - ${e.cidade || ''} / ${e.estado || ''}<br>`
+          + `CEP: ${e.cep || ''}</div>`
+          + `<div style='display:flex;justify-content:flex-end;margin-top:1.1em;'>`
+          + `<button id='btnApagarEndereco' title='Apagar endereço' style='background:#fff0f6;border:1px solid #ff69b4;color:#ff69b4;border-radius:7px;padding:0.45em 0.8em;cursor:pointer;font-size:1.15em;display:flex;align-items:center;gap:0.4em;transition:background .18s,border .18s;box-shadow:0 2px 8px #ff69b420;outline:none;'><i class='fa fa-trash'></i></button>`
+          + `</div>`
+          + `</div>`;
+        toggleAddAddressBtn(true);
+// Handler editar endereço
+const btnEditar = document.getElementById('btnEditarEndereco');
+if (btnEditar) {
+  btnEditar.onclick = async function() {
+    await preencherFormEndereco();
+    formEndereco.style.display = 'flex';
+    enderecoMsg.textContent = '';
+    document.getElementById('inputCEP').focus();
+  }
+}
+// Handler apagar endereço
+const btnApagar = document.getElementById('btnApagarEndereco');
+if (btnApagar) {
+  btnApagar.onclick = async function() {
+    Swal.fire({
+      title: 'Apagar endereço?',
+      text: 'Deseja realmente apagar este endereço cadastrado?',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sim, apagar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#ff69b4',
+      cancelButtonColor: '#8f4be9',
+      background: '#fff',
+    }).then(async (result) => {
+      if (result.isConfirmed) {
+        let cpf = '';
+        try {
+          const user = JSON.parse(localStorage.getItem('essenzaUser'));
+          cpf = user && user.cpf ? user.cpf : '';
+        } catch {}
+        if (!cpf) return;
+        try {
+          await window.db.doc('clientes/' + cpf).update({endereco: window.firebase.firestore.FieldValue.delete()});
+          enderecoMsg.innerHTML = "<span class='essenza-alert-success'>Endereço removido com sucesso!</span>";
+          setTimeout(() => enderecoMsg.innerHTML = '', 2000);
+          await carregarEnderecoSalvo();
+          await preencherFormEndereco();
+        } catch {
+          enderecoMsg.innerHTML = "<span class='essenza-alert-error'>Erro ao apagar endereço.</span>";
+          setTimeout(() => enderecoMsg.innerHTML = '', 2200);
+        }
+      }
+    });
+  }
+}
+      } else {
+        document.getElementById('enderecoSalvoBox').innerHTML = '';
+        toggleAddAddressBtn(false);
+      }
+    }
+  } catch {}
+}
+document.addEventListener('DOMContentLoaded', carregarEnderecoSalvo);
+</script>
       </div>
     </section>
+<script>
+// Mostra formulário e preenche com endereço salvo ao clicar
+const addAddressBtn = document.getElementById('addAddressBtn');
+const addAddressBtnText = document.getElementById('addAddressBtnText');
+const formEndereco = document.getElementById('formEndereco');
+const cancelarEnderecoBtn = document.getElementById('cancelarEnderecoBtn');
+if (cancelarEnderecoBtn && formEndereco) {
+  cancelarEnderecoBtn.onclick = function() {
+    Swal.fire({
+      title: 'Cancelar cadastro?',
+      text: 'Deseja realmente cancelar o preenchimento do endereço?',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Sim, cancelar',
+      cancelButtonText: 'Continuar preenchendo',
+      confirmButtonColor: '#ff69b4',
+      cancelButtonColor: '#8f4be9',
+      background: '#fff',
+    }).then((result) => {
+      if (result.isConfirmed) {
+        formEndereco.style.display = 'none';
+        enderecoMsg.innerHTML = '';
+      }
+    });
+  };
+}
+
+const enderecoMsg = document.getElementById('enderecoMsg');
+let enderecoSalvoAtual = null;
+async function preencherFormEndereco() {
+  // Busca endereço salvo
+  let cpf = '';
+  try {
+    const user = JSON.parse(localStorage.getItem('essenzaUser'));
+    cpf = user && user.cpf ? user.cpf : '';
+  } catch {}
+  if (!cpf) return;
+  try {
+    const docSnap = await window.db.doc('clientes/' + cpf).get();
+    if (docSnap.exists && docSnap.data().endereco) {
+      const e = docSnap.data().endereco;
+      enderecoSalvoAtual = e;
+      document.getElementById('inputCEP').value = e.cep || '';
+      document.getElementById('inputRua').value = e.rua || '';
+      document.getElementById('inputNumero').value = e.numero || '';
+      document.getElementById('inputComplemento').value = e.complemento || '';
+      document.getElementById('inputBairro').value = e.bairro || '';
+      document.getElementById('inputCidade').value = e.cidade || '';
+      document.getElementById('inputEstado').value = e.estado || '';
+      addAddressBtnText.textContent = 'Editar endereço';
+    } else {
+      enderecoSalvoAtual = null;
+      document.getElementById('inputCEP').value = '';
+      document.getElementById('inputRua').value = '';
+      document.getElementById('inputNumero').value = '';
+      document.getElementById('inputComplemento').value = '';
+      document.getElementById('inputBairro').value = '';
+      document.getElementById('inputCidade').value = '';
+      document.getElementById('inputEstado').value = '';
+      addAddressBtnText.textContent = 'Adicionar novo endereço';
+    }
+  } catch {
+    enderecoSalvoAtual = null;
+    addAddressBtnText.textContent = 'Adicionar novo endereço';
+  }
+}
+if (addAddressBtn && formEndereco) {
+  addAddressBtn.onclick = async () => {
+    await preencherFormEndereco();
+    formEndereco.style.display = 'flex';
+    enderecoMsg.textContent = '';
+    document.getElementById('inputCEP').focus();
+  };
+}
+// Após salvar, reexibe endereço e mantém formulário aberto para nova edição
+// Handler único para submit do formulário de endereço
+if (formEndereco) {
+  const oldOnSubmit = formEndereco.onsubmit;
+  formEndereco.onsubmit = async function(e) {
+    if (oldOnSubmit) await oldOnSubmit.call(this, e);
+    await carregarEnderecoSalvo();
+    await preencherFormEndereco();
+    formEndereco.style.display = 'flex';
+  };
+}
+
+// Busca automática de endereço via ViaCEP
+const inputCEP = document.getElementById('inputCEP');
+if (inputCEP) {
+  // Máscara CEP ao digitar
+  inputCEP.addEventListener('input', function() {
+    let v = inputCEP.value.replace(/\D/g, '').slice(0,8);
+    if (v.length > 5) v = v.replace(/(\d{5})(\d{1,3})/, '$1-$2');
+    inputCEP.value = v;
+  });
+  inputCEP.addEventListener('blur', async function() {
+    const cep = inputCEP.value.replace(/\D/g, '');
+    if (cep.length !== 8) return;
+    enderecoMsg.innerHTML = '<span class="essenza-spinner"></span><span style="color:#8f4be9;font-weight:500;">Buscando endereço...</span>';
+    try {
+      const resp = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+      const data = await resp.json();
+      if (data.erro) {
+        enderecoMsg.innerHTML = '<span class="essenza-alert-error">CEP não encontrado.</span>';
+        setTimeout(() => enderecoMsg.innerHTML = '', 2500);
+        return;
+      }
+      document.getElementById('inputRua').value = data.logradouro || '';
+      document.getElementById('inputBairro').value = data.bairro || '';
+      document.getElementById('inputCidade').value = data.localidade || '';
+      document.getElementById('inputEstado').value = data.uf || '';
+      enderecoMsg.innerHTML = '';
+    } catch {
+      enderecoMsg.innerHTML = '<span class="essenza-alert-error">Erro ao buscar endereço.</span>';
+      setTimeout(() => enderecoMsg.innerHTML = '', 2500);
+    }
+  });
+}
+// Salvar endereço no Firestore ao submeter o formulário
+const form = document.getElementById('formEndereco');
+if (form) {
+  form.onsubmit = async function(e) {
+    e.preventDefault();
+    enderecoMsg.textContent = '';
+    const cep = document.getElementById('inputCEP').value.trim();
+    const rua = document.getElementById('inputRua').value.trim();
+    const numero = document.getElementById('inputNumero').value.trim();
+    const complemento = document.getElementById('inputComplemento').value.trim();
+    const bairro = document.getElementById('inputBairro').value.trim();
+    const cidade = document.getElementById('inputCidade').value.trim();
+    const estado = document.getElementById('inputEstado').value.trim();
+    if (!cep || !rua || !numero || !bairro || !cidade || !estado) {
+      enderecoMsg.textContent = 'Preencha todos os campos obrigatórios.';
+      return;
+    }
+    let cpf = '';
+    try {
+      const user = JSON.parse(localStorage.getItem('essenzaUser'));
+      cpf = user && user.cpf ? user.cpf : '';
+    } catch {}
+    if (!cpf) {
+      enderecoMsg.textContent = 'Erro: usuário não autenticado.';
+      return;
+    }
+    try {
+      await window.db.doc('clientes/' + cpf).update({
+        endereco: {
+          cep, rua, numero, complemento, bairro, cidade, estado
+        }
+      });
+      enderecoMsg.innerHTML = '<span class="essenza-alert-success">Endereço salvo com sucesso!</span>';
+      setTimeout(() => enderecoMsg.innerHTML = '', 2500);
+      await carregarEnderecoSalvo();
+      formEndereco.style.display = 'none';
+    } catch (err) {
+      enderecoMsg.innerHTML = '<span class="essenza-alert-error">Erro ao salvar endereço.</span>';
+      setTimeout(() => enderecoMsg.innerHTML = '', 2500);
+    }
+  }
+}
+</script>
     <section id="sectionPedidos" class="account-section" style="display:none">
       <h2 style="font-family:'Poppins',sans-serif;color:#ff69b4;font-size:2.1em;font-weight:700;margin-bottom:0.7em;text-align:center;">Meus Pedidos</h2>
       <div class="account-data-box" style="background:#fff;border-radius:12px;box-shadow:0 2px 16px #ff69b41a;padding:2em 1.2em;max-width:980px;margin:0 auto 2em auto;display:flex;align-items:center;justify-content:center;">
@@ -439,8 +740,12 @@ return { nome, sobrenome, apelido, dataNascimento, celular, genero, senha, senha
             }
             document.getElementById('userName').textContent = nomeCompleto;
             document.getElementById('userEmail').textContent = dados.email || user.email;
-            let cpfExibir = (dados.cpf || cpf || '').replace(/\D/g, '');
-             document.getElementById('userCPF').textContent = cpfExibir && cpfExibir.length === 11 ? `${cpfExibir.substr(0,3)}.***.***-**` : '-';
+            function mascaraCpf(cpf) {
+  cpf = (cpf || '').replace(/\D/g, '');
+  return cpf.length === 11 ? `${cpf.substr(0,3)}.***.***-**` : '-';
+}
+let cpfExibir = mascaraCpf(dados.cpf || cpf || '');
+document.getElementById('userCPF').textContent = cpfExibir;
             document.getElementById('userPhone').textContent = dados.celular || '-';
             document.getElementById('userBirthday').textContent = dados.dataNascimento || '-';
             // Avatar com iniciais
