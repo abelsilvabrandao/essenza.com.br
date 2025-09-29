@@ -1,29 +1,30 @@
-// Renderizador de favoritos para minha-conta.html
+// Renderizador de favoritos para uma-conta.html
 // Este script deve ser incluído após window.products estar disponível
 
-async function renderFavoritosConta(tentativas = 0) {
-  console.log('[Essenza][DEBUG] Chamando renderFavoritosConta');
-  console.log('[Essenza][DEBUG] window.products:', window.products);
+async function renderFavoritosConta() {
+  console.log('[Favoritos][DEBUG] Iniciando renderFavoritosConta');
+  const box = document.querySelector('#sectionFavoritos .account-data-box');
+  if (!box) return;
   let essenzaUser = null;
   try {
     essenzaUser = JSON.parse(localStorage.getItem('essenzaUser'));
-  } catch {}
-
-  // Buscar favoritos do Firestore, se usuário autenticado e CPF disponível
+    console.log('[Favoritos][DEBUG] essenzaUser lido do localStorage:', essenzaUser);
+  } catch (e) {
+    console.log('[Favoritos][DEBUG] Erro ao ler essenzaUser do localStorage:', e);
+  }
   let favoritos = [];
   if (essenzaUser && essenzaUser.cpf) {
-    console.log('[Essenza][DEBUG] EssenzaUser:', essenzaUser);
-    console.log('[Essenza][DEBUG] Buscando favoritos do Firestore para CPF:', essenzaUser.cpf);
-
     try {
       let clienteDoc, data;
-      // Detecta se está disponível a função 'collection' do modular (importada no escopo global)
-      const isModular = typeof collection === 'function' && typeof getDoc === 'function';
+      const isModular = typeof collection === 'function' && typeof getDoc === 'function' && window.db && typeof window.db === 'object' && typeof window.db.app !== 'undefined';
       if (isModular) {
-        // Modular
-        const docRef = doc(window.db, 'clientes', essenzaUser.cpf);
+        console.log('[Favoritos][DEBUG] Usando modo modular Firestore');
+        const db = window.db;
+        const docRef = doc(db, 'clientes', essenzaUser.cpf);
         clienteDoc = await getDoc(docRef);
+        console.log('[Favoritos][DEBUG] Documento Firestore (modular):', clienteDoc);
         if (clienteDoc.exists()) {
+          console.log('[Favoritos][DEBUG] Dados Firestore (modular):', clienteDoc.data());
           data = clienteDoc.data();
           favoritos = Array.isArray(data.favoritos) ? data.favoritos : [];
           essenzaUser.favoritos = favoritos;
@@ -32,10 +33,11 @@ async function renderFavoritosConta(tentativas = 0) {
           favoritos = Array.isArray(essenzaUser.favoritos) ? essenzaUser.favoritos : [];
         }
       } else {
-        // Compat
-        const db = window.db || firebase.firestore();
+        const db = firebase.firestore();
         clienteDoc = await db.collection('clientes').doc(essenzaUser.cpf).get();
+        console.log('[Favoritos][DEBUG] Documento Firestore (compat):', clienteDoc);
         if (clienteDoc.exists && Array.isArray(clienteDoc.data().favoritos)) {
+          console.log('[Favoritos][DEBUG] Dados Firestore (compat):', clienteDoc.data());
           favoritos = clienteDoc.data().favoritos;
           essenzaUser.favoritos = favoritos;
           localStorage.setItem('essenzaUser', JSON.stringify(essenzaUser));
@@ -47,36 +49,20 @@ async function renderFavoritosConta(tentativas = 0) {
       favoritos = Array.isArray(essenzaUser.favoritos) ? essenzaUser.favoritos : [];
     }
   } else {
-    favoritos = Array.isArray(essenzaUser && essenzaUser.favoritos) ? essenzaUser.favoritos : [];
+    favoritos = [];
   }
-
-  // Aguarda até products estar carregado (até 30 tentativas)
+  console.log('[Favoritos][DEBUG] Favoritos finais lidos:', favoritos);
+  console.log('[Favoritos][DEBUG] Produtos carregados:', window.products ? window.products.map(p => p.id) : window.products);
   if (!window.products || window.products.length === 0) {
-    if (tentativas < 30) {
-      setTimeout(() => renderFavoritosConta(tentativas + 1), 150);
-    } else {
-      console.log('[Essenza][DEBUG] Nenhum produto disponível em window.products após várias tentativas:', window.products);
-      box.innerHTML = '<span style="color:#888;font-size:1.13em;">Nenhum produto disponível no momento.</span>';
-    }
+    box.innerHTML = '<span style="color:#888;font-size:1.13em;">Nenhum produto disponível no momento.</span>';
     return;
   }
-  console.log('[Essenza][DEBUG] Favoritos lidos:', favoritos);
-  console.log('[Essenza][DEBUG] Produtos carregados:', window.products.map(p => p.id));
-  if (!favoritos.length) {
-    console.log('[Essenza][DEBUG] Nenhum favorito cadastrado para este usuário.');
-    box.innerHTML = '<span style="color:#888;font-size:1.13em;">Você ainda não favoritou nenhum produto.</span>';
-    return;
-  }
-
-  // Filtrar produtos favoritos (comparando como string para garantir match)
   const favProducts = window.products.filter(p => favoritos.map(String).includes(String(p.id)));
-  console.log('[Essenza][DEBUG] Produtos favoritos encontrados:', favProducts.map(p => p.id));
-  if (!favProducts.length) {
-    console.log('[Essenza][DEBUG] Nenhum produto corresponde aos IDs favoritados!');
+  console.log('[Favoritos][DEBUG] Produtos favoritos encontrados:', favProducts.map(p => p.id));
+  if (!favoritos.length || !favProducts.length) {
     box.innerHTML = '<span style="color:#888;font-size:1.13em;">Você ainda não favoritou nenhum produto.</span>';
     return;
   }
-  // Renderizar grid de favoritos
   let html = '<div class="favoritos-grid" style="display:flex;flex-wrap:wrap;gap:1.6em;justify-content:center;">';
   favProducts.forEach(prod => {
     html += `
@@ -91,55 +77,49 @@ async function renderFavoritosConta(tentativas = 0) {
   });
   html += '</div>';
   box.innerHTML = html;
-
-  // Evento para remover dos favoritos
   box.querySelectorAll('.favorito-remover-btn').forEach(btn => {
+    console.log('[Favoritos][DEBUG] Adicionando listener de remoção para favorito:', btn.getAttribute('data-id'));
     btn.onclick = async function() {
       const id = btn.getAttribute('data-id');
-      if (!id) return;
-      if (!essenzaUser || !Array.isArray(essenzaUser.favoritos)) return;
-      essenzaUser.favoritos = essenzaUser.favoritos.filter(fid => fid !== id);
-      localStorage.setItem('essenzaUser', JSON.stringify(essenzaUser));
-      // Atualizar favoritos no Firestore também
+      if (!id) {
+        console.log('[Favoritos][DEBUG] Botão de remoção sem id, ignorado');
+        return;
+      }
       if (essenzaUser && essenzaUser.cpf) {
+        console.log('[Favoritos][DEBUG] Removendo favorito do Firestore, id:', id);
         try {
           const db = window.db || firebase.firestore();
-          await db.collection('clientes').doc(essenzaUser.cpf).update({ favoritos: essenzaUser.favoritos });
-        } catch (e) {
-          // opcional: mostrar erro
-        }
+          await db.collection('clientes').doc(essenzaUser.cpf).update({ favoritos: essenzaUser.favoritos.filter(fid => fid !== id) });
+        } catch (e) {}
       }
+      essenzaUser.favoritos = essenzaUser.favoritos.filter(fid => fid !== id);
+      localStorage.setItem('essenzaUser', JSON.stringify(essenzaUser));
+      console.log('[Favoritos][DEBUG] Favorito removido localmente, id:', id);
       renderFavoritosConta();
-      // Opcional: chamar toggleFavorite(id) se quiser sincronizar com Firestore
       if (typeof toggleFavorite === 'function') toggleFavorite(id);
     };
   });
 }
 
-// Tenta rodar sempre que a aba Favoritos for exibida
 function monitorTabFavoritos() {
   const tabBtn = document.getElementById('tabFavoritosBtn');
   if (!tabBtn) return;
   tabBtn.addEventListener('click', () => {
     renderFavoritosConta();
   });
-  // Se abrir direto na aba favoritos
   if (window.location.search.includes('aba=favoritos')) {
     setTimeout(renderFavoritosConta, 120);
   }
 }
 
-// Aguarda DOM e products
 window.addEventListener('DOMContentLoaded', () => {
   if (window.products && window.products.length) {
     monitorTabFavoritos();
   } else {
-    // Espera products carregar
     let tentativas = 0;
     const tryInit = () => {
       if (window.products && window.products.length) {
         monitorTabFavoritos();
-        // Garante renderização imediata se a aba Favoritos estiver visível
         const section = document.getElementById('sectionFavoritos');
         if (section && section.style.display !== 'none' && typeof renderFavoritosConta === 'function') {
           renderFavoritosConta();
