@@ -2505,7 +2505,7 @@ window.createPaymentAgreement = async function (
         remainingAmount: pendingAmount
       },
       updatedAt: new Date().toISOString(),
-      paymentStatus: 'Parcial' // Garantir que o status seja atualizado para Parcial
+      paymentStatus: 'Pendente' // Só muda para 'Parcial' após pagamento de parcela ou avulso
     });
 
     // Recarregar a lista de pedidos
@@ -2892,99 +2892,118 @@ window.openWhatsAppModal = async function (order) {
     )
     .join("\n");
 
-  // Modelo 1: Agradecimento
-  // Modelo 1: Agradecimento/Confirmação de entrega
-  let msg1 = `PEDIDO ENTREGUE #${orderNumber}\n\nCliente: ${customerName}`;
-  if (customerPhone) msg1 += `\nTelefone: ${formatPhoneNumber(customerPhone)}`;
-  if (customerEmail) msg1 += `\nE-mail: ${customerEmail}`;
+// Modelo 1: Agradecimento / Confirmação de entrega
+let msg1 = `*PEDIDO ENTREGUE #${orderNumber}*\n\nCliente: ${customerName}`;
+if (customerPhone) msg1 += `\nTelefone: ${formatPhoneNumber(customerPhone)}`;
+if (customerEmail) msg1 += `\nE-mail: ${customerEmail}`;
 
-  msg1 += `\n\nItens do Pedido:\n${itemsList.replace(/\n/g, "\n- ").replace(/^- /, "")}`;
+// Corrige a listagem dos itens (cada um com um único "- ")
+if (order && order.items && order.items.length > 0) {
+  msg1 += `\n\nItens do Pedido:`;
+  order.items.forEach((item) => {
+    const itemTotal = (item.quantity * item.price).toLocaleString("pt-BR", {
+      minimumFractionDigits: 2,
+    });
+    msg1 += `\n- ${item.name} x${item.quantity} (R$ ${itemTotal})`;
+  });
+}
 
-  if (agreement && agreement.installments > 1) {
+if (agreement && agreement.installments > 1) {
+  const valorParcela = Math.round((total / agreement.installments) * 100) / 100;
+  const valorFormatado = valorParcela.toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+  });
+  msg1 += `\n\nPagamento: em ${agreement.installments}x de R$ ${valorFormatado} sem juros`;
+
+  msg1 += "\n\nAcordo:";
+  agreement.dates.forEach((date, idx) => {
+    const [ano, mes, dia] = date.split("-");
+    const dataFormatada = `${dia}/${mes}/${ano}`;
     const valorParcela =
       Math.round((total / agreement.installments) * 100) / 100;
     const valorFormatado = valorParcela.toLocaleString("pt-BR", {
       minimumFractionDigits: 2,
     });
-    msg1 += `\n\nPagamento: em ${agreement.installments}x de R$ ${valorFormatado} sem juros`;
-  }
+    msg1 += `\n${idx + 1}ª Parcela em ${dataFormatada} - R$ ${valorFormatado}`;
+  });
+}
 
-  msg1 += `\nValor Total: R$ ${formattedTotal}`;
+msg1 += `\n\nValor Total: R$ ${formattedTotal}`;
 
-  if (agreement && agreement.installments > 1) {
-    msg1 += "\n\nAcordo:";
-    agreement.dates.forEach((date, idx) => {
-      const [ano, mes, dia] = date.split("-");
-      const dataFormatada = `${dia}/${mes}/${ano}`;
-      const valorParcela =
-        Math.round((total / agreement.installments) * 100) / 100;
-      const valorFormatado = valorParcela.toLocaleString("pt-BR", {
-        minimumFractionDigits: 2,
-      });
-      msg1 += `\n${idx + 1}ª Parcela em ${dataFormatada} - R$${valorFormatado}`;
-    });
-  }
+msg1 +=
+  "\n\nEssenza agradece pela comprinha! Aproveite o máximo do cuidado!🌻Deus te abençoe!\n\nhttps://essenzasite.vercel.app/";
 
-  msg1 +=
-    "\n\nEssenza agradece pela comprinha! Aproveite o máximo do cuidado!🌻Deus te abençoe!\n\nhttps://essenzasite.vercel.app/";
+// Modelo 2: Cobrança / Lembrança de Pagamento
+let msg2 = `Olá, ${customerName} 🌸\n\nLembrando sobre o pagamento do pedido *#${orderNumber}*.`;
 
-  // Modelo 2: Cobrança/lembrança de pagamento
-  let msg2 = `Olá, ${customerName}!\n\nLembrando sobre o pagamento do pedido #${orderNumber}.`;
-
-  // Adiciona informações de acordo se existir
-  if (agreement && agreement.installments > 1) {
-    const valorParcela = Math.round((total / agreement.installments) * 100) / 100;
-    const valorFormatado = valorParcela.toLocaleString("pt-BR", {
+// Lista os itens do pedido (se existirem)
+if (order && order.items && order.items.length > 0) {
+  msg2 += "\n\n🛍 Itens do pedido:";
+  order.items.forEach((item) => {
+    const itemTotal = (item.quantity * item.price).toLocaleString("pt-BR", {
       minimumFractionDigits: 2,
     });
+    msg2 += `\n- ${item.name} x${item.quantity} (R$ ${itemTotal})`;
+  });
+}
 
-    msg2 += `\n\nAcordo: ${agreement.installments}x de R$ ${valorFormatado}`;
-    msg2 += "\nPróximas parcelas:";
+// Se existir acordo parcelado
+if (agreement && agreement.installments > 1) {
+  const valorParcela = Math.round((total / agreement.installments) * 100) / 100;
+  const valorFormatado = valorParcela.toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+  });
 
-    (agreement.dates || []).forEach((date, idx) => {
-      const [ano, mes, dia] = date.split("-");
-      const dataFormatada = `${dia}/${mes}/${ano}`;
-      const parcelaPagamentos = (order.payments || []).filter(
-        (p) => p.installmentIndex === idx,
-      );
-      const totalPagoParcela = parcelaPagamentos.reduce(
-        (sum, p) => sum + (Number(p.amount) || 0),
-        0,
-      );
-      const statusParcela =
-        totalPagoParcela >= valorParcela ? "Pago" : "Pendente";
+  msg2 += `\n\n💳 Acordo: ${agreement.installments}x de R$ ${valorFormatado}`;
+  msg2 += "\n📅 Próximas parcelas:";
 
-      msg2 += `\n${idx + 1}ª parcela: R$ ${valorFormatado} - ${statusParcela}`;
+  (agreement.dates || []).forEach((date, idx) => {
+    const [ano, mes, dia] = date.split("-");
+    const dataFormatada = `${dia}/${mes}/${ano}`;
+    const parcelaPagamentos = (order.payments || []).filter(
+      (p) => p.installmentIndex === idx
+    );
+    const totalPagoParcela = parcelaPagamentos.reduce(
+      (sum, p) => sum + (Number(p.amount) || 0),
+      0
+    );
+    const statusParcela =
+      totalPagoParcela >= valorParcela ? "Pago" : "Pendente";
 
-      if (statusParcela === "Pendente") {
-        msg2 += `\n   Vencimento: ${dataFormatada}`;
-        msg2 += `\n   Valor: R$ ${valorFormatado}`;
-      }
-    });
-  }
-  
-  // Adiciona informações de pagamento
-  msg2 += `\n\nValor: R$ ${formattedTotal}`;
-  msg2 += `\nForma de pagamento: ${paymentLabel}`;
-  
-  // Adiciona chave PIX se o pagamento for PIX
-  if (paymentMethod && paymentMethod.toLowerCase().includes('pix')) {
-    msg2 += '\nChave pix: 71991427989';
-  }
-  
-  // Adiciona valor em aberto se houver
-  if (pending > 0) {
-    msg2 += `\nValor em aberto: R$ ${pending.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
-  }
-  
-  // Mensagem final com link do site
-  msg2 += '\n\nSe já realizou o pagamento, por favor desconsidere. Em caso de dúvida, estamos à disposição.\n\nhttps://essenzasite.vercel.app/';
+    msg2 += `\n${idx + 1}ª parcela: R$ ${valorFormatado} - ${statusParcela}`;
+    if (statusParcela === "Pendente") {
+      msg2 += `\n   Vencimento: ${dataFormatada}`;
+      msg2 += `\n   Valor: R$ ${valorFormatado}`;
+    }
+  });
+}
+
+// Adiciona informações de pagamento principal
+msg2 += `\n\n💰 Valor total: R$ ${formattedTotal}`;
+msg2 += `\n💳 Forma de pagamento: ${paymentLabel}`;
+
+// Exibe chave PIX se for PIX
+if (paymentMethod && paymentMethod.toLowerCase().includes("pix")) {
+  msg2 += `\n🔑 Chave PIX: 71991427989`;
+}
+
+// Mostra valor em aberto (se houver)
+if (pending > 0) {
+  msg2 += `\n⚠️ Valor em aberto: R$ ${pending.toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+  })}`;
+}
+
+// Finaliza com mensagem padrão e link
+msg2 +=
+  "\n\nSe já realizou o pagamento, por favor desconsidere esta mensagem. 💛\nEm caso de dúvida, estamos à disposição!\n\n🌻 Essenza — Cuidar de si é um ato de amor\nhttps://essenzasite.vercel.app/";
+
 
   // Modelo 3: Confirmação de pagamento PIX total
-  let msg3 = `Olá, ${customerName}!\n\nFinalizado o pedido #${orderNumber}\n\nValor: R$ ${formattedTotal}\nForma de pagamento: ${paymentLabel}\n\nPedido FINALIZADO em sua área do cliente em Meus Pedidos. Em caso de dúvida, estamos à disposição. \nObrigado pela confiança! Deus te abençoe!\n\nhttps://essenzasite.vercel.app/`;
+  let msg3 = `Olá, ${customerName}!\n\nFinalizado o pedido *#${orderNumber}*\n\nValor: R$ ${formattedTotal}\nForma de pagamento: ${paymentLabel}\n\nPedido FINALIZADO em sua área do cliente em Meus Pedidos. Em caso de dúvida, estamos à disposição. \nObrigado pela confiança! Deus te abençoe!\n\nhttps://essenzasite.vercel.app/`;
 
   // Modelo 4: Confirmação de acordo de pagamento finalizado
-  let msg4 = `Olá, ${customerName}!\n\nFinalizado o pagamento do pedido #${orderNumber}\n\n`;
+  let msg4 = `Olá, ${customerName}!\n\nFinalizado o pagamento do pedido *#${orderNumber}*\n\n`;
 
   if (agreement && agreement.installments > 1) {
     const valorParcela = Math.round((total / agreement.installments) * 100) / 100;
