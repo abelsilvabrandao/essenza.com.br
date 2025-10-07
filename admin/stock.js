@@ -1989,6 +1989,9 @@ ${(() => {
   <i class="fab fa-whatsapp"></i>
   WhatsApp
 </button>
+<button class="btn btn-edit-order" data-order-id="${order._id}" style="margin-left:8px;">
+  <i class="fas fa-edit"></i> Editar Pedido
+</button>
               </div>
             </div>
           </div>
@@ -2050,6 +2053,15 @@ ${(() => {
       html && html.trim().length > 0
         ? html
         : "<p>Nenhum pedido encontrado.</p>";
+    // Handler para o botão Editar Pedido
+    setTimeout(() => {
+      document.querySelectorAll('.btn-edit-order').forEach(btn => {
+        btn.onclick = function () {
+          const orderId = this.getAttribute('data-order-id');
+          window.abrirModalEditarPedido(orderId);
+        };
+      });
+    }, 100);
     console.log("HTML atualizado no DOM");
 
     // Event delegation para editar/excluir acordo
@@ -7487,3 +7499,99 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }, 1000);
 });
+
+
+window.abrirModalEditarPedido = async function(orderId) {
+  const origemRef = doc(window.db, 'orders', orderId);
+  const origemSnap = await getDoc(origemRef);
+  if (!origemSnap.exists()) return Swal.fire("Pedido não encontrado");
+  const origemData = origemSnap.data();
+  const clienteCpf = origemData.clienteCpf;
+  // Busca todos os pedidos do mesmo cliente (exceto o atual)
+  const pedidosSnapshot = await getDocs(query(collection(window.db, 'orders'), where('clienteCpf', '==', clienteCpf)));
+  const pedidosDestino = [];
+  pedidosSnapshot.forEach(docu => {
+    if (docu.id !== orderId) pedidosDestino.push({ id: docu.id, ...docu.data() });
+  });
+  if (!pedidosDestino.length) return Swal.fire("Nenhum outro pedido deste cliente para duplicar itens.");
+
+  // Monta HTML do modal
+  let itensHtml = origemData.items.map(item => `
+    <tr>
+      <td>${item.name}</td>
+      <td>${item.quantity}</td>
+      <td>
+        <select class="pedido-destino" data-item-id="${item.id}">
+          <option value="">Selecione o pedido destino</option>
+          ${pedidosDestino.map(p => `<option value="${p.id}">${p.orderNumber || p.id}</option>`).join('')}
+        </select>
+        <button class="btn-duplicar-item" data-item-id="${item.id}" style="margin-left:8px;">Duplicar</button>
+      </td>
+    </tr>
+  `).join('');
+  Swal.fire({
+    title: 'Duplicar item para outro pedido',
+    html: `<table style="width:100%;font-size:1em;">
+      <tr><th>Produto</th><th>Qtd</th><th>Duplicar para</th></tr>
+      ${itensHtml}
+    </table>
+    <div style="font-size:0.95em;color:#888;margin-top:8px;">A duplicação soma a quantidade ao destino, sem remover do pedido atual.</div>`,
+    showCancelButton: true,
+    showConfirmButton: false,
+    width: 700,
+    didOpen: () => {
+      document.querySelectorAll('.btn-duplicar-item').forEach(btn => {
+        btn.onclick = async function() {
+          const itemId = this.getAttribute('data-item-id');
+          const select = document.querySelector(`.pedido-destino[data-item-id="${itemId}"]`);
+          const destinoId = select.value;
+          if (!destinoId) {
+            Swal.showValidationMessage('Selecione o pedido destino.');
+            return;
+          }
+          await window.duplicarItemPedido(orderId, destinoId, itemId);
+        };
+      });
+    }
+  });
+};
+
+// Função para duplicar item
+window.duplicarItemPedido = async function(origemId, destinoId, itemId) {
+  const origemRef = doc(window.db, 'orders', origemId);
+  const destinoRef = doc(window.db, 'orders', destinoId);
+
+  const origemSnap = await getDoc(origemRef);
+  const destinoSnap = await getDoc(destinoRef);
+
+  if (!origemSnap.exists() || !destinoSnap.exists()) return;
+
+  const origemData = origemSnap.data();
+  const destinoData = destinoSnap.data();
+
+  const itemParaDuplicar = origemData.items.find(item => String(item.id) === String(itemId));
+  if (!itemParaDuplicar) return;
+
+  let destinoItems = [...(destinoData.items || [])];
+  const idx = destinoItems.findIndex(i => String(i.productId) === String(itemParaDuplicar.productId));
+  if (idx >= 0) {
+    // Soma quantidade
+    destinoItems[idx].quantity += itemParaDuplicar.quantity;
+    // Sempre recalcula o subtotal corretamente
+    const precoUnitario = Number(destinoItems[idx].price || destinoItems[idx].pixPrice || 0);
+    destinoItems[idx].subtotal = precoUnitario * destinoItems[idx].quantity;
+  } else {
+    // Ao adicionar novo, já calcula subtotal corretamente
+    const precoUnitario = Number(itemParaDuplicar.price || itemParaDuplicar.pixPrice || 0);
+    destinoItems.push({ ...itemParaDuplicar, subtotal: precoUnitario * itemParaDuplicar.quantity });
+  }
+  // Recalcula subtotal de todos os itens
+  destinoItems = destinoItems.map(i => ({
+    ...i,
+    subtotal: Number(i.price || i.pixPrice || 0) * Number(i.quantity || 1)
+  }));
+  const novoTotal = destinoItems.reduce((sum, i) => sum + (i.subtotal || 0), 0);
+
+  await updateDoc(destinoRef, { items: destinoItems, total: novoTotal });
+  Swal.fire('Item duplicado com sucesso!', '', 'success');
+};
