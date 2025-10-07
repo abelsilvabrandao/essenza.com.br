@@ -1,5 +1,5 @@
 // Gerenciamento de estoque
-
+import "./enviar-cobranca.js";
 // Delegated event handler for Remove Gift buttons
 if (!window._removeGiftBtnDelegationAttached) {
   document.addEventListener("click", async function (e) {
