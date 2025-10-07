@@ -19,7 +19,8 @@ async function carregarClientes() {
         celular: dados.celular || '',
         genero: dados.genero || '',
         dataNascimento: dados.dataNascimento || '',
-        cpf: doc.id
+        cpf: doc.id,
+        endereco: dados.endereco || null // <-- adiciona o campo endereço
       });
     });
     return clientes;
@@ -77,7 +78,12 @@ window.renderClientesAdmin = async function() {
         <div style="font-size:0.95em;color:#555;"><span style='font-weight:bold;'>Nasc.:</span> ${c.dataNascimento ? c.dataNascimento : '-'} &nbsp;&nbsp;<span style='font-weight:bold;'>CPF:</span> ${c.cpf ? '<span style=\'letter-spacing:1px;\'>' + mascararCpf(c.cpf) + '</span>' : '-'}</div>
         <div style="font-size:0.95em;color:#555;"><span style='font-weight:bold;'>E-mail:</span> ${c.email}</div>
         <div style="font-size:0.95em;color:#555;"><span style='font-weight:bold;'>Telefone:</span> ${c.celular}</div>
-      </td>
+    ${c.endereco ? `<div style="font-size:0.95em;color:#555;">
+      <span style='font-weight:bold;'>Endereço:</span>
+      ${c.endereco.rua || ''}, ${c.endereco.numero || ''}${c.endereco.complemento ? ' - ' + c.endereco.complemento : ''}<br>
+      ${c.endereco.bairro || ''}, ${c.endereco.cidade || ''} - ${c.endereco.estado || ''} | CEP: ${c.endereco.cep || ''}
+    </div>` : ''}
+  </td>
       <td style="vertical-align:top;word-break:break-word;">${pedidos.length ? pedidos.map(p =>
         `<span style='white-space:nowrap;'>${p.orderNumber} <button class='btn btn-xs btn-unlink-order' data-order='${p.id}' title='Desvincular pedido' style='color:#fff;background:#e94b4b;font-size:1.08em;margin-left:4px;padding:0 8px 0 8px;border:none;border-radius:50%;font-weight:bold;line-height:1.4;box-shadow:0 1px 4px #0002;cursor:pointer;transition:background 0.18s;'>×</button></span>`
       ).join('<br>') : '<span style=\'color:#999\'>Nenhum</span>'}</td>
