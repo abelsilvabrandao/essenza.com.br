@@ -370,20 +370,18 @@ await Swal.fire({
   allowEscapeKey: false,
   focusConfirm: false,
   preConfirm: () => {
-    // Extrai e formata o telefone do campo do formulário
-    const celInput = document.querySelector('#cel');
-    let phoneNumber = celInput ? celInput.value.replace(/\D/g, '') : '';
-    // Corrige para formato 11 dígitos (adiciona 9 se necessário)
-    if (phoneNumber.length === 10) {
-      phoneNumber = phoneNumber.substring(0,2) + '9' + phoneNumber.substring(2);
-    }
-    if (phoneNumber.length < 10) {
-      Swal.fire('Erro', 'Número de telefone inválido.', 'error');
+    // Corrigir: pegar número do campo #cel
+    let celField = document.querySelector('#cel');
+    let celValue = celField ? celField.value.trim() : '';
+    let phone = celValue.replace(/\D/g, '');
+    if (phone.length === 10) phone = phone.substring(0,2) + '9' + phone.substring(2);
+    if (phone.length < 11) {
+      Swal.showValidationMessage('Celular inválido para WhatsApp');
       return false;
     }
-    const url = `https://wa.me/55${phoneNumber}?text=${encodeURIComponent(whatsappMsg)}`;
+    const url = `https://wa.me/55${phone}?text=${encodeURIComponent(whatsappMsg)}`;
     window.open(url, '_blank');
-    return false;
+    return false; // Impede o fechamento do modal
   },
   didOpen: () => {
     const btn = document.getElementById('copyPixBtn');
@@ -429,16 +427,7 @@ setTimeout(() => {
       e.stopImmediatePropagation();
       // Desabilita o botão temporariamente para evitar duplo clique
       swalBtn.disabled = true;
-      const celInput = document.querySelector('#cel');
-      let phoneNumber = celInput ? celInput.value.replace(/\D/g, '') : '';
-      if (phoneNumber.length === 10) {
-        phoneNumber = phoneNumber.substring(0,2) + '9' + phoneNumber.substring(2);
-      }
-      if (phoneNumber.length < 10) {
-        Swal.fire('Erro', 'Número de telefone inválido.', 'error');
-        return;
-      }
-      const url = `https://wa.me/55${phoneNumber}?text=${encodeURIComponent(whatsappMsg)}`;
+      const url = `https://wa.me/5571991427989?text=${encodeURIComponent(whatsappMsg)}`;
       window.open(url, '_blank');
       setTimeout(() => {
         swalBtn.disabled = false;

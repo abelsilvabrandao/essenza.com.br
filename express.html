@@ -196,7 +196,7 @@
   <div class="bar">
     <div class="inner">
       <div class="total">Total: <span id="total">R$ 0,00</span></div>
-      <button id="shareWA" class="btn btn-ghost btn-sm" title="Compartilhar no WhatsApp">Compartilhar</button>
+      <button id="shareWA" class="btn btn-ghost btn-sm" title="Demonstrar Pedido no WhatsApp">Demonstrar Pedido <i class="fab fa-whatsapp" style="color:#25d366;"></i></button>
       <button id="finish" class="btn btn-brand">Encerrar Pedido</button>
     </div>
   </div>
@@ -406,7 +406,7 @@ window.cart = cart; // Expor para patch
 window.formaSelecionada = window.formaSelecionada || 'Pix';
 let formaSelecionada = window.formaSelecionada;
     // Carregar produtos reais ao iniciar
-    async function carregarProdutosExpress() {
+    window.addEventListener('DOMContentLoaded', async () => {
   products = await loadProducts();
   window.products = products;
   // Preencher filtro de categoria
@@ -419,16 +419,7 @@ let formaSelecionada = window.formaSelecionada;
   const orderSel = document.getElementById('orderFilter');
   if(orderSel) orderSel.addEventListener('change', ()=> renderList(document.getElementById('q').value));
   renderList('');
-}
-
-window.addEventListener('DOMContentLoaded', carregarProdutosExpress);
-// Fallback: tenta carregar produtos após 1s se não houver nenhum carregado
-setTimeout(() => {
-  if (!window.products || window.products.length === 0) {
-    carregarProdutosExpress();
-  }
-}, 1000);
-
+});
     function saveProducts(list){ localStorage.setItem(STORAGE_PRODUCTS, JSON.stringify(list)); }
 
     function loadOrders(){
@@ -765,10 +756,29 @@ renderList(el('#q').value);
     // O botão #finish agora é controlado pelo vendas-feedback.js (window.finalize)
     // Não adicionar event listener duplicado aqui.
         el('#shareWA').addEventListener('click', ()=>{
-      const orders = loadOrders();
-      const last = orders[orders.length-1];
-      if(!last){ toast('Nenhum pedido para compartilhar'); return; }
-      shareWhatsApp(last);
+      const nome = el('#nome')?.value.trim();
+      const cel = el('#cel')?.value.trim();
+      if (!cel) { toast('Informe o celular do cliente no formulário'); return; }
+      // Limpa o número para formato internacional
+      let phone = cel.replace(/\D/g, '');
+      if (phone.length === 10) phone = phone.substring(0,2) + '9' + phone.substring(2); // força 9 dígitos se necessário
+      if (phone.length < 11) { toast('Celular inválido para WhatsApp'); return; }
+      // Monta a mensagem igual finalize
+      const cart = window.cart || [];
+      const products = window.products || [];
+      let msg = `*Visualização Pedido Essenza Express*`;
+      if (nome) msg += `\nCliente: ${nome}`;
+      msg += `\nTelefone: ${cel}`;
+      msg += `\n\n*Itens:*`;
+      for(const it of cart){
+        const p = products.find(x=>x.id===it.id);
+        const valor = p ? (window.formaSelecionada==='Pix' && p.precoPix && p.precoPix<p.preco ? p.precoPix : p.preco) : it.preco;
+        msg += `\n- ${it.qty}x ${it.nome} - R$ ${(valor*it.qty).toLocaleString('pt-BR',{minimumFractionDigits:2})}`;
+      }
+      msg += `\n\nTotal: R$ ${cartTotal().toLocaleString('pt-BR',{minimumFractionDigits:2})}`;
+      msg += `\n\nhttps://essenzasite.vercel.app/`;
+      const url = `https://wa.me/55${phone}?text=${encodeURIComponent(msg)}`;
+      window.open(url, '_blank');
     });
     // Limpar filtro de busca
     el('#clearFilter').addEventListener('click', ()=>{
