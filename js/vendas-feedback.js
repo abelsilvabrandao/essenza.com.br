@@ -370,9 +370,20 @@ await Swal.fire({
   allowEscapeKey: false,
   focusConfirm: false,
   preConfirm: () => {
-    const url = `https://wa.me/5571991427989?text=${encodeURIComponent(whatsappMsg)}`;
+    // Extrai e formata o telefone do campo do formulário
+    const celInput = document.querySelector('#cel');
+    let phoneNumber = celInput ? celInput.value.replace(/\D/g, '') : '';
+    // Corrige para formato 11 dígitos (adiciona 9 se necessário)
+    if (phoneNumber.length === 10) {
+      phoneNumber = phoneNumber.substring(0,2) + '9' + phoneNumber.substring(2);
+    }
+    if (phoneNumber.length < 10) {
+      Swal.fire('Erro', 'Número de telefone inválido.', 'error');
+      return false;
+    }
+    const url = `https://wa.me/55${phoneNumber}?text=${encodeURIComponent(whatsappMsg)}`;
     window.open(url, '_blank');
-    return false; // Impede o fechamento do modal
+    return false;
   },
   didOpen: () => {
     const btn = document.getElementById('copyPixBtn');
@@ -418,7 +429,16 @@ setTimeout(() => {
       e.stopImmediatePropagation();
       // Desabilita o botão temporariamente para evitar duplo clique
       swalBtn.disabled = true;
-      const url = `https://wa.me/5571991427989?text=${encodeURIComponent(whatsappMsg)}`;
+      const celInput = document.querySelector('#cel');
+      let phoneNumber = celInput ? celInput.value.replace(/\D/g, '') : '';
+      if (phoneNumber.length === 10) {
+        phoneNumber = phoneNumber.substring(0,2) + '9' + phoneNumber.substring(2);
+      }
+      if (phoneNumber.length < 10) {
+        Swal.fire('Erro', 'Número de telefone inválido.', 'error');
+        return;
+      }
+      const url = `https://wa.me/55${phoneNumber}?text=${encodeURIComponent(whatsappMsg)}`;
       window.open(url, '_blank');
       setTimeout(() => {
         swalBtn.disabled = false;

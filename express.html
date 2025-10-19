@@ -406,7 +406,7 @@ window.cart = cart; // Expor para patch
 window.formaSelecionada = window.formaSelecionada || 'Pix';
 let formaSelecionada = window.formaSelecionada;
     // Carregar produtos reais ao iniciar
-    window.addEventListener('DOMContentLoaded', async () => {
+    async function carregarProdutosExpress() {
   products = await loadProducts();
   window.products = products;
   // Preencher filtro de categoria
@@ -419,7 +419,16 @@ let formaSelecionada = window.formaSelecionada;
   const orderSel = document.getElementById('orderFilter');
   if(orderSel) orderSel.addEventListener('change', ()=> renderList(document.getElementById('q').value));
   renderList('');
-});
+}
+
+window.addEventListener('DOMContentLoaded', carregarProdutosExpress);
+// Fallback: tenta carregar produtos após 1s se não houver nenhum carregado
+setTimeout(() => {
+  if (!window.products || window.products.length === 0) {
+    carregarProdutosExpress();
+  }
+}, 1000);
+
     function saveProducts(list){ localStorage.setItem(STORAGE_PRODUCTS, JSON.stringify(list)); }
 
     function loadOrders(){
