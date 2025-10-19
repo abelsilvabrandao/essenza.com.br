@@ -122,7 +122,15 @@ async function syncEssenzaUserFromFirestore(user) {
         name: data.name || data.nome || user.displayName || '',
         cpf: cpf
       };
-      localStorage.setItem('essenzaUser', JSON.stringify(essenzaUser));
+      // Preserva telefone/celular se já existirem no localStorage
+try {
+  const oldUser = JSON.parse(localStorage.getItem('essenzaUser'));
+  if (oldUser) {
+    essenzaUser.celular = essenzaUser.celular || oldUser.celular || oldUser.phone || '';
+    essenzaUser.phone = essenzaUser.phone || oldUser.phone || oldUser.celular || '';
+  }
+} catch {}
+localStorage.setItem('essenzaUser', JSON.stringify(essenzaUser));
       console.log('[Essenza][sync] essenzaUser salvo no localStorage:', essenzaUser);
     } else {
       console.warn('[Essenza][sync] Documento do cliente NÃO existe para CPF:', cpf);
@@ -141,7 +149,8 @@ onAuthStateChanged(auth, async user => {
     // Usuário fez login
     console.log('[Essenza][debug] Usuário autenticado, sincronizando dados...');
     await syncEssenzaUserFromFirestore(user);
-    
+    // Preencher o formulário do checkout após login, mesmo sem restaurar carrinho
+    if (typeof autofillCheckoutForm === 'function') autofillCheckoutForm();
     // Se não havia usuário logado anteriormente, restaurar carrinho salvo
     if (!previousUser) {
       const savedCart = loadCartFromLocalStorage();
@@ -154,6 +163,8 @@ onAuthStateChanged(auth, async user => {
           updateCartState();
           // Limpar o carrinho salvo após restaurar
           clearSavedCart();
+          // Preencher o formulário do checkout imediatamente após login
+          if (typeof autofillCheckoutForm === 'function') autofillCheckoutForm();
         } else {
           console.log('[Essenza] Carrinho não vazio, mantendo itens atuais');
         }
@@ -216,7 +227,15 @@ async function toggleFavorite(productId) {
   }
   // Atualiza localStorage imediatamente
   essenzaUser.favoritos = newFavs;
-  localStorage.setItem('essenzaUser', JSON.stringify(essenzaUser));
+  // Preserva telefone/celular se já existirem no localStorage
+try {
+  const oldUser = JSON.parse(localStorage.getItem('essenzaUser'));
+  if (oldUser) {
+    essenzaUser.celular = essenzaUser.celular || oldUser.celular || oldUser.phone || '';
+    essenzaUser.phone = essenzaUser.phone || oldUser.phone || oldUser.celular || '';
+  }
+} catch {}
+localStorage.setItem('essenzaUser', JSON.stringify(essenzaUser));
   // Atualiza também o objeto window.products para UX instantânea
   if (window.products && Array.isArray(window.products)) {
     window.products.forEach(prod => {
@@ -244,7 +263,15 @@ async function toggleFavorite(productId) {
       const clienteDoc = await getDoc(clienteRef);
       const serverFavs = (clienteDoc.exists() && clienteDoc.data().favoritos) || [];
       essenzaUser.favoritos = serverFavs;
-      localStorage.setItem('essenzaUser', JSON.stringify(essenzaUser));
+      // Preserva telefone/celular se já existirem no localStorage
+try {
+  const oldUser = JSON.parse(localStorage.getItem('essenzaUser'));
+  if (oldUser) {
+    essenzaUser.celular = essenzaUser.celular || oldUser.celular || oldUser.phone || '';
+    essenzaUser.phone = essenzaUser.phone || oldUser.phone || oldUser.celular || '';
+  }
+} catch {}
+localStorage.setItem('essenzaUser', JSON.stringify(essenzaUser));
       renderProductList();
       if (typeof renderSpecialOffersCarousel === 'function') renderSpecialOffersCarousel();
     } catch {}
@@ -784,7 +811,15 @@ async function renderProductList() {
                         // Atualiza o localStorage com os favoritos do Firestore
                         if (essenzaUser) {
                             essenzaUser.favoritos = userFavorites;
-                            localStorage.setItem('essenzaUser', JSON.stringify(essenzaUser));
+                            // Preserva telefone/celular se já existirem no localStorage
+                        try {
+                        const oldUser = JSON.parse(localStorage.getItem('essenzaUser'));
+                        if (oldUser) {
+                        essenzaUser.celular = essenzaUser.celular || oldUser.celular || oldUser.phone || '';
+                        essenzaUser.phone = essenzaUser.phone || oldUser.phone || oldUser.celular || '';
+                        }
+                    } catch {}
+                    localStorage.setItem('essenzaUser', JSON.stringify(essenzaUser));
                         }
                     }
                 } catch (e) {
@@ -1627,10 +1662,9 @@ async function updateCartState() {
         
         // Se o carrinho estiver vazio, limpar do localStorage
         if (cart.length === 0) {
-            clearSavedCart();
-        } else if (!isLoggedIn) {
-            // Caso contrário, salvar o carrinho atualizado se não estiver logado
-            saveCartToLocalStorage();
+        clearSavedCart();
+        } else {
+        saveCartToLocalStorage();
         }
         
         // Se houver uma lista de produtos, renderizar novamente para atualizar as mensagens de estoque

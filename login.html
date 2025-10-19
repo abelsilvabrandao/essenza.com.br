@@ -550,14 +550,15 @@ window.addEventListener('DOMContentLoaded', function() {
         if (clienteData) {
           // Salva dados completos no localStorage
           localStorage.setItem('essenzaUser', JSON.stringify({
-            email: clienteData.email,
-            name: clienteData.nome,
-            uid: clienteData.uid,
-            cpf: clienteData.cpf,
-            sobrenome: clienteData.sobrenome,
-            celular: clienteData.celular,
-            genero: clienteData.genero,
-            dataNascimento: clienteData.dataNascimento
+          email: clienteData.email,
+          name: clienteData.nome,
+          uid: clienteData.uid,
+          cpf: clienteData.cpf,
+          sobrenome: clienteData.sobrenome,
+          celular: clienteData.celular,
+          phone: clienteData.celular, // <-- adicione esta linha
+          genero: clienteData.genero,
+          dataNascimento: clienteData.dataNascimento
           }));
           loginMsg.style.color = '#3ec486';
           loginMsg.textContent = 'Login realizado com sucesso! Redirecionando...';
@@ -605,7 +606,14 @@ window.addEventListener('DOMContentLoaded', function() {
         favoritos: [],
         pedidos: []
         });
-        localStorage.setItem('essenzaUser', JSON.stringify({email: user.email, name: user.displayName, uid: user.uid, cpf}));
+        localStorage.setItem('essenzaUser', JSON.stringify({
+        email: user.email, 
+        name: user.displayName, 
+        uid: user.uid, 
+        cpf,
+        phone: formRegister.registerPhone.value, // <-- adicione esta linha
+        celular: formRegister.registerPhone.value // <-- adicione esta linha
+        }));
         loginMsg.style.color = '#3ec486';
         loginMsg.textContent = 'Cadastro realizado com sucesso! Redirecionando...';
         setTimeout(() => { window.location.href = '/'; }, 1200);
@@ -644,7 +652,14 @@ window.addEventListener('DOMContentLoaded', function() {
           favoritos: [],
           pedidos: []
         });
-        localStorage.setItem('essenzaUser', JSON.stringify({email: userCred.user.email, name, uid: userCred.user.uid, cpf}));
+        localStorage.setItem('essenzaUser', JSON.stringify({
+        email: userCred.user.email, 
+        name, 
+        uid: userCred.user.uid, 
+        cpf,
+        phone: formRegister.registerPhone.value, // <-- adicione esta linha
+        celular: formRegister.registerPhone.value // <-- adicione esta linha
+        }));
         loginMsg.style.color = '#3ec486';
         loginMsg.textContent = 'Cadastro realizado com sucesso! Redirecionando...';
         setTimeout(() => { window.location.href = '/'; }, 1200);
@@ -687,7 +702,7 @@ window.addEventListener('DOMContentLoaded', function() {
             if (!querySnapshot.empty) {
               // Cliente já cadastrado
               clienteDoc = querySnapshot.docs[0];
-              localStorage.setItem('essenzaUser', JSON.stringify({email: user.email, name: user.displayName, uid: user.uid, cpf: clienteDoc.id}));
+              localStorage.setItem('essenzaUser', JSON.stringify({email: user.email, name: user.displayName, uid: user.uid, cpf: clienteDoc.id, telefone: user.celular}));
               loginMsg.style.color = '#3ec486';
               loginMsg.textContent = 'Login realizado com sucesso! Redirecionando...';
               setTimeout(() => { window.location.href = '/'; }, 1200);
